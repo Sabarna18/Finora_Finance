@@ -1,0 +1,411 @@
+
+/* =====================================================
+   src/styles/globals.css
+   Finance Tracker Global Styles
+===================================================== */
+
+@import "tailwindcss";
+
+/* -----------------------------------------------------
+   ROOT VARIABLES
+----------------------------------------------------- */
+:root {
+
+  /* COLORS */
+  --background: #09090b;
+  --foreground: #fafafa;
+
+  --card: #111111;
+  --card-foreground: #fafafa;
+
+  --border: #27272a;
+
+  --primary: #7c3aed;
+  --primary-hover: #6d28d9;
+
+  --secondary: #18181b;
+
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+
+  --success: #22c55e;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+
+  /* RADII */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  /* SHADOWS */
+  --shadow-sm:
+    0 1px 2px rgba(0, 0, 0, 0.1);
+
+  --shadow-md:
+    0 8px 24px rgba(0, 0, 0, 0.15);
+
+  --shadow-lg:
+    0 16px 40px rgba(0, 0, 0, 0.25);
+
+}
+
+
+/* -----------------------------------------------------
+   BASE
+----------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+
+html {
+  scroll-behavior: smooth;
+}
+
+
+body {
+
+  margin: 0;
+  padding: 0;
+
+  min-height: 100vh;
+
+  background:
+    var(--background);
+
+  color:
+    var(--foreground);
+
+  font-family:
+    Inter,
+    system-ui,
+    sans-serif;
+
+  text-rendering:
+    optimizeLegibility;
+
+  -webkit-font-smoothing:
+    antialiased;
+
+  -moz-osx-font-smoothing:
+    grayscale;
+}
+
+
+/* -----------------------------------------------------
+   TYPOGRAPHY
+----------------------------------------------------- */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+
+  margin: 0;
+
+  font-weight: 700;
+
+  letter-spacing: -0.03em;
+
+  color:
+    var(--foreground);
+}
+
+
+p {
+  margin: 0;
+  color:
+    var(--muted-foreground);
+}
+
+
+a {
+
+  color: inherit;
+
+  text-decoration: none;
+}
+
+
+/* -----------------------------------------------------
+   BUTTON RESET
+----------------------------------------------------- */
+button {
+
+  border: none;
+
+  outline: none;
+
+  cursor: pointer;
+
+  font: inherit;
+
+  background: transparent;
+}
+
+
+/* -----------------------------------------------------
+   INPUTS
+----------------------------------------------------- */
+input,
+textarea,
+select {
+
+  width: 100%;
+
+  border:
+    1px solid var(--border);
+
+  background:
+    #111111;
+
+  color:
+    var(--foreground);
+
+  border-radius:
+    var(--radius-md);
+
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+
+  font: inherit;
+}
+
+
+input:focus,
+textarea:focus,
+select:focus {
+
+  outline: none;
+
+  border-color:
+    rgba(124, 58, 237, 0.7);
+
+  box-shadow:
+    0 0 0 4px rgba(124, 58, 237, 0.15);
+}
+
+
+input::placeholder,
+textarea::placeholder {
+  color:
+    #71717a;
+}
+
+
+/* -----------------------------------------------------
+   SCROLLBAR
+----------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+
+::-webkit-scrollbar-track {
+  background:
+    #0f0f10;
+}
+
+
+::-webkit-scrollbar-thumb {
+
+  background:
+    #27272a;
+
+  border-radius:
+    999px;
+}
+
+
+::-webkit-scrollbar-thumb:hover {
+  background:
+    #3f3f46;
+}
+
+
+/* -----------------------------------------------------
+   SELECTION
+----------------------------------------------------- */
+::selection {
+
+  background:
+    rgba(124, 58, 237, 0.3);
+
+  color:
+    #ffffff;
+}
+
+
+/* -----------------------------------------------------
+   LAYOUT HELPERS
+----------------------------------------------------- */
+.container-app {
+
+  width: 100%;
+
+  max-width: 1440px;
+
+  margin-inline: auto;
+
+  padding-inline: 1rem;
+}
+
+
+.section-spacing {
+  margin-top: 1.5rem;
+}
+
+
+.card {
+
+  border:
+    1px solid var(--border);
+
+  background:
+    var(--card);
+
+  border-radius:
+    var(--radius-xl);
+
+  box-shadow:
+    var(--shadow-sm);
+}
+
+
+.glass {
+
+  background:
+    rgba(255, 255, 255, 0.04);
+
+  backdrop-filter:
+    blur(12px);
+
+  border:
+    1px solid rgba(255, 255, 255, 0.06);
+}
+
+
+/* -----------------------------------------------------
+   UTILITIES
+----------------------------------------------------- */
+.text-muted {
+  color:
+    var(--muted-foreground);
+}
+
+
+.text-success {
+  color:
+    var(--success);
+}
+
+
+.text-danger {
+  color:
+    var(--danger);
+}
+
+
+.text-warning {
+  color:
+    var(--warning);
+}
+
+
+.border-subtle {
+  border:
+    1px solid var(--border);
+}
+
+
+.bg-primary {
+  background:
+    var(--primary);
+}
+
+
+.bg-secondary {
+  background:
+    var(--secondary);
+}
+
+
+/* -----------------------------------------------------
+   TRANSITIONS
+----------------------------------------------------- */
+button,
+input,
+select,
+textarea,
+a {
+
+  transition:
+    all 0.2s ease;
+}
+
+
+/* -----------------------------------------------------
+   IMAGE DEFAULTS
+----------------------------------------------------- */
+img {
+
+  display: block;
+
+  max-width: 100%;
+}
+
+
+/* -----------------------------------------------------
+   DISABLED
+----------------------------------------------------- */
+button:disabled,
+input:disabled {
+
+  opacity: 0.6;
+
+  cursor: not-allowed;
+}
+
+
+/* -----------------------------------------------------
+   LOADING ANIMATION
+----------------------------------------------------- */
+@keyframes pulse-soft {
+
+  0% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.6;
+  }
+
+}
+
+
+.animate-pulse-soft {
+  animation:
+    pulse-soft 1.5s ease-in-out infinite;
+}
+
+
+/* -----------------------------------------------------
+   RESPONSIVE
+----------------------------------------------------- */
+@media (max-width: 768px) {
+
+  .container-app {
+    padding-inline: 0.75rem;
+  }
+
+}

@@ -1,0 +1,261 @@
+finance-tracker/
+│
+├── .gitignore
+├── README.md
+├── LICENSE
+├── docker-compose.yml
+├── Makefile
+├── .env.example
+│
+├── docs/
+│   ├── architecture/
+│   │   ├── backend.md
+│   │   ├── frontend.md
+│   │   ├── database.md
+│   │   └── deployment.md
+│   │
+│   ├── api/
+│   │   ├── auth.md
+│   │   ├── users.md
+│   │   ├── categories.md
+│   │   ├── transactions.md
+│   │   ├── budgets.md
+│   │   ├── dashboard.md
+│   │   └── reports.md
+│   │
+│   └── diagrams/
+│       ├── er-diagram.png
+│       ├── request-flow.png
+│       └── deployment.png
+│
+├── scripts/
+│   ├── bootstrap.sh
+│   ├── reset_db.sh
+│   ├── seed_data.py
+│   ├── backup_db.sh
+│   └── restore_db.sh
+│
+├── infrastructure/
+│   │
+│   ├── docker/
+│   │   ├── backend.Dockerfile
+│   │   ├── frontend.Dockerfile
+│   │   └── nginx.conf
+│   │
+│   ├── nginx/
+│   │   └── production.conf
+│   │
+│   └── github-actions/
+│       ├── backend-ci.yml
+│       ├── frontend-ci.yml
+│       └── deploy.yml
+│
+├── backend/
+│   │
+│   ├── .env
+│   ├── .env.example
+│   ├── pyproject.toml
+│   ├── uv.lock
+│   ├── alembic.ini
+│   ├── main.py
+│   │
+│   ├── logs/
+│   │   ├── app.log
+│   │   └── error.log
+│   │
+│   ├── migrations/
+│   │   ├── env.py
+│   │   ├── script.py.mako
+│   │   │
+│   │   └── versions/
+│   │       ├── 001_initial.py
+│   │       ├── 002_add_phone.py
+│   │       └── ...
+│   │
+│   ├── tests/
+│   │   ├── conftest.py
+│   │   ├── unit/
+│   │   ├── integration/
+│   │   └── e2e/
+│   │
+│   └── src/
+│       │
+│       ├── app.py
+│       │
+│       ├── api/
+│       │   ├── auth.py
+│       │   ├── users.py
+│       │   ├── categories.py
+│       │   ├── transactions.py
+│       │   ├── budgets.py
+│       │   ├── dashboard.py
+│       │   └── reports.py
+│       │
+│       ├── core/
+│       │   ├── config.py
+│       │   ├── logger.py
+│       │   ├── security.py
+│       │   ├── middleware.py
+│       │   ├── constants.py
+│       │   └── exceptions.py
+│       │
+│       ├── db/
+│       │   ├── database.py
+│       │   ├── models.py
+│       │   ├── schemas.py
+│       │   └── seed.py
+│       │
+│       ├── services/
+│       │   ├── auth_service.py
+│       │   ├── users_service.py
+│       │   ├── category_service.py
+│       │   ├── transaction_service.py
+│       │   ├── budget_service.py
+│       │   ├── dashboard_service.py
+│       │   └── reports_service.py
+│       │
+│       ├── repositories/
+│       │   ├── user_repository.py
+│       │   ├── category_repository.py
+│       │   ├── transaction_repository.py
+│       │   ├── budget_repository.py
+│       │   └── report_repository.py
+│       │
+│       ├── utils/
+│       │   ├── validators.py
+│       │   ├── dates.py
+│       │   ├── currency.py
+│       │   └── pagination.py
+│       │
+│       └── __init__.py
+│
+│
+└── frontend/
+    │
+    ├── .env
+    ├── .env.example
+    ├── package.json
+    ├── tsconfig.json
+    ├── vite.config.ts
+    ├── tailwind.config.ts
+    │
+    ├── public/
+    │   ├── favicon.ico
+    │   ├── logo.svg
+    │   └── manifest.json
+    │
+    ├── tests/
+    │   ├── unit/
+    │   ├── integration/
+    │   └── e2e/
+    │
+    └── src/
+        │
+        ├── main.tsx
+        ├── App.tsx
+        │
+        ├── api/
+        │   ├── client.ts
+        │   ├── axios.ts
+        │   ├── auth.api.ts
+        │   ├── users.api.ts
+        │   ├── categories.api.ts
+        │   ├── transactions.api.ts
+        │   ├── budgets.api.ts
+        │   ├── dashboard.api.ts
+        │   └── reports.api.ts
+        │
+        ├── app/
+        │   ├── router.tsx
+        │   ├── query-client.ts
+        │   └── providers.tsx
+        │
+        ├── assets/
+        │   ├── icons/
+        │   ├── images/
+        │   └── fonts/
+        │
+        ├── routes/
+        │   └── ProtectedRoute.tsx
+        │
+        ├── pages/
+        │   ├── LoginPage.tsx
+        │   ├── RegisterPage.tsx
+        │   ├── DashboardPage.tsx
+        │   ├── TransactionsPage.tsx
+        │   ├── CategoriesPage.tsx
+        │   ├── BudgetsPage.tsx
+        │   ├── ReportsPage.tsx
+        │   └── SettingsPage.tsx
+        │
+        ├── hooks/
+        │   ├── useLogin.ts
+        │   ├── useRegister.ts
+        │   ├── useUsers.ts
+        │   ├── useCategories.ts
+        │   ├── useTransactions.ts
+        │   ├── useBudgets.ts
+        │   ├── useDashboard.ts
+        │   └── useReports.ts
+        │
+        ├── store/
+        │   ├── auth.store.ts
+        │   ├── theme.store.ts
+        │   └── ui.store.ts
+        │
+        ├── types/
+        │   ├── api.ts
+        │   ├── auth.types.ts
+        │   ├── user.types.ts
+        │   ├── category.types.ts
+        │   ├── transaction.types.ts
+        │   ├── budget.types.ts
+        │   ├── dashboard.types.ts
+        │   └── report.types.ts
+        │
+        ├── components/
+        │   │
+        │   ├── ui/
+        │   │   ├── Button.tsx
+        │   │   ├── Input.tsx
+        │   │   ├── Modal.tsx
+        │   │   ├── Spinner.tsx
+        │   │   └── Badge.tsx
+        │   │
+        │   ├── forms/
+        │   │   ├── LoginForm.tsx
+        │   │   ├── RegisterForm.tsx
+        │   │   ├── TransactionForm.tsx
+        │   │   ├── BudgetForm.tsx
+        │   │   └── CategoryForm.tsx
+        │   │
+        │   ├── layout/
+        │   │   ├── Sidebar.tsx
+        │   │   ├── Header.tsx
+        │   │   ├── Footer.tsx
+        │   │   ├── AppLayout.tsx
+        │   │   └── UserMenu.tsx
+        │   │
+        │   ├── charts/
+        │   │   ├── ExpensePieChart.tsx
+        │   │   ├── BudgetBarChart.tsx
+        │   │   └── TrendChart.tsx
+        │   │
+        │   └── tables/
+        │       ├── TransactionTable.tsx
+        │       └── BudgetTable.tsx
+        │
+        ├── constants/
+        │   ├── routes.ts
+        │   ├── query-keys.ts
+        │   └── theme.ts
+        │
+        ├── utils/
+        │   ├── dates.ts
+        │   ├── currency.ts
+        │   ├── validation.ts
+        │   └── formatters.ts
+        │
+        └── styles/
+            ├── globals.css
+            └── theme.css
