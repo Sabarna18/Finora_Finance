@@ -50,9 +50,7 @@ def test_register_user(client):
 
     assert data["name"] == "Test User"
 
-    assert data["email"] == (
-        "register@finora.com"
-    )
+    assert data["email"] == ("register@finora.com")
 
     # Sensitive password data must never
     # appear in the response.
@@ -82,7 +80,6 @@ def test_register_duplicate_email(client):
     )
 
     assert first_response.status_code == 201
-
 
     second_response = client.post(
         "/api/v1/auth/register",
@@ -182,7 +179,6 @@ def test_login_user(client):
 
     assert registration_response.status_code == 201
 
-
     response = client.post(
         "/api/v1/auth/login",
         data={
@@ -227,7 +223,6 @@ def test_login_wrong_password(client):
     )
 
     assert registration_response.status_code == 201
-
 
     response = client.post(
         "/api/v1/auth/login",
@@ -346,8 +341,7 @@ def test_get_current_user_with_invalid_token(
     response = client.get(
         "/api/v1/auth/me",
         headers={
-            "Authorization":
-                "Bearer invalid-token",
+            "Authorization": "Bearer invalid-token",
         },
     )
 

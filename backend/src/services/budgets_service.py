@@ -3,37 +3,36 @@
 # ==================================================
 
 from datetime import datetime
-from typing import Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import (
     HTTPException,
     status,
 )
-
-from sqlalchemy.orm import Session
-
-from src.db.models import (
-    Budget,
-    Category,
-    User,
-)
-
 from sqlalchemy import func
-
-from src.db.models import (
-    Transaction,
-    TransactionType,
-)
+from sqlalchemy.orm import Session
 
 from src.core.logger import (
     get_logger,
 )
+from src.db.models import (
+    Budget,
+    Category,
+    Transaction,
+    TransactionType,
+    User,
+)
 
 logger = get_logger("budgets")
 
+# ==================================================
+# APPLICATION TIMEZONE
+# ==================================================
+
+INDIA_TZ = ZoneInfo("Asia/Kolkata")
+
 
 class BudgetService:
-
     # ----------------------------------------------
     # CREATE
     # ----------------------------------------------
@@ -43,7 +42,6 @@ class BudgetService:
         current_user: User,
         payload,
     ):
-
         logger.info(
             f"Budget create attempt: "
             f"user_id={current_user.id}, "
@@ -53,7 +51,6 @@ class BudgetService:
 
         # Validate category ownership
         if payload.category_id:
-
             category = (
                 db.query(Category)
                 .filter(
@@ -64,7 +61,6 @@ class BudgetService:
             )
 
             if not category:
-
                 logger.warning(
                     f"Invalid category in budget: "
                     f"user_id={current_user.id}, "
@@ -72,7 +68,7 @@ class BudgetService:
                 )
 
                 raise HTTPException(
-                    status_code=(status.HTTP_404_NOT_FOUND),
+                    status_code=status.HTTP_404_NOT_FOUND,
                     detail="Category not found",
                 )
 
@@ -89,7 +85,6 @@ class BudgetService:
         )
 
         if existing:
-
             logger.warning(
                 f"Duplicate budget attempt: "
                 f"user_id={current_user.id}, "
@@ -98,17 +93,16 @@ class BudgetService:
             )
 
             raise HTTPException(
-                status_code=(status.HTTP_409_CONFLICT),
-                detail=("Budget already exists " "for this period"),
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Budget already exists for this period",
             )
 
         try:
-
             budget = Budget(
                 amount=payload.amount,
                 month=payload.month,
                 year=payload.year,
-                category_id=(payload.category_id),
+                category_id=payload.category_id,
                 user_id=current_user.id,
             )
 
@@ -117,17 +111,13 @@ class BudgetService:
             db.refresh(budget)
 
             logger.info(
-                f"Budget created: "
-                f"budget_id={budget.id}, "
-                f"user_id={current_user.id}"
+                f"Budget created: budget_id={budget.id}, user_id={current_user.id}"
             )
 
             return budget
 
         except Exception:
-
-            logger.exception(f"Budget creation failed: " f"user_id={current_user.id}")
-
+            logger.exception(f"Budget creation failed: user_id={current_user.id}")
             raise
 
     # ----------------------------------------------
@@ -137,10 +127,9 @@ class BudgetService:
     def list_budgets(
         db: Session,
         current_user: User,
-        month: Optional[int] = None,
-        year: Optional[int] = None,
+        month: int | None = None,
+        year: int | None = None,
     ):
-
         logger.info(
             f"Budget list requested: "
             f"user_id={current_user.id}, "
@@ -162,9 +151,7 @@ class BudgetService:
         ).all()
 
         logger.info(
-            f"Budget list returned: "
-            f"user_id={current_user.id}, "
-            f"count={len(results)}"
+            f"Budget list returned: user_id={current_user.id}, count={len(results)}"
         )
 
         return results
@@ -177,10 +164,16 @@ class BudgetService:
         db: Session,
         current_user: User,
     ):
+        # Current calendar period is evaluated using
+        # the application's business timezone.
+        now = datetime.now(INDIA_TZ)
 
-        now = datetime.utcnow()
-
-        logger.info(f"Current month budgets requested: " f"user_id={current_user.id}")
+        logger.info(
+            f"Current month budgets requested: "
+            f"user_id={current_user.id}, "
+            f"month={now.month}, "
+            f"year={now.year}"
+        )
 
         results = (
             db.query(Budget)
@@ -209,7 +202,6 @@ class BudgetService:
         current_user: User,
         budget_id: int,
     ):
-
         budget = (
             db.query(Budget)
             .filter(
@@ -220,21 +212,16 @@ class BudgetService:
         )
 
         if not budget:
-
             logger.warning(
-                f"Budget not found: "
-                f"budget_id={budget_id}, "
-                f"user_id={current_user.id}"
+                f"Budget not found: budget_id={budget_id}, user_id={current_user.id}"
             )
 
             raise HTTPException(
-                status_code=(status.HTTP_404_NOT_FOUND),
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="Budget not found",
             )
 
-        logger.info(
-            f"Budget fetched: " f"budget_id={budget.id}, " f"user_id={current_user.id}"
-        )
+        logger.info(f"Budget fetched: budget_id={budget.id}, user_id={current_user.id}")
 
         return budget
 
@@ -248,11 +235,8 @@ class BudgetService:
         budget_id: int,
         payload,
     ):
-
         logger.info(
-            f"Budget update attempt: "
-            f"budget_id={budget_id}, "
-            f"user_id={current_user.id}"
+            f"Budget update attempt: budget_id={budget_id}, user_id={current_user.id}"
         )
 
         budget = BudgetService.get_budget(
@@ -264,8 +248,7 @@ class BudgetService:
         updates = payload.model_dump(exclude_unset=True)
 
         # Validate category
-        if "category_id" in updates and updates["category_id"]:
-
+        if updates.get("category_id"):
             category = (
                 db.query(Category)
                 .filter(
@@ -276,15 +259,12 @@ class BudgetService:
             )
 
             if not category:
-
                 logger.warning(
-                    f"Invalid category "
-                    f"during budget update: "
-                    f"budget_id={budget_id}"
+                    f"Invalid category during budget update: budget_id={budget_id}"
                 )
 
                 raise HTTPException(
-                    status_code=(status.HTTP_404_NOT_FOUND),
+                    status_code=status.HTTP_404_NOT_FOUND,
                     detail="Category not found",
                 )
 
@@ -306,20 +286,17 @@ class BudgetService:
         )
 
         if duplicate:
-
-            logger.warning(f"Duplicate budget update: " f"budget_id={budget_id}")
+            logger.warning(f"Duplicate budget update: budget_id={budget_id}")
 
             raise HTTPException(
-                status_code=(status.HTTP_409_CONFLICT),
-                detail=("Another budget exists " "for this period"),
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Another budget exists for this period",
             )
 
         db.commit()
         db.refresh(budget)
 
-        logger.info(
-            f"Budget updated: " f"budget_id={budget.id}, " f"user_id={current_user.id}"
-        )
+        logger.info(f"Budget updated: budget_id={budget.id}, user_id={current_user.id}")
 
         return budget
 
@@ -332,11 +309,8 @@ class BudgetService:
         current_user: User,
         budget_id: int,
     ):
-
         logger.warning(
-            f"Budget delete attempt: "
-            f"budget_id={budget_id}, "
-            f"user_id={current_user.id}"
+            f"Budget delete attempt: budget_id={budget_id}, user_id={current_user.id}"
         )
 
         budget = BudgetService.get_budget(
@@ -349,22 +323,20 @@ class BudgetService:
         db.commit()
 
         logger.warning(
-            f"Budget deleted: " f"budget_id={budget.id}, " f"user_id={current_user.id}"
+            f"Budget deleted: budget_id={budget.id}, user_id={current_user.id}"
         )
 
-        return {"message": ("Budget deleted successfully")}
+        return {"message": "Budget deleted successfully"}
 
     # ----------------------------------------------
-    #   budget service
+    # BUDGET STATUS
     # ----------------------------------------------
-
     @staticmethod
     def get_budget_status(
         db: Session,
         current_user: User,
         budget_id: int,
     ):
-
         budget = BudgetService.get_budget(
             db=db,
             current_user=current_user,
@@ -383,12 +355,19 @@ class BudgetService:
 
         # Category budget
         if budget.category_id:
-
             query = query.filter(Transaction.category_id == budget.category_id)
 
         query = query.filter(
-            func.extract("month", Transaction.date) == budget.month,
-            func.extract("year", Transaction.date) == budget.year,
+            func.extract(
+                "month",
+                Transaction.date,
+            )
+            == budget.month,
+            func.extract(
+                "year",
+                Transaction.date,
+            )
+            == budget.year,
         )
 
         spent = query.scalar() or 0
@@ -401,16 +380,11 @@ class BudgetService:
         # HEALTH STATUS
         # ----------------------------------------------
         if percentage >= 100:
-
-            status = "Exceeded"
-
+            budget_status = "Exceeded"
         elif percentage >= 80:
-
-            status = "Warning"
-
+            budget_status = "Warning"
         else:
-
-            status = "Healthy"
+            budget_status = "Healthy"
 
         return {
             "budget_id": budget.id,
@@ -420,7 +394,7 @@ class BudgetService:
             "spent_amount": spent,
             "remaining_amount": remaining,
             "percentage_used": round(percentage, 2),
-            "status": status,
+            "status": budget_status,
             "month": budget.month,
             "year": budget.year,
         }

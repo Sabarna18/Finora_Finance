@@ -1,27 +1,13 @@
+// ======================================================// src/pages/BudgetsPage.tsx
 // ======================================================
-// src/pages/BudgetsPage.tsx
-// ======================================================
 
-import {
-  useState,
-} from "react";
-
-import type {
-  Budget,
-} from "../types/api";
-
+import { useState } from "react";
+import type { Budget, BudgetCreate } from "../types/api";
 import BudgetForm from "../components/forms/BudgetForm";
 import BudgetFilters from "../components/ui/BudgetFilters";
 import BudgetsTable from "../components/cards/BudgetsTable";
-
-import {
-  useCategories,
-} from "../hooks/useCategories";
-
-import {
-  useBudgetStatuses,
-} from "../hooks/useBudgetStatus";
-
+import { useCategories } from "../hooks/useCategories";
+import { useBudgetStatuses } from "../hooks/useBudgetStatus";
 import {
   useBudgets,
   useCreateBudget,
@@ -29,181 +15,119 @@ import {
   useDeleteBudget,
 } from "../hooks/useBudgets";
 
-
 export default function BudgetsPage() {
-
   // ====================================================
   // DEFAULT MONTH / YEAR
   // ====================================================
-  const today =
-    new Date();
 
-  const [
-    month,
-    setMonth,
-  ] = useState<number>(
-    today.getMonth() + 1
+  const today = new Date();
+
+  const [month, setMonth] = useState<number>(
+    today.getMonth() + 1,
   );
 
-  const [
-    year,
-    setYear,
-  ] = useState<number>(
-    today.getFullYear()
+  const [year, setYear] = useState<number>(
+    today.getFullYear(),
   );
 
-  const [
-    editingBudget,
-    setEditingBudget,
-  ] = useState<
-    Budget | undefined
-  >();
+  const [editingBudget, setEditingBudget] =
+    useState<Budget | undefined>();
 
   // ====================================================
   // BUDGETS
   // ====================================================
+
   const {
-
     data: budgets = [],
-
-    isLoading:
-    budgetsLoading,
-
+    isLoading: budgetsLoading,
   } = useBudgets({
-
     month,
-
     year,
-
   });
 
   // ====================================================
   // BUDGET STATUSES
   // ====================================================
+
   const {
-
     data: statuses = [],
-
-    isLoading:
-    statusesLoading,
-
-  } = useBudgetStatuses(
-
-    month,
-
-    year,
-
-  );
+    isLoading: statusesLoading,
+  } = useBudgetStatuses(month, year);
 
   // ====================================================
   // CATEGORIES
   // ====================================================
+
   const {
-
     data: categories = [],
-
   } = useCategories();
 
   // ====================================================
   // MUTATIONS
   // ====================================================
-  const createMutation =
-    useCreateBudget();
 
-  const updateMutation =
-    useUpdateBudget();
-
-  const deleteMutation =
-    useDeleteBudget();
+  const createMutation = useCreateBudget();
+  const updateMutation = useUpdateBudget();
+  const deleteMutation = useDeleteBudget();
 
   // ====================================================
   // CREATE / UPDATE
   // ====================================================
-  function handleSubmit(
-    payload: any
-  ) {
 
-    if (
-      editingBudget
-    ) {
-
+  function handleSubmit(payload: BudgetCreate) {
+    if (editingBudget) {
       updateMutation.mutate({
-
-        budgetId:
-          editingBudget.id,
-
+        budgetId: editingBudget.id,
         payload,
-
       });
 
-      setEditingBudget(
-        undefined
-      );
-
+      setEditingBudget(undefined);
       return;
-
     }
 
-    createMutation.mutate(
-      payload
-    );
-
+    createMutation.mutate(payload);
   }
 
   // ====================================================
   // DELETE
   // ====================================================
-  function handleDelete(
-    budgetId: number
-  ) {
 
-    const confirmed =
-      window.confirm(
-        "Delete this budget?"
-      );
+  function handleDelete(budgetId: number) {
+    const confirmed = window.confirm(
+      "Delete this budget?",
+    );
 
     if (!confirmed) {
       return;
     }
 
-    deleteMutation.mutate(
-      budgetId
-    );
-
+    deleteMutation.mutate(budgetId);
   }
 
   const isLoading =
-    budgetsLoading ||
-    statusesLoading;
+    budgetsLoading || statusesLoading;
 
   // ====================================================
   // UI
   // ====================================================
+
   return (
-
-    <div
-      className="
-        space-y-6
-      "
-    >
-
+    <div className="space-y-6">
       {/* =========================================
           PAGE HEADER
       ========================================= */}
+
       <div
         className="
           flex
           flex-col
           gap-4
-
           lg:flex-row
           lg:items-center
           lg:justify-between
         "
       >
-
         <div>
-
           <h1
             className="
               text-2xl
@@ -222,170 +146,105 @@ export default function BudgetsPage() {
             Create, monitor and manage
             monthly spending budgets.
           </p>
-
         </div>
 
         <BudgetFilters
-
           month={month}
-
           year={year}
-
-          onMonthChange={
-            (value) =>
-              setMonth(
-                value ??
-                (
-                  today.getMonth() + 1
-                )
-              )
+          onMonthChange={(value) =>
+            setMonth(
+              value ??
+                (today.getMonth() + 1),
+            )
           }
-
-          onYearChange={
-            (value) =>
-              setYear(
-                value ??
-                today.getFullYear()
-              )
+          onYearChange={(value) =>
+            setYear(
+              value ??
+                today.getFullYear(),
+            )
           }
-
         />
-
       </div>
 
       {/* =========================================
           CONTENT
       ========================================= */}
-      {/* =========================================
-    CONTENT
-========================================= */}
-      <div
-        className="
-    space-y-6
-  "
-      >
 
+      <div className="space-y-6">
         {/* ===============================
-      TABLE
-  =============================== */}
+            TABLE
+        =============================== */}
+
         <div>
-
           {isLoading ? (
-
             <div
               className="
-          rounded-2xl
-          border
-          p-8
-          text-center
-        "
+                rounded-2xl
+                border
+                p-8
+                text-center
+              "
             >
               Loading budgets...
             </div>
-
           ) : (
-
             <BudgetsTable
-
-              budgets={
-                budgets
-              }
-
-              categories={
-                categories
-              }
-
-              statuses={
-                statuses
-              }
-
-              onEdit={
-                setEditingBudget
-              }
-
-              onDelete={
-                handleDelete
-              }
-
+              budgets={budgets}
+              categories={categories}
+              statuses={statuses}
+              onEdit={setEditingBudget}
+              onDelete={handleDelete}
             />
-
           )}
-
         </div>
 
         {/* ===============================
-      FORM
-  =============================== */}
+            FORM
+        =============================== */}
+
         <div
           className="
-      rounded-2xl
-      border
-      p-6
-    "
+            rounded-2xl
+            border
+            p-6
+          "
         >
-
-          <div
-            className="
-        mb-6
-      "
-          >
-
+          <div className="mb-6">
             <h2
               className="
-          text-lg
-          font-semibold
-        "
+                text-lg
+                font-semibold
+              "
             >
-
               {editingBudget
-
                 ? "Edit Budget"
-
                 : "Create Budget"}
-
             </h2>
 
             <p
               className="
-          mt-1
-          text-sm
-          text-zinc-500
-        "
+                mt-1
+                text-sm
+                text-zinc-500
+              "
             >
-
               {editingBudget
-
                 ? "Update an existing budget."
-
                 : "Create a new monthly budget."}
-
             </p>
-
           </div>
 
           <BudgetForm
-
-            budget={
-              editingBudget
-            }
-
+            budget={editingBudget}
             loading={
               createMutation.isPending ||
               updateMutation.isPending
             }
-
-            onSubmit={
-              handleSubmit
-            }
-
+            onSubmit={handleSubmit}
           />
-
         </div>
-
       </div>
-
     </div>
-
   );
-
 }
+

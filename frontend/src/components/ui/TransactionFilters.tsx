@@ -14,8 +14,11 @@ import {
 } from "lucide-react";
 
 import {
-    TransactionListParams,
     TransactionType,
+} from "../../api/transactions.api";
+
+import type {
+    TransactionListParams,
 } from "../../api/transactions.api";
 
 
@@ -107,6 +110,11 @@ export default function TransactionFilters({
     // ==================================================
     useEffect(() => {
 
+        // This state update is intentional.
+        // The component maintains a local editable draft
+        // that must synchronize when the parent filters change.
+
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDraftFilters(
             filters
         );
@@ -190,12 +198,9 @@ export default function TransactionFilters({
         <div
             className="
                 rounded-3xl
-
                 border
                 border-zinc-800
-
                 bg-zinc-950
-
                 p-5
             "
         >
@@ -206,7 +211,6 @@ export default function TransactionFilters({
             <div
                 className="
                     mb-6
-
                     flex
                     items-center
                     gap-2
@@ -224,7 +228,6 @@ export default function TransactionFilters({
                     className="
                         text-sm
                         font-semibold
-
                         text-white
                     "
                 >
@@ -241,9 +244,7 @@ export default function TransactionFilters({
                 className="
                     grid
                     gap-4
-
                     md:grid-cols-2
-
                     xl:grid-cols-5
                 "
             >
@@ -259,10 +260,8 @@ export default function TransactionFilters({
                         className="
                             mb-2
                             block
-
                             text-xs
                             font-medium
-
                             text-zinc-400
                         "
                     >
@@ -279,55 +278,40 @@ export default function TransactionFilters({
                             size={16}
                             className="
                                 absolute
-
                                 left-3
                                 top-1/2
-
                                 -translate-y-1/2
-
                                 text-zinc-500
                             "
                         />
 
                         <input
-
                             type="text"
-
                             placeholder="
                                 Search description...
                             "
-
                             value={
                                 draftFilters.search
                                 ?? ""
                             }
-
                             onChange={(e) =>
                                 updateFilter(
                                     "search",
                                     e.target.value
                                 )
                             }
-
                             className="
                                 w-full
-
                                 rounded-xl
-
                                 border
                                 border-zinc-700
-
                                 bg-zinc-900
-
                                 py-2.5
                                 pl-10
                                 pr-4
-
                                 text-sm
                                 text-white
-
                                 outline-none
-
                                 focus:border-violet-500
                             "
                         />
@@ -344,10 +328,8 @@ export default function TransactionFilters({
                         className="
                             mb-2
                             block
-
                             text-xs
                             font-medium
-
                             text-zinc-400
                         "
                     >
@@ -355,37 +337,27 @@ export default function TransactionFilters({
                     </label>
 
                     <select
-
                         value={
                             draftFilters.type
                             ?? ""
                         }
-
                         onChange={(e) =>
                             updateFilter(
                                 "type",
                                 e.target.value
                             )
                         }
-
                         className="
                             w-full
-
                             rounded-xl
-
                             border
                             border-zinc-700
-
                             bg-zinc-900
-
                             px-3
                             py-2.5
-
                             text-sm
                             text-white
-
                             outline-none
-
                             focus:border-violet-500
                         "
                     >
@@ -422,10 +394,8 @@ export default function TransactionFilters({
                         className="
                             mb-2
                             block
-
                             text-xs
                             font-medium
-
                             text-zinc-400
                         "
                     >
@@ -433,44 +403,31 @@ export default function TransactionFilters({
                     </label>
 
                     <select
-
                         value={
                             draftFilters.month
                             ?? ""
                         }
-
                         onChange={(e) =>
                             updateFilter(
-
                                 "month",
-
                                 e.target.value
                                     ? Number(
                                         e.target.value
                                     )
                                     : ""
-
                             )
                         }
-
                         className="
                             w-full
-
                             rounded-xl
-
                             border
                             border-zinc-700
-
                             bg-zinc-900
-
                             px-3
                             py-2.5
-
                             text-sm
                             text-white
-
                             outline-none
-
                             focus:border-violet-500
                         "
                     >
@@ -483,15 +440,12 @@ export default function TransactionFilters({
                             (month) => (
 
                                 <option
-
                                     key={
                                         month.value
                                     }
-
                                     value={
                                         month.value
                                     }
-
                                 >
                                     {month.label}
                                 </option>
@@ -511,10 +465,8 @@ export default function TransactionFilters({
                         className="
                             mb-2
                             block
-
                             text-xs
                             font-medium
-
                             text-zinc-400
                         "
                     >
@@ -522,44 +474,31 @@ export default function TransactionFilters({
                     </label>
 
                     <select
-
                         value={
                             draftFilters.year
                             ?? ""
                         }
-
                         onChange={(e) =>
                             updateFilter(
-
                                 "year",
-
                                 e.target.value
                                     ? Number(
                                         e.target.value
                                     )
                                     : ""
-
                             )
                         }
-
                         className="
                             w-full
-
                             rounded-xl
-
                             border
                             border-zinc-700
-
                             bg-zinc-900
-
                             px-3
                             py-2.5
-
                             text-sm
                             text-white
-
                             outline-none
-
                             focus:border-violet-500
                         "
                     >
@@ -572,11 +511,8 @@ export default function TransactionFilters({
                             (year) => (
 
                                 <option
-
                                     key={year}
-
                                     value={year}
-
                                 >
                                     {year}
                                 </option>
@@ -596,10 +532,8 @@ export default function TransactionFilters({
                         className="
                             mb-2
                             block
-
                             text-xs
                             font-medium
-
                             text-zinc-400
                         "
                     >
@@ -607,44 +541,31 @@ export default function TransactionFilters({
                     </label>
 
                     <select
-
                         value={
                             draftFilters.week
                             ?? ""
                         }
-
                         onChange={(e) =>
                             updateFilter(
-
                                 "week",
-
                                 e.target.value
                                     ? Number(
                                         e.target.value
                                     )
                                     : ""
-
                             )
                         }
-
                         className="
                             w-full
-
                             rounded-xl
-
                             border
                             border-zinc-700
-
                             bg-zinc-900
-
                             px-3
                             py-2.5
-
                             text-sm
                             text-white
-
                             outline-none
-
                             focus:border-violet-500
                         "
                     >
@@ -682,35 +603,25 @@ export default function TransactionFilters({
             <div
                 className="
                     mt-6
-
                     flex
                     justify-end
-
                     gap-3
                 "
             >
 
                 <button
-
                     onClick={
                         handleReset
                     }
-
                     className="
                         rounded-xl
-
                         border
                         border-zinc-700
-
                         px-4
                         py-2
-
                         text-sm
-
                         text-zinc-300
-
                         transition-all
-
                         hover:border-zinc-500
                         hover:text-white
                     "
@@ -720,26 +631,18 @@ export default function TransactionFilters({
 
 
                 <button
-
                     onClick={
                         handleApply
                     }
-
                     className="
                         rounded-xl
-
                         bg-violet-600
-
                         px-5
                         py-2
-
                         text-sm
                         font-medium
-
                         text-white
-
                         transition-all
-
                         hover:bg-violet-500
                     "
                 >
@@ -753,3 +656,4 @@ export default function TransactionFilters({
     );
 
 }
+

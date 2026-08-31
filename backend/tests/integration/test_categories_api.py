@@ -250,8 +250,7 @@ def test_get_categories(
     assert isinstance(data, list)
 
     assert any(
-        category["name"] == "Food"
-        and category["type"] == "expense"
+        category["name"] == "Food" and category["type"] == "expense"
         for category in data
     )
 
@@ -320,10 +319,7 @@ def test_get_income_categories(
 
     assert isinstance(data, list)
 
-    assert all(
-        category["type"] == "income"
-        for category in data
-    )
+    assert all(category["type"] == "income" for category in data)
 
 
 # ============================================================
@@ -371,10 +367,7 @@ def test_get_expense_categories(
 
     assert isinstance(data, list)
 
-    assert all(
-        category["type"] == "expense"
-        for category in data
-    )
+    assert all(category["type"] == "expense" for category in data)
 
 
 # ============================================================

@@ -493,10 +493,7 @@ def test_list_transactions_by_type(
 
     data = response.json()
 
-    assert all(
-        transaction["type"] == "expense"
-        for transaction in data
-    )
+    assert all(transaction["type"] == "expense" for transaction in data)
 
 
 # ============================================================
@@ -546,10 +543,7 @@ def test_list_transactions_search(
 
     data = response.json()
 
-    assert any(
-        transaction["description"] == "Grocery shopping"
-        for transaction in data
-    )
+    assert any(transaction["description"] == "Grocery shopping" for transaction in data)
 
 
 # ============================================================
@@ -595,10 +589,7 @@ def test_list_transactions_by_month(
 
     data = response.json()
 
-    assert all(
-        transaction["date"].startswith("2026-08")
-        for transaction in data
-    )
+    assert all(transaction["date"].startswith("2026-08") for transaction in data)
 
 
 # ============================================================
@@ -635,10 +626,7 @@ def test_list_transactions_by_year(
 
     data = response.json()
 
-    assert all(
-        transaction["date"].startswith("2026-")
-        for transaction in data
-    )
+    assert all(transaction["date"].startswith("2026-") for transaction in data)
 
 
 # ============================================================

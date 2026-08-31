@@ -3,8 +3,8 @@
 // ======================================================
 
 import {
-    useEffect,
     useState,
+    type FormEvent,
 } from "react";
 
 import type {
@@ -12,79 +12,72 @@ import type {
 } from "../../api/settings.api";
 
 interface Props {
-
     profile?: UserProfile;
-
     loading: boolean;
-
     onSubmit: (
         payload: {
             name: string;
             email: string;
         }
     ) => void;
-
 }
 
 export default function ProfileCard({
-
     profile,
-
     loading,
-
     onSubmit,
-
 }: Props) {
+    // ====================================================
+    // FORM STATE
+    // ====================================================
 
-    const [name, setName] =
-        useState("");
+    const [
+        name,
+        setName,
+    ] = useState(
+        profile?.name ?? ""
+    );
 
-    const [email, setEmail] =
-        useState("");
+    const [
+        email,
+        setEmail,
+    ] = useState(
+        profile?.email ?? ""
+    );
 
-
-    useEffect(() => {
-
-        if (!profile) {
-            return;
-        }
-
-        setName(profile.name);
-        setEmail(profile.email);
-
-    }, [profile]);
-
+    // ====================================================
+    // SUBMIT
+    // ====================================================
 
     function handleSubmit(
-        e: React.FormEvent
+        e: FormEvent
     ) {
-
         e.preventDefault();
 
         onSubmit({
             name: name.trim(),
             email: email.trim(),
         });
-
     }
 
+    // ====================================================
+    // UI
+    // ====================================================
 
     return (
-
         <section
             className="
-        rounded-2xl
-        border
-        bg-zinc-900
-        p-6
-      "
+                rounded-2xl
+                border
+                bg-zinc-900
+                p-6
+            "
         >
-
             <h2
                 className="
-          text-lg
-          font-semibold
-        "
+                    text-lg
+                    font-semibold
+                "
             >
                 Profile Information
             </h2>
@@ -92,20 +85,18 @@ export default function ProfileCard({
             <form
                 onSubmit={handleSubmit}
                 className="
-          mt-6
-          space-y-4
-        "
+                    mt-6
+                    space-y-4
+                "
             >
-
                 <div>
-
                     <label
                         className="
-              mb-2
-              block
-              text-sm
-              font-medium
-            "
+                            mb-2
+                            block
+                            text-sm
+                            font-medium
+                        "
                     >
                         Name
                     </label>
@@ -118,25 +109,23 @@ export default function ProfileCard({
                             )
                         }
                         className="
-              w-full
-              rounded-xl
-              border
-              px-4
-              py-3
-            "
+                            w-full
+                            rounded-xl
+                            border
+                            px-4
+                            py-3
+                        "
                     />
-
                 </div>
 
                 <div>
-
                     <label
                         className="
-              mb-2
-              block
-              text-sm
-              font-medium
-            "
+                            mb-2
+                            block
+                            text-sm
+                            font-medium
+                        "
                     >
                         Email
                     </label>
@@ -150,39 +139,33 @@ export default function ProfileCard({
                             )
                         }
                         className="
-              w-full
-              rounded-xl
-              border
-              px-4
-              py-3
-            "
+                            w-full
+                            rounded-xl
+                            border
+                            px-4
+                            py-3
+                        "
                     />
-
                 </div>
 
                 <button
                     type="submit"
                     disabled={loading}
                     className="
-            rounded-xl
-            bg-black
-            px-5
-            py-3
-            text-white
-            disabled:opacity-50
-          "
+                        rounded-xl
+                        bg-black
+                        px-5
+                        py-3
+                        text-white
+                        disabled:opacity-50
+                    "
                 >
-
                     {loading
                         ? "Saving..."
                         : "Update Profile"}
-
                 </button>
-
             </form>
-
         </section>
-
     );
-
 }
+

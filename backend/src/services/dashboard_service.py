@@ -3,33 +3,31 @@
 # ==================================================
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import (
-    func,
-    extract,
-)
-
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
-
-from src.services.budgets_service import BudgetService
+from src.core.logger import get_logger
 from src.db.models import (
-    Transaction,
     Budget,
     Category,
+    Transaction,
     TransactionType,
     User,
 )
-
-from src.core.logger import (
-    get_logger,
-)
+from src.services.budgets_service import BudgetService
 
 logger = get_logger("dashboard")
 
+# ==================================================
+# APPLICATION TIMEZONE
+# ==================================================
+
+INDIA_TZ = ZoneInfo("Asia/Kolkata")
+
 
 class DashboardService:
-
     # ----------------------------------------------
     # SUMMARY
     # ----------------------------------------------
@@ -40,12 +38,12 @@ class DashboardService:
         month: int | None = None,
         year: int | None = None,
     ):
-
-        logger.info(f"Dashboard summary requested: " f"user_id={current_user.id}")
+        logger.info(f"Dashboard summary requested: user_id={current_user.id}")
 
         try:
-
-            now = datetime.utcnow()
+            # Use application/business timezone when determining
+            # the default current reporting period.
+            now = datetime.now(INDIA_TZ)
 
             month = month or now.month
             year = year or now.year
@@ -88,7 +86,12 @@ class DashboardService:
 
             count = base_query.count()
 
-            logger.info(f"Dashboard summary generated: " f"user_id={current_user.id}")
+            logger.info(
+                f"Dashboard summary generated: "
+                f"user_id={current_user.id}, "
+                f"month={month}, "
+                f"year={year}"
+            )
 
             return {
                 "month": month,
@@ -100,9 +103,7 @@ class DashboardService:
             }
 
         except Exception:
-
-            logger.exception(f"Dashboard summary failed: " f"user_id={current_user.id}")
-
+            logger.exception(f"Dashboard summary failed: user_id={current_user.id}")
             raise
 
     # ----------------------------------------------
@@ -114,11 +115,9 @@ class DashboardService:
         current_user: User,
         year: int | None = None,
     ):
+        logger.info(f"Monthly trend requested: user_id={current_user.id}")
 
-        logger.info(f"Monthly trend requested: " f"user_id={current_user.id}")
-
-        now = datetime.utcnow()
-
+        now = datetime.now(INDIA_TZ)
         year = year or now.year
 
         rows = (
@@ -148,8 +147,6 @@ class DashboardService:
             .all()
         )
 
-        logger.info(f"Monthly trend generated: " f"user_id={current_user.id}")
-
         result = {
             i: {
                 "month": i,
@@ -160,16 +157,14 @@ class DashboardService:
         }
 
         for row in rows:
-
             month_no = int(row.month)
 
             if row.type == TransactionType.INCOME:
-
                 result[month_no]["income"] = float(row.total)
-
             else:
-
                 result[month_no]["expense"] = float(row.total)
+
+        logger.info(f"Monthly trend generated: user_id={current_user.id}, year={year}")
 
         return {
             "year": year,
@@ -186,10 +181,9 @@ class DashboardService:
         month: int | None = None,
         year: int | None = None,
     ):
+        logger.info(f"Category breakdown requested: user_id={current_user.id}")
 
-        logger.info(f"Category breakdown requested: " f"user_id={current_user.id}")
-
-        now = datetime.utcnow()
+        now = datetime.now(INDIA_TZ)
 
         month = month or now.month
         year = year or now.year
@@ -221,7 +215,12 @@ class DashboardService:
             .all()
         )
 
-        logger.info(f"Category breakdown generated: " f"user_id={current_user.id}")
+        logger.info(
+            f"Category breakdown generated: "
+            f"user_id={current_user.id}, "
+            f"month={month}, "
+            f"year={year}"
+        )
 
         return {
             "month": month,
@@ -245,7 +244,6 @@ class DashboardService:
         month: int,
         year: int,
     ):
-
         budgets = (
             db.query(Budget)
             .filter(
@@ -259,7 +257,6 @@ class DashboardService:
         results = []
 
         for budget in budgets:
-
             results.append(
                 BudgetService.get_budget_status(
                     db,
@@ -267,6 +264,15 @@ class DashboardService:
                     budget.id,
                 )
             )
+
+        logger.info(
+            f"Budget statuses generated: "
+            f"user_id={current_user.id}, "
+            f"month={month}, "
+            f"year={year}, "
+            f"count={len(results)}"
+        )
+
         return results
 
     # ----------------------------------------------
@@ -278,11 +284,8 @@ class DashboardService:
         current_user: User,
         limit: int,
     ):
-
         logger.info(
-            f"Recent transactions requested: "
-            f"user_id={current_user.id}, "
-            f"limit={limit}"
+            f"Recent transactions requested: user_id={current_user.id}, limit={limit}"
         )
 
         rows = (

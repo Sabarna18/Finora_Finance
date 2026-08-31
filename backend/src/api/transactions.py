@@ -2,20 +2,14 @@
 # src/api/v1/endpoints/transactions.py
 # ==================================================
 
-from datetime import date
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, status
-
 from sqlalchemy.orm import Session
 
+from src.core.dependencies import get_current_user
 from src.db.database import get_db
 from src.db.models import User
-
-from src.db.schemas import TransactionCreate, TransactionUpdate, TransactionResponse
-
-from src.core.dependencies import get_current_user
-
+from src.db.schemas import TransactionCreate, TransactionResponse, TransactionUpdate
 from src.services.transaction_service import TransactionService
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
@@ -45,12 +39,12 @@ def create_transaction(
 def list_transactions(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    type: Optional[str] = None,
-    search: Optional[str] = None,
-    category_id: Optional[int] = None,
-    month: Optional[int] = None,
-    year: Optional[int] = None,
-    week: Optional[int] = None,
+    type: str | None = None,
+    search: str | None = None,
+    category_id: int | None = None,
+    month: int | None = None,
+    year: int | None = None,
+    week: int | None = None,
     sort: str = "-date",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

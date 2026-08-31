@@ -18,7 +18,6 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.engine import Connection, Engine
-from sqlalchemy.exc import SQLAlchemyError
 
 from src.core.config import settings
 from src.db.database import DATABASE_URL

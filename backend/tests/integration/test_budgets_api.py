@@ -241,9 +241,7 @@ def test_get_budgets(
     assert len(data) >= 1
 
     assert any(
-        budget["amount"] == 5000
-        and budget["month"] == 8
-        and budget["year"] == 2026
+        budget["amount"] == 5000 and budget["month"] == 8 and budget["year"] == 2026
         for budget in data
     )
 
@@ -293,10 +291,7 @@ def test_get_budgets_by_month(
 
     data = response.json()
 
-    assert all(
-        budget["month"] == 8
-        for budget in data
-    )
+    assert all(budget["month"] == 8 for budget in data)
 
 
 # ============================================================
@@ -344,10 +339,7 @@ def test_get_budgets_by_year(
 
     data = response.json()
 
-    assert all(
-        budget["year"] == 2026
-        for budget in data
-    )
+    assert all(budget["year"] == 2026 for budget in data)
 
 
 # ============================================================
@@ -406,11 +398,7 @@ def test_get_budgets_by_month_and_year(
 
     data = response.json()
 
-    assert all(
-        budget["month"] == 8
-        and budget["year"] == 2026
-        for budget in data
-    )
+    assert all(budget["month"] == 8 and budget["year"] == 2026 for budget in data)
 
 
 # ============================================================

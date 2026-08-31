@@ -6,23 +6,18 @@ from fastapi import (
     APIRouter,
     Depends,
 )
-
 from sqlalchemy.orm import Session
-
-from src.db.database import get_db
-
-from src.db.models import User
-
-from src.db.schemas import (
-    UserResponse,
-    UserUpdate,
-    PasswordChange,
-)
 
 from src.core.dependencies import (
     get_current_user,
 )
-
+from src.db.database import get_db
+from src.db.models import User
+from src.db.schemas import (
+    PasswordChange,
+    UserResponse,
+    UserUpdate,
+)
 from src.services.users_service import (
     UserService,
 )

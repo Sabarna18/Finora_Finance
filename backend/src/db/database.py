@@ -66,7 +66,6 @@ DATABASE_URL = get_database_url()
 # ==========================================================
 
 if settings.DB_TYPE == "sqlite":
-
     engine = create_engine(
         DATABASE_URL,
         connect_args={
@@ -77,7 +76,6 @@ if settings.DB_TYPE == "sqlite":
     )
 
 else:
-
     engine = create_engine(
         DATABASE_URL,
         echo=settings.DEBUG,

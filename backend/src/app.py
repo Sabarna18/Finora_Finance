@@ -9,30 +9,23 @@ from fastapi import (
     Depends,
     FastAPI,
 )
-
 from fastapi.middleware.cors import (
     CORSMiddleware,
 )
-
 from sqlalchemy import text
-
 from sqlalchemy.orm import Session
-
-
-from src.db.database import (
-    get_db,
-)
-
-from src.core.config import (
-    settings,
-)
-
-from src.core.middleware import (
-    LoggingMiddleware,
-)
 
 from src.api.router import (
     api_router,
+)
+from src.core.config import (
+    settings,
+)
+from src.core.middleware import (
+    LoggingMiddleware,
+)
+from src.db.database import (
+    get_db,
 )
 
 # ============================================================

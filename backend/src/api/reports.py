@@ -9,16 +9,13 @@ from fastapi import (
     Depends,
     Query,
 )
-
 from sqlalchemy.orm import Session
-
-from src.db.database import get_db
-from src.db.models import User
 
 from src.core.dependencies import (
     get_current_user,
 )
-
+from src.db.database import get_db
+from src.db.models import User
 from src.services.reports_service import (
     ReportsService,
 )

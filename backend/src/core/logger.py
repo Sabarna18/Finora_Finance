@@ -3,10 +3,9 @@
 # Production-grade application logging
 # ==================================================
 
+import logging
 import os
 import uuid
-import logging
-
 from contextvars import ContextVar
 from logging.handlers import (
     RotatingFileHandler,
@@ -74,7 +73,6 @@ class RequestIDFilter(logging.Filter):
 # NON ERROR FILTER
 # ==================================================
 class NonErrorFilter(logging.Filter):
-
     def filter(
         self,
         record,
@@ -103,13 +101,7 @@ def setup_logger():
     # Formatter
     # ------------------------------
     formatter = logging.Formatter(
-        (
-            "%(asctime)s | "
-            "%(levelname)s | "
-            "%(name)s | "
-            "req=%(request_id)s | "
-            "%(message)s"
-        )
+        "%(asctime)s | %(levelname)s | %(name)s | req=%(request_id)s | %(message)s"
     )
 
     request_filter = RequestIDFilter()

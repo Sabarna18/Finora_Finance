@@ -2,7 +2,6 @@
 # src/api/v1/endpoints/categories.py
 # ==================================================
 
-from typing import List
 
 from fastapi import (
     APIRouter,
@@ -10,25 +9,20 @@ from fastapi import (
     Query,
     status,
 )
-
 from sqlalchemy.orm import Session
-
-from src.db.database import get_db
-
-from src.db.models import (
-    TransactionType,
-    User,
-)
-
-from src.db.schemas import (
-    CategoryCreate,
-    CategoryResponse,
-)
 
 from src.core.dependencies import (
     get_current_user,
 )
-
+from src.db.database import get_db
+from src.db.models import (
+    TransactionType,
+    User,
+)
+from src.db.schemas import (
+    CategoryCreate,
+    CategoryResponse,
+)
 from src.services.category_service import (
     CategoryService,
 )
@@ -58,7 +52,7 @@ def create_category(
 
 @router.get(
     "/",
-    response_model=List[CategoryResponse],
+    response_model=list[CategoryResponse],
 )
 def get_categories(
     category_type: TransactionType | None = Query(

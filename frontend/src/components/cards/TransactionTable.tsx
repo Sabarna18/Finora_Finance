@@ -3,55 +3,40 @@
 // ======================================================
 
 import {
-    useEffect,
     useMemo,
     useState,
 } from "react";
 
-import TransactionRow
-    from "./TransactionRow";
+import TransactionRow from "./TransactionRow";
 
 import type {
     Category,
 } from "../../types/api";
 
-import {
+import type {
     TransactionResponse,
 } from "../../api/transactions.api";
 
-
 interface Props {
+    transactions: TransactionResponse[];
 
-    transactions:
-    TransactionResponse[];
-
-    categories:
-    Category[];
+    categories: Category[];
 
     onEdit: (
-        transaction:
-            TransactionResponse
+        transaction: TransactionResponse
     ) => void;
 
     onDelete: (
         id: number
     ) => void;
-
 }
 
-
 export default function TransactionTable({
-
     transactions,
-
     categories,
-
     onEdit,
-
     onDelete,
-
 }: Props) {
-
     // ==================================================
     // PAGINATION
     // ==================================================
@@ -60,19 +45,10 @@ export default function TransactionTable({
         setCurrentPage,
     ] = useState(1);
 
-
     const [
         pageSize,
         setPageSize,
     ] = useState(10);
-
-
-    useEffect(() => {
-
-        setCurrentPage(1);
-
-    }, [pageSize]);
-
 
     const totalPages =
         Math.max(
@@ -83,13 +59,11 @@ export default function TransactionTable({
             )
         );
 
-
     const paginatedTransactions =
         useMemo(() => {
-
             const start =
-                (currentPage - 1)
-                * pageSize;
+                (currentPage - 1) *
+                pageSize;
 
             const end =
                 start +
@@ -99,34 +73,25 @@ export default function TransactionTable({
                 start,
                 end
             );
-
         }, [
             transactions,
             currentPage,
             pageSize,
         ]);
 
-
     const startEntry =
         transactions.length === 0
-
             ? 0
-
             : (
-                (
-                    currentPage - 1
-                ) * pageSize
+                (currentPage - 1) *
+                pageSize
             ) + 1;
-
 
     const endEntry =
         Math.min(
-            currentPage *
-            pageSize,
-
+            currentPage * pageSize,
             transactions.length
         );
-
 
     // ==================================================
     // CATEGORY LOOKUP
@@ -136,25 +101,17 @@ export default function TransactionTable({
             () =>
                 new Map(
                     categories.map(
-                        (
-                            category
-                        ) => [
-
-                                category.id,
-
-                                category.name,
-
-                            ]
+                        (category) => [
+                            category.id,
+                            category.name,
+                        ]
                     )
                 ),
             [categories]
         );
 
-
     return (
-
         <div>
-
             {/* ======================================
                 HEADER
             ====================================== */}
@@ -163,22 +120,17 @@ export default function TransactionTable({
                     grid
                     grid-cols-14
                     gap-4
-
                     border-b
                     border-zinc-800
-
                     px-6
                     py-4
-
                     text-xs
                     font-semibold
                     uppercase
                     tracking-wide
-
                     text-zinc-500
                 "
             >
-
                 <div className="col-span-3">
                     Description
                 </div>
@@ -202,96 +154,63 @@ export default function TransactionTable({
                 <div className="col-span-3">
                     Actions
                 </div>
-
             </div>
-
 
             {/* ======================================
                 EMPTY STATE
             ====================================== */}
             {transactions.length === 0 && (
-
                 <div
                     className="
                         px-6
                         py-16
-
                         text-center
                         text-zinc-500
                     "
                 >
                     No transactions found.
                 </div>
-
             )}
-
 
             {/* ======================================
                 ROWS
             ====================================== */}
             {paginatedTransactions.map(
                 (transaction) => (
-
                     <TransactionRow
-
-                        key={
-                            transaction.id
-                        }
-
-                        transaction={
-                            transaction
-                        }
-
+                        key={transaction.id}
+                        transaction={transaction}
                         categoryName={
-
                             transaction.category_id
-
                                 ? categoryMap.get(
                                     transaction.category_id
-                                ) ??
-                                "Unknown"
-
+                                ) ?? "Unknown"
                                 : "Uncategorized"
-
                         }
-
-                        onEdit={
-                            onEdit
-                        }
-
-                        onDelete={
-                            onDelete
-                        }
-
+                        onEdit={onEdit}
+                        onDelete={onDelete}
                     />
-
                 )
             )}
-
 
             {/* ======================================
                 PAGINATION
             ====================================== */}
             {transactions.length > 0 && (
-
                 <div
                     className="
                         flex
                         flex-col
                         gap-4
-
                         border-t
                         border-zinc-800
-
                         px-6
                         py-5
-
                         lg:flex-row
                         lg:items-center
                         lg:justify-between
                     "
                 >
-
                     {/* LEFT */}
                     <div
                         className="
@@ -299,7 +218,6 @@ export default function TransactionTable({
                             text-zinc-400
                         "
                     >
-
                         Showing
 
                         <span
@@ -337,9 +255,7 @@ export default function TransactionTable({
                         </span>
 
                         transactions
-
                     </div>
-
 
                     {/* CENTER */}
                     <div
@@ -349,9 +265,7 @@ export default function TransactionTable({
                             gap-3
                         "
                     >
-
                         <button
-
                             onClick={() =>
                                 setCurrentPage(
                                     (prev) =>
@@ -361,26 +275,18 @@ export default function TransactionTable({
                                         )
                                 )
                             }
-
                             disabled={
                                 currentPage === 1
                             }
-
                             className="
                                 rounded-xl
-
                                 border
                                 border-zinc-700
-
                                 px-4
                                 py-2
-
                                 text-sm
-
                                 transition-all
-
                                 hover:border-violet-500
-
                                 disabled:cursor-not-allowed
                                 disabled:opacity-40
                             "
@@ -388,22 +294,16 @@ export default function TransactionTable({
                             ← Previous
                         </button>
 
-
                         <div
                             className="
                                 rounded-xl
-
                                 border
                                 border-violet-500/20
-
                                 bg-violet-500/10
-
                                 px-4
                                 py-2
-
                                 text-sm
                                 font-medium
-
                                 text-violet-300
                             "
                         >
@@ -412,9 +312,7 @@ export default function TransactionTable({
                             {totalPages}
                         </div>
 
-
                         <button
-
                             onClick={() =>
                                 setCurrentPage(
                                     (prev) =>
@@ -424,36 +322,26 @@ export default function TransactionTable({
                                         )
                                 )
                             }
-
                             disabled={
                                 currentPage ===
                                 totalPages
                             }
-
                             className="
                                 rounded-xl
-
                                 border
                                 border-zinc-700
-
                                 px-4
                                 py-2
-
                                 text-sm
-
                                 transition-all
-
                                 hover:border-violet-500
-
                                 disabled:cursor-not-allowed
                                 disabled:opacity-40
                             "
                         >
                             Next →
                         </button>
-
                     </div>
-
 
                     {/* RIGHT */}
                     <div
@@ -463,7 +351,6 @@ export default function TransactionTable({
                             gap-3
                         "
                     >
-
                         <span
                             className="
                                 text-sm
@@ -474,39 +361,35 @@ export default function TransactionTable({
                         </span>
 
                         <select
-
-                            value={
-                                pageSize
-                            }
-
-                            onChange={(e) =>
-                                setPageSize(
+                            value={pageSize}
+                            onChange={(e) => {
+                                const newPageSize =
                                     Number(
                                         e.target.value
-                                    )
-                                )
-                            }
+                                    );
 
+                                setPageSize(
+                                    newPageSize
+                                );
+
+                                // Preserve the existing behavior:
+                                // changing page size always returns
+                                // the user to the first page.
+                                setCurrentPage(1);
+                            }}
                             className="
                                 rounded-xl
-
                                 border
                                 border-zinc-700
-
                                 bg-zinc-900
-
                                 px-3
                                 py-2
-
                                 text-sm
                                 text-white
-
                                 outline-none
-
                                 focus:border-violet-500
                             "
                         >
-
                             <option value={5}>
                                 5
                             </option>
@@ -522,17 +405,11 @@ export default function TransactionTable({
                             <option value={50}>
                                 50
                             </option>
-
                         </select>
-
                     </div>
-
                 </div>
-
             )}
-
         </div>
-
     );
-
 }
+

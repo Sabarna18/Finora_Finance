@@ -1,12 +1,13 @@
-from pydantic import BaseModel, Field, ConfigDict , EmailStr
-from typing import Optional
-from datetime import datetime, date as DateType
-from enum import Enum
+from datetime import date as DateType
+from datetime import datetime
+from enum import StrEnum
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 # ---------------- ENUM ---------------- #
 
 
-class TransactionType(str, Enum):
+class TransactionType(StrEnum):
     INCOME = "income"
     EXPENSE = "expense"
 
@@ -15,7 +16,6 @@ class TransactionType(str, Enum):
 
 
 class UserBase(BaseModel):
-
     name: str = Field(
         ...,
         max_length=100,
@@ -26,14 +26,13 @@ class UserBase(BaseModel):
         max_length=150,
     )
 
-    phone: Optional[str] = Field(
+    phone: str | None = Field(
         default=None,
         max_length=20,
     )
 
 
 class UserCreate(UserBase):
-
     password: str = Field(
         ...,
         min_length=6,
@@ -41,7 +40,6 @@ class UserCreate(UserBase):
 
 
 class UserResponse(UserBase):
-
     id: int
 
     is_active: bool
@@ -57,20 +55,18 @@ class UserResponse(UserBase):
 
 
 class UserUpdate(BaseModel):
-
-    name: Optional[str] = Field(
+    name: str | None = Field(
         None,
         max_length=100,
     )
 
-    email: Optional[EmailStr] = Field(
+    email: EmailStr | None = Field(
         None,
         max_length=150,
     )
 
 
 class PasswordChange(BaseModel):
-
     current_password: str
 
     new_password: str = Field(
@@ -107,11 +103,11 @@ class TransactionBase(BaseModel):
 
     type: TransactionType
 
-    description: Optional[str] = None
+    description: str | None = None
 
     date: DateType
 
-    category_id: Optional[int] = None
+    category_id: int | None = None
 
 
 class TransactionCreate(TransactionBase):
@@ -119,16 +115,15 @@ class TransactionCreate(TransactionBase):
 
 
 class TransactionUpdate(BaseModel):
+    amount: float | None = Field(None, gt=0)
 
-    amount: Optional[float] = Field(None, gt=0)
+    type: TransactionType | None = None
 
-    type: Optional[TransactionType] = None
+    description: str | None = None
 
-    description: Optional[str] = None
+    date: DateType | None = None
 
-    date: Optional[DateType] = None
-
-    category_id: Optional[int] = None
+    category_id: int | None = None
 
 
 class TransactionResponse(TransactionBase):
@@ -146,7 +141,7 @@ class BudgetBase(BaseModel):
     amount: float = Field(..., gt=0)
     month: int = Field(..., ge=1, le=12)
     year: int = Field(..., ge=2000)
-    category_id: Optional[int] = None
+    category_id: int | None = None
 
 
 class BudgetCreate(BudgetBase):
@@ -154,10 +149,10 @@ class BudgetCreate(BudgetBase):
 
 
 class BudgetUpdate(BaseModel):
-    amount: Optional[float] = Field(None, gt=0)
-    month: Optional[int] = Field(None, ge=1, le=12)
-    year: Optional[int] = Field(None, ge=2000)
-    category_id: Optional[int] = None
+    amount: float | None = Field(None, gt=0)
+    month: int | None = Field(None, ge=1, le=12)
+    year: int | None = Field(None, ge=2000)
+    category_id: int | None = None
 
 
 class BudgetResponse(BudgetBase):
@@ -169,7 +164,6 @@ class BudgetResponse(BudgetBase):
 
 
 class BudgetStatusResponse(BaseModel):
-
     budget_id: int
 
     category_id: int | None

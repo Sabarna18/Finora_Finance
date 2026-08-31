@@ -3,173 +3,139 @@
 // ======================================================
 
 import {
-    useEffect,
     useState,
     type FormEvent,
 } from "react";
 
-import type {
-    Category,
-} from "../../types/api";
-
 import {
     TransactionType,
+    type Category,
 } from "../../types/api";
 
-
 interface CategoryFormProps {
-
     initialData?: Category;
-
     isLoading?: boolean;
-
     onSubmit: (
         payload: {
             name: string;
             type: TransactionType;
-        }
+        },
     ) => void;
-
 }
 
-
 export default function CategoryForm({
-
     initialData,
-
     isLoading,
-
     onSubmit,
-
 }: CategoryFormProps) {
+    // ==================================================
+    // FORM STATE
+    // ==================================================
 
-    const [name, setName] =
-        useState("");
+    const [name, setName] = useState(
+        initialData?.name ?? "",
+    );
 
     const [type, setType] =
         useState<TransactionType>(
-            TransactionType.EXPENSE
+            initialData?.type ??
+            TransactionType.EXPENSE,
         );
 
+    // ==================================================
+    // SUBMIT
+    // ==================================================
 
-    useEffect(() => {
-
-        if (initialData) {
-
-            setName(
-                initialData.name
-            );
-
-            setType(
-                initialData.type
-            );
-
-        }
-
-    }, [initialData]);
-
-
-    function handleSubmit(
-        e: FormEvent
-    ) {
-
+    function handleSubmit(e: FormEvent) {
         e.preventDefault();
 
         onSubmit({
             name: name.trim(),
             type,
         });
-
     }
 
+    // ==================================================
+    // UI
+    // ==================================================
 
     return (
-
         <form
             onSubmit={handleSubmit}
             className="
-        space-y-4
-      "
+                space-y-4
+            "
         >
+            {/* ==========================================
+                NAME
+            ========================================== */}
 
-            {/* NAME */}
             <div>
-
                 <label
                     className="
-            mb-2
-            block
-            text-sm
-            font-medium
-          "
+                        mb-2
+                        block
+                        text-sm
+                        font-medium
+                    "
                 >
                     Category Name
                 </label>
 
                 <input
-
                     type="text"
-
                     value={name}
-
                     onChange={(e) =>
                         setName(
-                            e.target.value
+                            e.target.value,
                         )
                     }
-
                     placeholder="Food"
-
                     className="
-            w-full
-            rounded-xl
-            border
-            px-4
-            py-3
-            outline-none
-          "
-
+                        w-full
+                        rounded-xl
+                        border
+                        px-4
+                        py-3
+                        outline-none
+                    "
                     required
                 />
-
             </div>
 
+            {/* ==========================================
+                TYPE
+            ========================================== */}
 
-            {/* TYPE */}
             <div>
-
                 <label
                     className="
-            mb-2
-            block
-            text-sm
-            font-medium
-          "
+                        mb-2
+                        block
+                        text-sm
+                        font-medium
+                    "
                 >
                     Type
                 </label>
 
                 <select
-
                     value={type}
-
                     onChange={(e) =>
                         setType(
-                            e.target
-                                .value as TransactionType
+                            e.target.value as
+                                TransactionType,
                         )
                     }
-
                     className="
-            w-full
-            rounded-xl
-            border
-            px-4
-            py-3
-            outline-none
-          "
+                        w-full
+                        rounded-xl
+                        border
+                        px-4
+                        py-3
+                        outline-none
+                    "
                 >
-
                     <option
                         value={
                             TransactionType.EXPENSE
@@ -185,45 +151,38 @@ export default function CategoryForm({
                     >
                         Income
                     </option>
-
                 </select>
-
             </div>
 
+            {/* ==========================================
+                SUBMIT
+            ========================================== */}
 
-            {/* SUBMIT */}
             <button
-
                 type="submit"
-
                 disabled={
-                    !name.trim()
-                    || isLoading
+                    !name.trim() ||
+                    isLoading
                 }
-
                 className="
-          w-full
-          rounded-xl
-          bg-black
-          px-4
-          py-3
-          text-sm
-          font-medium
-          text-white
-          disabled:opacity-50
-        "
+                    w-full
+                    rounded-xl
+                    bg-black
+                    px-4
+                    py-3
+                    text-sm
+                    font-medium
+                    text-white
+                    disabled:opacity-50
+                "
             >
-
                 {isLoading
                     ? "Saving..."
                     : initialData
-                        ? "Update Category"
-                        : "Create Category"}
-
+                      ? "Update Category"
+                      : "Create Category"}
             </button>
-
         </form>
-
     );
-
 }
+

@@ -12,13 +12,13 @@ from fastapi.security import (
 )
 from sqlalchemy.orm import Session
 
+from src.core.dependencies import (
+    get_current_user,
+)
 from src.db.database import get_db
 from src.db.schemas import (
     UserCreate,
     UserResponse,
-)
-from src.core.dependencies import (
-    get_current_user,
 )
 from src.services.auth_service import (
     AuthService,

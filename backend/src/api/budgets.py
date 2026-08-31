@@ -1,5 +1,3 @@
-from typing import Optional, List
-
 from fastapi import (
     APIRouter,
     Depends,
@@ -8,16 +6,16 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
+from src.core.dependencies import (
+    get_current_user,
+)
 from src.db.database import get_db
 from src.db.models import User
 from src.db.schemas import (
     BudgetCreate,
+    BudgetResponse,
     BudgetStatusResponse,
     BudgetUpdate,
-    BudgetResponse,
-)
-from src.core.dependencies import (
-    get_current_user,
 )
 from src.services.budgets_service import (
     BudgetService,
@@ -48,11 +46,11 @@ def create_budget(
 
 @router.get(
     "/",
-    response_model=List[BudgetResponse],
+    response_model=list[BudgetResponse],
 )
 def get_budgets(
-    month: Optional[int] = Query(None, ge=1, le=12),
-    year: Optional[int] = Query(None, ge=2000),
+    month: int | None = Query(None, ge=1, le=12),
+    year: int | None = Query(None, ge=2000),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -66,7 +64,7 @@ def get_budgets(
 
 @router.get(
     "/current-month",
-    response_model=List[BudgetResponse],
+    response_model=list[BudgetResponse],
 )
 def get_current_month_budgets(
     db: Session = Depends(get_db),

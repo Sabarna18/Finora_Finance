@@ -8,14 +8,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.core.logger import (
     get_logger,
-    generate_request_id,
 )
 
 logger = get_logger("middleware")
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):
-
     async def dispatch(
         self,
         request,
@@ -25,12 +23,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # --------------------------
         # Request ID
         # --------------------------
-        request_id = generate_request_id()
 
         start_time = time.perf_counter()
 
         try:
-
             response = await call_next(request)
 
             duration = (time.perf_counter() - start_time) * 1000
@@ -45,7 +41,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             return response
 
         except Exception:
-
             duration = (time.perf_counter() - start_time) * 1000
 
             logger.exception(

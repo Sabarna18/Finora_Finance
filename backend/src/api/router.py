@@ -1,12 +1,13 @@
 from fastapi import APIRouter
+
 from src.api.auth import router as auth_router
-from src.api.transactions import router as transactions_router
-from src.api.categories import router as categories_router
 from src.api.budgets import router as budgets_router
+from src.api.categories import router as categories_router
 from src.api.dashboard import router as dashboard_router
-from src.api.reports import router as reports_router
-from src.api.users import router as users_router
 from src.api.health import router as health_router
+from src.api.reports import router as reports_router
+from src.api.transactions import router as transactions_router
+from src.api.users import router as users_router
 
 api_router = APIRouter(prefix="/api/v1")
 

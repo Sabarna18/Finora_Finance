@@ -21,19 +21,8 @@
 # ============================================================
 
 import sys
-from pathlib import Path
-
-# backend/
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(
-        0,
-        str(PROJECT_ROOT),
-    )
-
-
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -45,6 +34,16 @@ from src.app import app
 from src.core.security import create_access_token, hash_password
 from src.db.database import Base, get_db
 from src.db.models import User
+
+# backend/
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(
+        0,
+        str(PROJECT_ROOT),
+    )
+
 
 # ============================================================
 # TEST DATABASE
@@ -88,6 +87,7 @@ TestingSessionLocal = sessionmaker(
 # DATABASE FIXTURE
 # ============================================================
 
+
 @pytest.fixture(autouse=True)
 def create_test_database():
     """
@@ -97,15 +97,12 @@ def create_test_database():
     persistent test data behind.
     """
 
-    Base.metadata.create_all(
-        bind=test_engine
-    )
+    Base.metadata.create_all(bind=test_engine)
 
     yield
 
-    Base.metadata.drop_all(
-        bind=test_engine
-    )
+    Base.metadata.drop_all(bind=test_engine)
+
 
 # ============================================================
 # DATABASE SESSION FIXTURE
@@ -113,7 +110,7 @@ def create_test_database():
 
 
 @pytest.fixture
-def db() -> Generator[Session, None, None]:
+def db() -> Generator[Session]:
     """
     Provide an isolated SQLAlchemy session to a test.
 
@@ -124,11 +121,9 @@ def db() -> Generator[Session, None, None]:
     session = TestingSessionLocal()
 
     try:
-
         yield session
 
     finally:
-
         session.close()
 
 
@@ -138,7 +133,7 @@ def db() -> Generator[Session, None, None]:
 
 
 @pytest.fixture
-def client(db: Session) -> Generator[TestClient, None, None]:
+def client(db: Session) -> Generator[TestClient]:
     """
     Provide a FastAPI TestClient using the test database.
 
@@ -149,23 +144,18 @@ def client(db: Session) -> Generator[TestClient, None, None]:
     def override_get_db():
 
         try:
-
             yield db
 
         finally:
-
             pass
 
     app.dependency_overrides[get_db] = override_get_db
 
     try:
-
         with TestClient(app) as test_client:
-
             yield test_client
 
     finally:
-
         app.dependency_overrides.pop(
             get_db,
             None,

@@ -5,51 +5,54 @@
 # Validates:
 #   1. Backend
 #   2. Frontend
-#   3. Backend + PostgreSQL integration
+#   3. PostgreSQL integration
 #
 # Trigger:
 #   - Every push
 #   - Every pull request
 #
-# This workflow validates the application only.
-# Deployment and image publishing belong to separate workflows.
+# Deployment and Docker image publishing are handled
+# by separate workflows.
 # ==========================================================
 
 name: Finora CI
+
 
 # ==========================================================
 # TRIGGERS
 # ==========================================================
 
 on:
-
   push:
 
   pull_request:
+
 
 # ==========================================================
 # GLOBAL ENVIRONMENT
 # ==========================================================
 
 env:
-
   PYTHON_VERSION: "3.13"
   NODE_VERSION: "22"
+
 
 # ==========================================================
 # CONCURRENCY
 # ==========================================================
-#
-# Cancel outdated CI runs for the same branch/PR.
-# This prevents wasting GitHub Actions minutes when
-# multiple commits are pushed quickly.
-# ==========================================================
 
 concurrency:
-
   group: finora-ci-${{ github.workflow }}-${{ github.ref }}
-
   cancel-in-progress: true
+
+
+# ==========================================================
+# PERMISSIONS
+# ==========================================================
+
+permissions:
+  contents: read
+
 
 # ==========================================================
 # JOBS
@@ -67,6 +70,22 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    timeout-minutes: 15
+
+    env:
+      APP_NAME: "Finora"
+      DEBUG: "false"
+
+      DB_TYPE: "sqlite"
+      SQLITE_DB_PATH: "./finance.db"
+
+      SECRET_KEY: "ci-test-secret-key"
+      ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+
+      BACKEND_CORS_ORIGINS: '["http://localhost"]'
+
+
     steps:
 
       # ----------------------------------------------------
@@ -75,6 +94,7 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+
 
       # ----------------------------------------------------
       # Python
@@ -86,6 +106,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+
       # ----------------------------------------------------
       # Install uv
       # ----------------------------------------------------
@@ -95,9 +116,11 @@ jobs:
 
         with:
           version: "latest"
+          enable-cache: true
+
 
       # ----------------------------------------------------
-      # Dependency cache
+      # Install backend dependencies
       # ----------------------------------------------------
 
       - name: Install backend dependencies
@@ -106,69 +129,45 @@ jobs:
         run: |
           uv sync --frozen
 
+
       # ----------------------------------------------------
-      # Backend syntax / import validation
+      # Backend import validation
       # ----------------------------------------------------
 
       - name: Validate backend imports
         working-directory: backend
-
-        env:
-          DB_TYPE: sqlite
-          SQLITE_DB_PATH: ./ci_finance.db
-          APP_NAME: Finora
-          DEBUG: "false"
-          SECRET_KEY: ci-test-secret-key
-          ALGORITHM: HS256
-          ACCESS_TOKEN_EXPIRE_MINUTES: "60"
-          BACKEND_CORS_ORIGINS: '["http://localhost"]'
 
         run: |
           uv run python -c "
           from src.app import app
           from src.core.config import settings
           from src.db.database import Base
+
           print('Backend imports: OK')
           print('FastAPI application: OK')
           print('Database metadata: OK')
+          print(f'Application: {settings.APP_NAME}')
+          print(f'Database type: {settings.DB_TYPE}')
           "
 
+
       # ----------------------------------------------------
-      # Tests
+      # Backend tests
       # ----------------------------------------------------
 
       - name: Run backend tests
         working-directory: backend
 
-        env:
-          DB_TYPE: sqlite
-          SQLITE_DB_PATH: ./ci_finance.db
-          APP_NAME: Finora
-          DEBUG: "false"
-          SECRET_KEY: ci-test-secret-key
-          ALGORITHM: HS256
-          ACCESS_TOKEN_EXPIRE_MINUTES: "60"
-          BACKEND_CORS_ORIGINS: '["http://localhost"]'
-
         run: |
           uv run pytest -v
 
+
       # ----------------------------------------------------
-      # Alembic validation
+      # Alembic migration consistency
       # ----------------------------------------------------
 
-      - name: Validate Alembic configuration
+      - name: Validate Alembic migrations
         working-directory: backend
-
-        env:
-          DB_TYPE: sqlite
-          SQLITE_DB_PATH: ./ci_finance.db
-          APP_NAME: Finora
-          DEBUG: "false"
-          SECRET_KEY: ci-test-secret-key
-          ALGORITHM: HS256
-          ACCESS_TOKEN_EXPIRE_MINUTES: "60"
-          BACKEND_CORS_ORIGINS: '["http://localhost"]'
 
         run: |
           uv run alembic check
@@ -184,6 +183,12 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    timeout-minutes: 15
+
+    env:
+      VITE_API_URL: "/api/v1"
+
+
     steps:
 
       # ----------------------------------------------------
@@ -192,6 +197,7 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+
 
       # ----------------------------------------------------
       # Node.js
@@ -205,6 +211,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+
       # ----------------------------------------------------
       # Install dependencies
       # ----------------------------------------------------
@@ -214,6 +221,7 @@ jobs:
 
         run: |
           npm ci
+
 
       # ----------------------------------------------------
       # Lint
@@ -225,6 +233,7 @@ jobs:
         run: |
           npm run lint
 
+
       # ----------------------------------------------------
       # Production build
       # ----------------------------------------------------
@@ -232,28 +241,12 @@ jobs:
       - name: Build frontend
         working-directory: frontend
 
-        env:
-          VITE_API_URL: /api/v1
-
         run: |
           npm run build
 
 
   # ========================================================
-  # INTEGRATION TEST
-  # ========================================================
-  #
-  # Runs the actual backend against PostgreSQL.
-  #
-  # This catches problems that SQLite-based unit tests cannot:
-  #
-  #   - PostgreSQL connection
-  #   - psycopg2
-  #   - SQLAlchemy PostgreSQL dialect
-  #   - Alembic migrations
-  #   - PostgreSQL schema
-  #   - application startup
-  #
+  # POSTGRESQL INTEGRATION
   # ========================================================
 
   integration:
@@ -262,9 +255,29 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    timeout-minutes: 20
+
     needs:
       - backend
-      - frontend
+
+    env:
+      APP_NAME: "Finora"
+      DEBUG: "false"
+
+      DB_TYPE: "postgresql"
+
+      POSTGRES_USER: "finora"
+      POSTGRES_PASSWORD: "password"
+      POSTGRES_HOST: "localhost"
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: "finance_db"
+
+      SECRET_KEY: "ci-test-secret-key"
+      ALGORITHM: "HS256"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+
+      BACKEND_CORS_ORIGINS: '["http://localhost"]'
+
 
     services:
 
@@ -277,13 +290,11 @@ jobs:
         image: postgres:17-alpine
 
         env:
-
           POSTGRES_USER: finora
           POSTGRES_PASSWORD: password
           POSTGRES_DB: finance_db
 
         ports:
-
           - 5432:5432
 
         options: >-
@@ -291,6 +302,7 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+
 
     steps:
 
@@ -300,6 +312,7 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+
 
       # ----------------------------------------------------
       # Python
@@ -311,6 +324,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+
       # ----------------------------------------------------
       # Install uv
       # ----------------------------------------------------
@@ -320,6 +334,8 @@ jobs:
 
         with:
           version: "latest"
+          enable-cache: true
+
 
       # ----------------------------------------------------
       # Install backend dependencies
@@ -331,54 +347,35 @@ jobs:
         run: |
           uv sync --frozen
 
+
       # ----------------------------------------------------
-      # Database environment
+      # Run migrations
       # ----------------------------------------------------
 
-      - name: Run database migrations
+      - name: Run PostgreSQL migrations
         working-directory: backend
-
-        env:
-
-          APP_NAME: Finora
-          DEBUG: "false"
-
-          DB_TYPE: postgresql
-
-          POSTGRES_USER: finora
-          POSTGRES_PASSWORD: password
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_DB: finance_db
-
-          SECRET_KEY: ci-test-secret-key
-          ALGORITHM: HS256
-          ACCESS_TOKEN_EXPIRE_MINUTES: "60"
-
-          BACKEND_CORS_ORIGINS: '["http://localhost"]'
 
         run: |
           uv run alembic upgrade head
 
+
       # ----------------------------------------------------
-      # Verify database schema
+      # Verify migration state
+      # ----------------------------------------------------
+
+      - name: Verify migration state
+        working-directory: backend
+
+        run: |
+          uv run alembic current
+
+
+      # ----------------------------------------------------
+      # Verify PostgreSQL schema
       # ----------------------------------------------------
 
       - name: Verify PostgreSQL schema
         working-directory: backend
-
-        env:
-
-          DB_TYPE: postgresql
-
-          POSTGRES_USER: finora
-          POSTGRES_PASSWORD: password
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_DB: finance_db
-
-          SECRET_KEY: ci-test-secret-key
-          BACKEND_CORS_ORIGINS: '["http://localhost"]'
 
         run: |
           uv run python -c "
@@ -389,11 +386,14 @@ jobs:
 
           inspector = inspect(engine)
 
-          tables = inspector.get_table_names()
+          tables = set(
+              inspector.get_table_names()
+          )
 
           print('PostgreSQL tables:')
-          for table in tables:
-              print(' -', table)
+
+          for table in sorted(tables):
+              print(f' - {table}')
 
           required = {
               'users',
@@ -402,15 +402,94 @@ jobs:
               'budgets',
           }
 
-          missing = required - set(tables)
+          missing = required - tables
 
           if missing:
               raise RuntimeError(
-                  f'Missing required tables: {missing}'
+                  f'Missing required tables: {sorted(missing)}'
               )
 
           print('PostgreSQL schema validation: OK')
           "
+
+
+      # ----------------------------------------------------
+      # Verify critical columns
+      # ----------------------------------------------------
+
+      - name: Verify PostgreSQL columns
+        working-directory: backend
+
+        run: |
+          uv run python -c "
+          from sqlalchemy import create_engine, inspect
+          from src.db.database import DATABASE_URL
+
+          engine = create_engine(DATABASE_URL)
+
+          inspector = inspect(engine)
+
+          expected_columns = {
+              'users': {
+                  'id',
+                  'name',
+                  'email',
+                  'password_hash',
+                  'is_active',
+                  'created_at',
+              },
+              'categories': {
+                  'id',
+                  'name',
+                  'type',
+                  'user_id',
+                  'created_at',
+              },
+              'transactions': {
+                  'id',
+                  'amount',
+                  'type',
+                  'description',
+                  'date',
+                  'user_id',
+                  'category_id',
+                  'created_at',
+              },
+              'budgets': {
+                  'id',
+                  'amount',
+                  'month',
+                  'year',
+                  'user_id',
+                  'category_id',
+                  'created_at',
+              },
+          }
+
+          for table, expected in expected_columns.items():
+
+              actual = {
+                  column['name']
+                  for column in inspector.get_columns(table)
+              }
+
+              missing = expected - actual
+
+              if missing:
+                  raise RuntimeError(
+                      f'{table} is missing columns: '
+                      f'{sorted(missing)}'
+                  )
+
+              print(
+                  f'{table}: column validation OK'
+              )
+
+          print(
+              'PostgreSQL column validation: OK'
+          )
+          "
+
 
       # ----------------------------------------------------
       # Start backend
@@ -419,62 +498,49 @@ jobs:
       - name: Start backend
         working-directory: backend
 
-        env:
-
-          APP_NAME: Finora
-          DEBUG: "false"
-
-          DB_TYPE: postgresql
-
-          POSTGRES_USER: finora
-          POSTGRES_PASSWORD: password
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: "5432"
-          POSTGRES_DB: finance_db
-
-          SECRET_KEY: ci-test-secret-key
-          ALGORITHM: HS256
-          ACCESS_TOKEN_EXPIRE_MINUTES: "60"
-
-          BACKEND_CORS_ORIGINS: '["http://localhost"]'
-
         run: |
-          uv run uvicorn \
-            src.app:app \
+          uv run uvicorn src.app:app \
             --host 127.0.0.1 \
             --port 8000 \
             > backend.log 2>&1 &
 
           echo $! > backend.pid
 
+
       # ----------------------------------------------------
-      # Wait for API
+      # Wait for backend
       # ----------------------------------------------------
 
       - name: Wait for backend
         run: |
           for i in {1..30}; do
 
-            if curl --fail --silent \
+            if curl \
+              --fail \
+              --silent \
               http://127.0.0.1:8000/api/v1/health; then
 
-              echo ""
+              echo
               echo "Backend is healthy."
+
               exit 0
 
             fi
 
             echo "Waiting for backend..."
+
             sleep 2
 
           done
 
-          echo ""
+          echo
           echo "Backend failed to become healthy."
-          echo ""
+          echo
+
           cat backend/backend.log || true
 
           exit 1
+
 
       # ----------------------------------------------------
       # API health validation
@@ -482,9 +548,38 @@ jobs:
 
       - name: Validate API health
         run: |
-          curl --fail \
+          curl \
+            --fail \
             --show-error \
             http://127.0.0.1:8000/api/v1/health
+
+
+      # ----------------------------------------------------
+      # API smoke test
+      # ----------------------------------------------------
+
+      - name: Run API smoke test
+        run: |
+          curl \
+            --fail \
+            --show-error \
+            --request GET \
+            http://127.0.0.1:8000/api/v1/health
+
+
+      # ----------------------------------------------------
+      # Backend logs on failure
+      # ----------------------------------------------------
+
+      - name: Upload backend logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: finora-backend-logs
+          path: backend/backend.log
+          if-no-files-found: ignore
+
 
       # ----------------------------------------------------
       # Cleanup

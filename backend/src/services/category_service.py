@@ -2,30 +2,26 @@
 # src/services/category_service.py
 # ==================================================
 
-from typing import Optional
 
 from fastapi import (
     HTTPException,
     status,
 )
-
 from sqlalchemy.orm import Session
 
+from src.core.logger import (
+    get_logger,
+)
 from src.db.models import (
     Category,
     TransactionType,
     User,
 )
 
-from src.core.logger import (
-    get_logger,
-)
-
 logger = get_logger("categories")
 
 
 class CategoryService:
-
     # ----------------------------------------------
     # CREATE
     # ----------------------------------------------
@@ -54,7 +50,6 @@ class CategoryService:
         )
 
         if existing:
-
             logger.warning(
                 f"Duplicate category attempt: "
                 f"user_id={current_user.id}, "
@@ -67,7 +62,6 @@ class CategoryService:
             )
 
         try:
-
             category = Category(
                 name=(payload.name.strip()),
                 type=payload.type,
@@ -87,8 +81,7 @@ class CategoryService:
             return category
 
         except Exception:
-
-            logger.exception(f"Category creation failed: " f"user_id={current_user.id}")
+            logger.exception(f"Category creation failed: user_id={current_user.id}")
 
             raise
 
@@ -99,27 +92,22 @@ class CategoryService:
     def list_categories(
         db: Session,
         current_user: User,
-        category_type: Optional[TransactionType] = None,
+        category_type: TransactionType | None = None,
     ):
 
         logger.info(
-            f"Category list requested: "
-            f"user_id={current_user.id}, "
-            f"type={category_type}"
+            f"Category list requested: user_id={current_user.id}, type={category_type}"
         )
 
         query = db.query(Category).filter(Category.user_id == current_user.id)
 
         if category_type:
-
             query = query.filter(Category.type == category_type)
 
         results = query.order_by(Category.name.asc()).all()
 
         logger.info(
-            f"Category list returned: "
-            f"user_id={current_user.id}, "
-            f"count={len(results)}"
+            f"Category list returned: user_id={current_user.id}, count={len(results)}"
         )
 
         return results
@@ -144,7 +132,6 @@ class CategoryService:
         )
 
         if not category:
-
             logger.warning(
                 f"Category not found: "
                 f"category_id={category_id}, "
@@ -157,9 +144,7 @@ class CategoryService:
             )
 
         logger.info(
-            f"Category fetched: "
-            f"category_id={category.id}, "
-            f"user_id={current_user.id}"
+            f"Category fetched: category_id={category.id}, user_id={current_user.id}"
         )
 
         return category
@@ -199,7 +184,6 @@ class CategoryService:
         )
 
         if duplicate:
-
             logger.warning(
                 f"Duplicate category update: "
                 f"category_id={category_id}, "
@@ -208,7 +192,7 @@ class CategoryService:
 
             raise HTTPException(
                 status_code=(status.HTTP_409_CONFLICT),
-                detail=("Another category " "with same name exists"),
+                detail=("Another category with same name exists"),
             )
 
         category.name = payload.name.strip()
@@ -219,9 +203,7 @@ class CategoryService:
         db.refresh(category)
 
         logger.info(
-            f"Category updated: "
-            f"category_id={category.id}, "
-            f"user_id={current_user.id}"
+            f"Category updated: category_id={category.id}, user_id={current_user.id}"
         )
 
         return category
@@ -252,9 +234,7 @@ class CategoryService:
         db.commit()
 
         logger.warning(
-            f"Category deleted: "
-            f"category_id={category.id}, "
-            f"user_id={current_user.id}"
+            f"Category deleted: category_id={category.id}, user_id={current_user.id}"
         )
 
         return {"message": ("Category deleted successfully")}

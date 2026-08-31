@@ -1,3 +1,7 @@
+# ==========================================================
+# src/core/config.py
+# ==========================================================
+
 from functools import lru_cache
 
 from pydantic import Field
@@ -12,10 +16,9 @@ class Settings(BaseSettings):
     Central configuration for Finora.
 
     Configuration precedence:
-
-    1. Runtime environment variables
-    2. .env file
-    3. Python defaults
+        1. Runtime environment variables
+        2. .env file
+        3. Python defaults
     """
 
     # ======================================================
@@ -23,7 +26,6 @@ class Settings(BaseSettings):
     # ======================================================
 
     APP_NAME: str = "Finora"
-
     DEBUG: bool = False
 
     # ======================================================
@@ -46,13 +48,9 @@ class Settings(BaseSettings):
     # ------------------------------------------------------
 
     POSTGRES_USER: str = "postgres"
-
     POSTGRES_PASSWORD: str = "password"
-
     POSTGRES_HOST: str = "localhost"
-
     POSTGRES_PORT: int = 5432
-
     POSTGRES_DB: str = "finance_db"
 
     # ======================================================
@@ -60,9 +58,7 @@ class Settings(BaseSettings):
     # ======================================================
 
     SECRET_KEY: str = "supersecretkey"
-
     ALGORITHM: str = "HS256"
-
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
     # ======================================================
@@ -83,11 +79,6 @@ class Settings(BaseSettings):
         case_sensitive=True,
         extra="ignore",
     )
-
-
-# ==========================================================
-# Cached Settings
-# ==========================================================
 
 
 @lru_cache

@@ -1774,3 +1774,925 @@
 2026-08-26 00:53:17,806 | INFO | finance_tracker.middleware | req=8c92191e | DELETE /api/v1/users/me | 200 | 6.83ms
 2026-08-26 00:53:17,824 | INFO | finance_tracker.middleware | req=e28afe6b | DELETE /api/v1/users/me | 401 | 3.00ms
 2026-08-26 00:53:17,847 | INFO | finance_tracker.middleware | req=917b0ca4 | DELETE /api/v1/users/me | 401 | 3.96ms
+2026-08-29 23:53:42,538 | INFO | finance_tracker.Auth | req=b171580b | Registration attempt: register@finora.com
+2026-08-29 23:53:42,575 | INFO | finance_tracker.Auth | req=b171580b | User registered successfully: user_id=1, email=register@finora.com
+2026-08-29 23:53:42,577 | INFO | finance_tracker.middleware | req=b171580b | POST /api/v1/auth/register | 201 | 42.83ms
+2026-08-29 23:53:42,593 | INFO | finance_tracker.Auth | req=9b979a43 | Registration attempt: duplicate@finora.com
+2026-08-29 23:53:42,603 | INFO | finance_tracker.Auth | req=9b979a43 | User registered successfully: user_id=1, email=duplicate@finora.com
+2026-08-29 23:53:42,604 | INFO | finance_tracker.middleware | req=9b979a43 | POST /api/v1/auth/register | 201 | 13.50ms
+2026-08-29 23:53:42,608 | INFO | finance_tracker.Auth | req=45db7746 | Registration attempt: duplicate@finora.com
+2026-08-29 23:53:42,609 | WARNING | finance_tracker.Auth | req=45db7746 | Registration failed: email already exists (duplicate@finora.com)
+2026-08-29 23:53:42,610 | INFO | finance_tracker.middleware | req=45db7746 | POST /api/v1/auth/register | 400 | 3.11ms
+2026-08-29 23:53:42,622 | INFO | finance_tracker.middleware | req=b44c8964 | POST /api/v1/auth/register | 422 | 2.08ms
+2026-08-29 23:53:42,634 | INFO | finance_tracker.middleware | req=92fe4081 | POST /api/v1/auth/register | 422 | 3.03ms
+2026-08-29 23:53:42,645 | INFO | finance_tracker.middleware | req=0be583d8 | POST /api/v1/auth/register | 422 | 2.05ms
+2026-08-29 23:53:42,657 | INFO | finance_tracker.Auth | req=4189a218 | Registration attempt: login@finora.com
+2026-08-29 23:53:42,668 | INFO | finance_tracker.Auth | req=4189a218 | User registered successfully: user_id=1, email=login@finora.com
+2026-08-29 23:53:42,669 | INFO | finance_tracker.middleware | req=4189a218 | POST /api/v1/auth/register | 201 | 14.30ms
+2026-08-29 23:53:42,677 | INFO | finance_tracker.Auth | req=663b0d9c | Login attempt: login@finora.com
+2026-08-29 23:53:42,686 | INFO | finance_tracker.Auth | req=663b0d9c | Login successful: user_id=1, email=login@finora.com
+2026-08-29 23:53:42,687 | INFO | finance_tracker.middleware | req=663b0d9c | POST /api/v1/auth/login | 200 | 15.48ms
+2026-08-29 23:53:42,698 | INFO | finance_tracker.Auth | req=90cbaad6 | Registration attempt: wrong-password@finora.com
+2026-08-29 23:53:42,709 | INFO | finance_tracker.Auth | req=90cbaad6 | User registered successfully: user_id=1, email=wrong-password@finora.com
+2026-08-29 23:53:42,710 | INFO | finance_tracker.middleware | req=90cbaad6 | POST /api/v1/auth/register | 201 | 13.17ms
+2026-08-29 23:53:42,716 | INFO | finance_tracker.Auth | req=8fe21d5a | Login attempt: wrong-password@finora.com
+2026-08-29 23:53:42,724 | WARNING | finance_tracker.Auth | req=8fe21d5a | Login failed: wrong password (user_id=1, email=wrong-password@finora.com)
+2026-08-29 23:53:42,725 | INFO | finance_tracker.middleware | req=8fe21d5a | POST /api/v1/auth/login | 401 | 13.04ms
+2026-08-29 23:53:42,740 | INFO | finance_tracker.Auth | req=77022778 | Login attempt: does-not-exist@finora.com
+2026-08-29 23:53:42,741 | WARNING | finance_tracker.Auth | req=77022778 | Login failed: user not found (does-not-exist@finora.com)
+2026-08-29 23:53:42,741 | INFO | finance_tracker.middleware | req=77022778 | POST /api/v1/auth/login | 401 | 7.67ms
+2026-08-29 23:53:42,755 | INFO | finance_tracker.middleware | req=3825fdc3 | POST /api/v1/auth/login | 422 | 4.73ms
+2026-08-29 23:53:42,777 | INFO | finance_tracker.Auth | req=fd2e1c19 | Profile accessed: user_id=1
+2026-08-29 23:53:42,778 | INFO | finance_tracker.middleware | req=fd2e1c19 | GET /api/v1/auth/me | 200 | 5.52ms
+2026-08-29 23:53:42,791 | INFO | finance_tracker.middleware | req=431bc5b6 | GET /api/v1/auth/me | 401 | 0.95ms
+2026-08-29 23:53:42,805 | INFO | finance_tracker.middleware | req=5a3673e7 | GET /api/v1/auth/me | 401 | 2.63ms
+2026-08-29 23:53:42,833 | INFO | finance_tracker.budgets | req=cfafb4e8 | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:42,840 | INFO | finance_tracker.budgets | req=cfafb4e8 | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:42,841 | INFO | finance_tracker.middleware | req=cfafb4e8 | POST /api/v1/budgets/ | 201 | 15.63ms
+2026-08-29 23:53:42,854 | INFO | finance_tracker.middleware | req=d8f2a5c4 | POST /api/v1/budgets/ | 401 | 2.54ms
+2026-08-29 23:53:42,877 | INFO | finance_tracker.budgets | req=bb9f336c | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:42,879 | WARNING | finance_tracker.budgets | req=bb9f336c | Invalid category in budget: user_id=1, category_id=1
+2026-08-29 23:53:42,880 | INFO | finance_tracker.middleware | req=bb9f336c | POST /api/v1/budgets/ | 404 | 6.77ms
+2026-08-29 23:53:42,903 | INFO | finance_tracker.middleware | req=c4a7a15c | POST /api/v1/budgets/ | 422 | 4.60ms
+2026-08-29 23:53:42,924 | INFO | finance_tracker.middleware | req=2135e673 | POST /api/v1/budgets/ | 422 | 3.63ms
+2026-08-29 23:53:42,946 | INFO | finance_tracker.middleware | req=c8c48b1f | POST /api/v1/budgets/ | 422 | 3.62ms
+2026-08-29 23:53:42,968 | INFO | finance_tracker.budgets | req=e2b0d734 | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:42,970 | INFO | finance_tracker.budgets | req=e2b0d734 | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:42,971 | INFO | finance_tracker.middleware | req=e2b0d734 | POST /api/v1/budgets/ | 201 | 6.92ms
+2026-08-29 23:53:42,976 | INFO | finance_tracker.budgets | req=68ede558 | Budget list requested: user_id=1, month=None, year=None
+2026-08-29 23:53:42,978 | INFO | finance_tracker.budgets | req=68ede558 | Budget list returned: user_id=1, count=1
+2026-08-29 23:53:42,980 | INFO | finance_tracker.middleware | req=68ede558 | GET /api/v1/budgets/ | 200 | 6.90ms
+2026-08-29 23:53:43,005 | INFO | finance_tracker.budgets | req=70d4f73a | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:43,009 | INFO | finance_tracker.budgets | req=70d4f73a | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:43,009 | INFO | finance_tracker.middleware | req=70d4f73a | POST /api/v1/budgets/ | 201 | 8.74ms
+2026-08-29 23:53:43,015 | INFO | finance_tracker.budgets | req=33edb517 | Budget create attempt: user_id=1, month=9, year=2026
+2026-08-29 23:53:43,018 | INFO | finance_tracker.budgets | req=33edb517 | Budget created: budget_id=2, user_id=1
+2026-08-29 23:53:43,019 | INFO | finance_tracker.middleware | req=33edb517 | POST /api/v1/budgets/ | 201 | 7.16ms
+2026-08-29 23:53:43,024 | INFO | finance_tracker.budgets | req=61b99b22 | Budget list requested: user_id=1, month=8, year=None
+2026-08-29 23:53:43,026 | INFO | finance_tracker.budgets | req=61b99b22 | Budget list returned: user_id=1, count=1
+2026-08-29 23:53:43,027 | INFO | finance_tracker.middleware | req=61b99b22 | GET /api/v1/budgets/ | 200 | 5.88ms
+2026-08-29 23:53:43,059 | INFO | finance_tracker.budgets | req=824131eb | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:43,063 | INFO | finance_tracker.budgets | req=824131eb | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:43,065 | INFO | finance_tracker.middleware | req=824131eb | POST /api/v1/budgets/ | 201 | 11.28ms
+2026-08-29 23:53:43,073 | INFO | finance_tracker.budgets | req=46d4819f | Budget create attempt: user_id=1, month=8, year=2027
+2026-08-29 23:53:43,078 | INFO | finance_tracker.budgets | req=46d4819f | Budget created: budget_id=2, user_id=1
+2026-08-29 23:53:43,079 | INFO | finance_tracker.middleware | req=46d4819f | POST /api/v1/budgets/ | 201 | 11.40ms
+2026-08-29 23:53:43,086 | INFO | finance_tracker.budgets | req=2b24d04a | Budget list requested: user_id=1, month=None, year=2026
+2026-08-29 23:53:43,088 | INFO | finance_tracker.budgets | req=2b24d04a | Budget list returned: user_id=1, count=1
+2026-08-29 23:53:43,089 | INFO | finance_tracker.middleware | req=2b24d04a | GET /api/v1/budgets/ | 200 | 6.88ms
+2026-08-29 23:53:43,125 | INFO | finance_tracker.budgets | req=6afa570a | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:43,128 | INFO | finance_tracker.budgets | req=6afa570a | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:43,129 | INFO | finance_tracker.middleware | req=6afa570a | POST /api/v1/budgets/ | 201 | 9.49ms
+2026-08-29 23:53:43,137 | INFO | finance_tracker.budgets | req=04c107dc | Budget create attempt: user_id=1, month=8, year=2027
+2026-08-29 23:53:43,140 | INFO | finance_tracker.budgets | req=04c107dc | Budget created: budget_id=2, user_id=1
+2026-08-29 23:53:43,141 | INFO | finance_tracker.middleware | req=04c107dc | POST /api/v1/budgets/ | 201 | 9.00ms
+2026-08-29 23:53:43,148 | INFO | finance_tracker.budgets | req=48d3c62c | Budget create attempt: user_id=1, month=9, year=2026
+2026-08-29 23:53:43,151 | INFO | finance_tracker.budgets | req=48d3c62c | Budget created: budget_id=3, user_id=1
+2026-08-29 23:53:43,153 | INFO | finance_tracker.middleware | req=48d3c62c | POST /api/v1/budgets/ | 201 | 8.47ms
+2026-08-29 23:53:43,158 | INFO | finance_tracker.budgets | req=ad1c8eb0 | Budget list requested: user_id=1, month=8, year=2026
+2026-08-29 23:53:43,161 | INFO | finance_tracker.budgets | req=ad1c8eb0 | Budget list returned: user_id=1, count=1
+2026-08-29 23:53:43,162 | INFO | finance_tracker.middleware | req=ad1c8eb0 | GET /api/v1/budgets/ | 200 | 6.47ms
+2026-08-29 23:53:43,176 | INFO | finance_tracker.middleware | req=008f53d4 | GET /api/v1/budgets/ | 401 | 2.36ms
+2026-08-29 23:53:43,201 | INFO | finance_tracker.budgets | req=658bf82b | Current month budgets requested: user_id=1
+2026-08-29 23:53:43,203 | INFO | finance_tracker.budgets | req=658bf82b | Current month budgets returned: user_id=1, count=0
+2026-08-29 23:53:43,204 | INFO | finance_tracker.middleware | req=658bf82b | GET /api/v1/budgets/current-month | 200 | 6.28ms
+2026-08-29 23:53:43,220 | INFO | finance_tracker.middleware | req=d198337f | GET /api/v1/budgets/current-month | 401 | 2.30ms
+2026-08-29 23:53:43,243 | INFO | finance_tracker.budgets | req=8e6c683d | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:43,245 | INFO | finance_tracker.budgets | req=8e6c683d | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:43,246 | INFO | finance_tracker.middleware | req=8e6c683d | POST /api/v1/budgets/ | 201 | 7.29ms
+2026-08-29 23:53:43,253 | INFO | finance_tracker.budgets | req=2c305edc | Budget fetched: budget_id=1, user_id=1
+2026-08-29 23:53:43,254 | INFO | finance_tracker.middleware | req=2c305edc | GET /api/v1/budgets/1 | 200 | 5.33ms
+2026-08-29 23:53:43,276 | WARNING | finance_tracker.budgets | req=1e363363 | Budget not found: budget_id=999999, user_id=1
+2026-08-29 23:53:43,277 | INFO | finance_tracker.middleware | req=1e363363 | GET /api/v1/budgets/999999 | 404 | 4.85ms
+2026-08-29 23:53:43,307 | INFO | finance_tracker.budgets | req=fa995675 | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:43,311 | INFO | finance_tracker.budgets | req=fa995675 | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:43,312 | INFO | finance_tracker.middleware | req=fa995675 | POST /api/v1/budgets/ | 201 | 9.23ms
+2026-08-29 23:53:43,316 | INFO | finance_tracker.middleware | req=11a91a8e | GET /api/v1/budgets/1 | 401 | 1.68ms
+2026-08-29 23:53:43,341 | INFO | finance_tracker.budgets | req=d12454c3 | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:43,344 | INFO | finance_tracker.budgets | req=d12454c3 | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:43,345 | INFO | finance_tracker.middleware | req=d12454c3 | POST /api/v1/budgets/ | 201 | 8.48ms
+2026-08-29 23:53:43,351 | INFO | finance_tracker.budgets | req=a29cf3f5 | Budget fetched: budget_id=1, user_id=1
+2026-08-29 23:53:43,355 | INFO | finance_tracker.middleware | req=a29cf3f5 | GET /api/v1/budgets/status/1 | 200 | 8.10ms
+2026-08-29 23:53:43,376 | WARNING | finance_tracker.budgets | req=89611b79 | Budget not found: budget_id=999999, user_id=1
+2026-08-29 23:53:43,377 | INFO | finance_tracker.middleware | req=89611b79 | GET /api/v1/budgets/status/999999 | 404 | 4.30ms
+2026-08-29 23:53:43,398 | INFO | finance_tracker.budgets | req=3459f69e | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:43,401 | INFO | finance_tracker.budgets | req=3459f69e | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:43,402 | INFO | finance_tracker.middleware | req=3459f69e | POST /api/v1/budgets/ | 201 | 7.74ms
+2026-08-29 23:53:43,408 | INFO | finance_tracker.budgets | req=8f607d14 | Budget update attempt: budget_id=1, user_id=1
+2026-08-29 23:53:43,409 | INFO | finance_tracker.budgets | req=8f607d14 | Budget fetched: budget_id=1, user_id=1
+2026-08-29 23:53:43,416 | INFO | finance_tracker.budgets | req=8f607d14 | Budget updated: budget_id=1, user_id=1
+2026-08-29 23:53:43,417 | INFO | finance_tracker.middleware | req=8f607d14 | PUT /api/v1/budgets/1 | 200 | 12.76ms
+2026-08-29 23:53:43,442 | INFO | finance_tracker.budgets | req=08b39e5c | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:43,445 | INFO | finance_tracker.budgets | req=08b39e5c | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:43,446 | INFO | finance_tracker.middleware | req=08b39e5c | POST /api/v1/budgets/ | 201 | 7.12ms
+2026-08-29 23:53:43,452 | INFO | finance_tracker.budgets | req=362ead89 | Budget update attempt: budget_id=1, user_id=1
+2026-08-29 23:53:43,453 | INFO | finance_tracker.budgets | req=362ead89 | Budget fetched: budget_id=1, user_id=1
+2026-08-29 23:53:43,455 | INFO | finance_tracker.budgets | req=362ead89 | Budget updated: budget_id=1, user_id=1
+2026-08-29 23:53:43,456 | INFO | finance_tracker.middleware | req=362ead89 | PUT /api/v1/budgets/1 | 200 | 8.60ms
+2026-08-29 23:53:43,479 | INFO | finance_tracker.budgets | req=7dce329f | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:43,482 | INFO | finance_tracker.budgets | req=7dce329f | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:43,483 | INFO | finance_tracker.middleware | req=7dce329f | POST /api/v1/budgets/ | 201 | 7.67ms
+2026-08-29 23:53:43,488 | INFO | finance_tracker.middleware | req=b15b8811 | PUT /api/v1/budgets/1 | 422 | 3.25ms
+2026-08-29 23:53:43,510 | INFO | finance_tracker.budgets | req=b90535bd | Budget update attempt: budget_id=999999, user_id=1
+2026-08-29 23:53:43,511 | WARNING | finance_tracker.budgets | req=b90535bd | Budget not found: budget_id=999999, user_id=1
+2026-08-29 23:53:43,512 | INFO | finance_tracker.middleware | req=b90535bd | PUT /api/v1/budgets/999999 | 404 | 5.25ms
+2026-08-29 23:53:43,533 | INFO | finance_tracker.budgets | req=b3d3e2af | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:43,536 | INFO | finance_tracker.budgets | req=b3d3e2af | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:43,537 | INFO | finance_tracker.middleware | req=b3d3e2af | POST /api/v1/budgets/ | 201 | 6.91ms
+2026-08-29 23:53:43,541 | WARNING | finance_tracker.budgets | req=953d9b09 | Budget delete attempt: budget_id=1, user_id=1
+2026-08-29 23:53:43,542 | INFO | finance_tracker.budgets | req=953d9b09 | Budget fetched: budget_id=1, user_id=1
+2026-08-29 23:53:43,545 | WARNING | finance_tracker.budgets | req=953d9b09 | Budget deleted: budget_id=1, user_id=1
+2026-08-29 23:53:43,545 | INFO | finance_tracker.middleware | req=953d9b09 | DELETE /api/v1/budgets/1 | 200 | 6.56ms
+2026-08-29 23:53:43,550 | WARNING | finance_tracker.budgets | req=43605fa2 | Budget not found: budget_id=1, user_id=1
+2026-08-29 23:53:43,551 | INFO | finance_tracker.middleware | req=43605fa2 | GET /api/v1/budgets/1 | 404 | 3.93ms
+2026-08-29 23:53:43,574 | WARNING | finance_tracker.budgets | req=e7a12ae2 | Budget delete attempt: budget_id=999999, user_id=1
+2026-08-29 23:53:43,575 | WARNING | finance_tracker.budgets | req=e7a12ae2 | Budget not found: budget_id=999999, user_id=1
+2026-08-29 23:53:43,576 | INFO | finance_tracker.middleware | req=e7a12ae2 | DELETE /api/v1/budgets/999999 | 404 | 6.98ms
+2026-08-29 23:53:43,591 | INFO | finance_tracker.middleware | req=9f0f2bda | DELETE /api/v1/budgets/999999 | 401 | 2.39ms
+2026-08-29 23:53:43,619 | INFO | finance_tracker.categories | req=ff41faac | Category create attempt: user_id=1, name=Salary, type=TransactionType.INCOME
+2026-08-29 23:53:43,624 | INFO | finance_tracker.categories | req=ff41faac | Category created: category_id=1, user_id=1
+2026-08-29 23:53:43,625 | INFO | finance_tracker.middleware | req=ff41faac | POST /api/v1/categories/ | 201 | 10.25ms
+2026-08-29 23:53:43,649 | INFO | finance_tracker.categories | req=a1f65bdb | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:43,651 | INFO | finance_tracker.categories | req=a1f65bdb | Category created: category_id=1, user_id=1
+2026-08-29 23:53:43,652 | INFO | finance_tracker.middleware | req=a1f65bdb | POST /api/v1/categories/ | 201 | 7.33ms
+2026-08-29 23:53:43,665 | INFO | finance_tracker.middleware | req=dcc1cb5f | POST /api/v1/categories/ | 401 | 2.14ms
+2026-08-29 23:53:43,686 | INFO | finance_tracker.middleware | req=74c93305 | POST /api/v1/categories/ | 422 | 4.32ms
+2026-08-29 23:53:43,708 | INFO | finance_tracker.middleware | req=10c636ce | POST /api/v1/categories/ | 422 | 3.62ms
+2026-08-29 23:53:43,729 | INFO | finance_tracker.middleware | req=af3ac631 | POST /api/v1/categories/ | 422 | 3.50ms
+2026-08-29 23:53:43,752 | INFO | finance_tracker.middleware | req=49fbe090 | POST /api/v1/categories/ | 422 | 4.37ms
+2026-08-29 23:53:43,775 | INFO | finance_tracker.categories | req=7bf1bd0c | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:43,778 | INFO | finance_tracker.categories | req=7bf1bd0c | Category created: category_id=1, user_id=1
+2026-08-29 23:53:43,779 | INFO | finance_tracker.middleware | req=7bf1bd0c | POST /api/v1/categories/ | 201 | 8.07ms
+2026-08-29 23:53:43,784 | INFO | finance_tracker.categories | req=6b1b9d4c | Category list requested: user_id=1, type=None
+2026-08-29 23:53:43,785 | INFO | finance_tracker.categories | req=6b1b9d4c | Category list returned: user_id=1, count=1
+2026-08-29 23:53:43,786 | INFO | finance_tracker.middleware | req=6b1b9d4c | GET /api/v1/categories/ | 200 | 5.09ms
+2026-08-29 23:53:43,797 | INFO | finance_tracker.middleware | req=d4e80649 | GET /api/v1/categories/ | 401 | 1.92ms
+2026-08-29 23:53:43,819 | INFO | finance_tracker.categories | req=49f4651d | Category create attempt: user_id=1, name=Salary, type=TransactionType.INCOME
+2026-08-29 23:53:43,821 | INFO | finance_tracker.categories | req=49f4651d | Category created: category_id=1, user_id=1
+2026-08-29 23:53:43,822 | INFO | finance_tracker.middleware | req=49f4651d | POST /api/v1/categories/ | 201 | 7.75ms
+2026-08-29 23:53:43,827 | INFO | finance_tracker.categories | req=6d1dd60a | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:43,829 | INFO | finance_tracker.categories | req=6d1dd60a | Category created: category_id=2, user_id=1
+2026-08-29 23:53:43,830 | INFO | finance_tracker.middleware | req=6d1dd60a | POST /api/v1/categories/ | 201 | 6.28ms
+2026-08-29 23:53:43,835 | INFO | finance_tracker.categories | req=b4e5cb61 | Category list requested: user_id=1, type=TransactionType.INCOME
+2026-08-29 23:53:43,836 | INFO | finance_tracker.categories | req=b4e5cb61 | Category list returned: user_id=1, count=1
+2026-08-29 23:53:43,837 | INFO | finance_tracker.middleware | req=b4e5cb61 | GET /api/v1/categories/ | 200 | 4.95ms
+2026-08-29 23:53:43,859 | INFO | finance_tracker.categories | req=e257594a | Category create attempt: user_id=1, name=Salary, type=TransactionType.INCOME
+2026-08-29 23:53:43,861 | INFO | finance_tracker.categories | req=e257594a | Category created: category_id=1, user_id=1
+2026-08-29 23:53:43,862 | INFO | finance_tracker.middleware | req=e257594a | POST /api/v1/categories/ | 201 | 6.52ms
+2026-08-29 23:53:43,867 | INFO | finance_tracker.categories | req=e7a18326 | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:43,870 | INFO | finance_tracker.categories | req=e7a18326 | Category created: category_id=2, user_id=1
+2026-08-29 23:53:43,870 | INFO | finance_tracker.middleware | req=e7a18326 | POST /api/v1/categories/ | 201 | 6.18ms
+2026-08-29 23:53:43,875 | INFO | finance_tracker.categories | req=dee86a4c | Category list requested: user_id=1, type=TransactionType.EXPENSE
+2026-08-29 23:53:43,876 | INFO | finance_tracker.categories | req=dee86a4c | Category list returned: user_id=1, count=1
+2026-08-29 23:53:43,877 | INFO | finance_tracker.middleware | req=dee86a4c | GET /api/v1/categories/ | 200 | 4.09ms
+2026-08-29 23:53:43,899 | INFO | finance_tracker.categories | req=42cd739d | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:43,901 | INFO | finance_tracker.categories | req=42cd739d | Category created: category_id=1, user_id=1
+2026-08-29 23:53:43,902 | INFO | finance_tracker.middleware | req=42cd739d | POST /api/v1/categories/ | 201 | 7.54ms
+2026-08-29 23:53:43,907 | INFO | finance_tracker.categories | req=50ebe034 | Category fetched: category_id=1, user_id=1
+2026-08-29 23:53:43,908 | INFO | finance_tracker.middleware | req=50ebe034 | GET /api/v1/categories/1 | 200 | 4.65ms
+2026-08-29 23:53:43,930 | INFO | finance_tracker.categories | req=b13a7179 | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:43,932 | INFO | finance_tracker.categories | req=b13a7179 | Category created: category_id=1, user_id=1
+2026-08-29 23:53:43,933 | INFO | finance_tracker.middleware | req=b13a7179 | POST /api/v1/categories/ | 201 | 6.52ms
+2026-08-29 23:53:43,936 | INFO | finance_tracker.middleware | req=cb7553e0 | GET /api/v1/categories/1 | 401 | 1.65ms
+2026-08-29 23:53:43,957 | WARNING | finance_tracker.categories | req=acd0f1b5 | Category not found: category_id=999999, user_id=1
+2026-08-29 23:53:43,958 | INFO | finance_tracker.middleware | req=acd0f1b5 | GET /api/v1/categories/999999 | 404 | 4.44ms
+2026-08-29 23:53:43,978 | INFO | finance_tracker.categories | req=e8d408ca | Category create attempt: user_id=1, name=Old Name, type=TransactionType.EXPENSE
+2026-08-29 23:53:43,981 | INFO | finance_tracker.categories | req=e8d408ca | Category created: category_id=1, user_id=1
+2026-08-29 23:53:43,982 | INFO | finance_tracker.middleware | req=e8d408ca | POST /api/v1/categories/ | 201 | 6.94ms
+2026-08-29 23:53:43,987 | INFO | finance_tracker.categories | req=952c97aa | Category update attempt: category_id=1, user_id=1
+2026-08-29 23:53:43,987 | INFO | finance_tracker.categories | req=952c97aa | Category fetched: category_id=1, user_id=1
+2026-08-29 23:53:43,991 | INFO | finance_tracker.categories | req=952c97aa | Category updated: category_id=1, user_id=1
+2026-08-29 23:53:43,992 | INFO | finance_tracker.middleware | req=952c97aa | PUT /api/v1/categories/1 | 200 | 8.25ms
+2026-08-29 23:53:44,014 | INFO | finance_tracker.categories | req=9ec294e5 | Category create attempt: user_id=1, name=Adjustable Category, type=TransactionType.EXPENSE
+2026-08-29 23:53:44,017 | INFO | finance_tracker.categories | req=9ec294e5 | Category created: category_id=1, user_id=1
+2026-08-29 23:53:44,018 | INFO | finance_tracker.middleware | req=9ec294e5 | POST /api/v1/categories/ | 201 | 7.77ms
+2026-08-29 23:53:44,022 | INFO | finance_tracker.categories | req=c66a28a5 | Category update attempt: category_id=1, user_id=1
+2026-08-29 23:53:44,023 | INFO | finance_tracker.categories | req=c66a28a5 | Category fetched: category_id=1, user_id=1
+2026-08-29 23:53:44,026 | INFO | finance_tracker.categories | req=c66a28a5 | Category updated: category_id=1, user_id=1
+2026-08-29 23:53:44,027 | INFO | finance_tracker.middleware | req=c66a28a5 | PUT /api/v1/categories/1 | 200 | 6.96ms
+2026-08-29 23:53:44,048 | INFO | finance_tracker.categories | req=2553d3f8 | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:44,051 | INFO | finance_tracker.categories | req=2553d3f8 | Category created: category_id=1, user_id=1
+2026-08-29 23:53:44,052 | INFO | finance_tracker.middleware | req=2553d3f8 | POST /api/v1/categories/ | 201 | 7.32ms
+2026-08-29 23:53:44,057 | INFO | finance_tracker.middleware | req=86e6833c | PUT /api/v1/categories/1 | 422 | 3.33ms
+2026-08-29 23:53:44,078 | INFO | finance_tracker.categories | req=b791d77a | Category update attempt: category_id=999999, user_id=1
+2026-08-29 23:53:44,079 | WARNING | finance_tracker.categories | req=b791d77a | Category not found: category_id=999999, user_id=1
+2026-08-29 23:53:44,079 | INFO | finance_tracker.middleware | req=b791d77a | PUT /api/v1/categories/999999 | 404 | 4.90ms
+2026-08-29 23:53:44,103 | INFO | finance_tracker.categories | req=20117adf | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:44,107 | INFO | finance_tracker.categories | req=20117adf | Category created: category_id=1, user_id=1
+2026-08-29 23:53:44,108 | INFO | finance_tracker.middleware | req=20117adf | POST /api/v1/categories/ | 201 | 9.30ms
+2026-08-29 23:53:44,115 | WARNING | finance_tracker.categories | req=b55557cf | Category delete attempt: category_id=1, user_id=1
+2026-08-29 23:53:44,117 | INFO | finance_tracker.categories | req=b55557cf | Category fetched: category_id=1, user_id=1
+2026-08-29 23:53:44,126 | WARNING | finance_tracker.categories | req=b55557cf | Category deleted: category_id=1, user_id=1
+2026-08-29 23:53:44,128 | INFO | finance_tracker.middleware | req=b55557cf | DELETE /api/v1/categories/1 | 200 | 16.96ms
+2026-08-29 23:53:44,138 | WARNING | finance_tracker.categories | req=4c0aec6b | Category not found: category_id=1, user_id=1
+2026-08-29 23:53:44,140 | INFO | finance_tracker.middleware | req=4c0aec6b | GET /api/v1/categories/1 | 404 | 8.29ms
+2026-08-29 23:53:44,179 | WARNING | finance_tracker.categories | req=b94f6253 | Category delete attempt: category_id=999999, user_id=1
+2026-08-29 23:53:44,180 | WARNING | finance_tracker.categories | req=b94f6253 | Category not found: category_id=999999, user_id=1
+2026-08-29 23:53:44,182 | INFO | finance_tracker.middleware | req=b94f6253 | DELETE /api/v1/categories/999999 | 404 | 8.20ms
+2026-08-29 23:53:44,197 | INFO | finance_tracker.middleware | req=ed128775 | DELETE /api/v1/categories/999999 | 401 | 2.34ms
+2026-08-29 23:53:44,227 | INFO | finance_tracker.dashboard | req=ff554ce8 | Dashboard summary requested: user_id=1
+2026-08-29 23:53:44,242 | INFO | finance_tracker.dashboard | req=ff554ce8 | Dashboard summary generated: user_id=1
+2026-08-29 23:53:44,243 | INFO | finance_tracker.middleware | req=ff554ce8 | GET /api/v1/dashboard/summary | 200 | 20.91ms
+2026-08-29 23:53:44,270 | INFO | finance_tracker.dashboard | req=abfd7718 | Dashboard summary requested: user_id=1
+2026-08-29 23:53:44,272 | INFO | finance_tracker.dashboard | req=abfd7718 | Dashboard summary generated: user_id=1
+2026-08-29 23:53:44,273 | INFO | finance_tracker.middleware | req=abfd7718 | GET /api/v1/dashboard/summary | 200 | 6.52ms
+2026-08-29 23:53:44,295 | INFO | finance_tracker.middleware | req=d4bb76da | GET /api/v1/dashboard/summary | 422 | 3.88ms
+2026-08-29 23:53:44,318 | INFO | finance_tracker.middleware | req=014161cc | GET /api/v1/dashboard/summary | 422 | 3.61ms
+2026-08-29 23:53:44,329 | INFO | finance_tracker.middleware | req=2dbe8976 | GET /api/v1/dashboard/summary | 401 | 2.08ms
+2026-08-29 23:53:44,351 | INFO | finance_tracker.dashboard | req=080f6473 | Monthly trend requested: user_id=1
+2026-08-29 23:53:44,353 | INFO | finance_tracker.dashboard | req=080f6473 | Monthly trend generated: user_id=1
+2026-08-29 23:53:44,354 | INFO | finance_tracker.middleware | req=080f6473 | GET /api/v1/dashboard/monthly-trend | 200 | 6.44ms
+2026-08-29 23:53:44,376 | INFO | finance_tracker.dashboard | req=749e0615 | Monthly trend requested: user_id=1
+2026-08-29 23:53:44,377 | INFO | finance_tracker.dashboard | req=749e0615 | Monthly trend generated: user_id=1
+2026-08-29 23:53:44,377 | INFO | finance_tracker.middleware | req=749e0615 | GET /api/v1/dashboard/monthly-trend | 200 | 5.84ms
+2026-08-29 23:53:44,399 | INFO | finance_tracker.middleware | req=c59a8763 | GET /api/v1/dashboard/monthly-trend | 422 | 3.39ms
+2026-08-29 23:53:44,410 | INFO | finance_tracker.middleware | req=a4b381ad | GET /api/v1/dashboard/monthly-trend | 401 | 2.17ms
+2026-08-29 23:53:44,432 | INFO | finance_tracker.dashboard | req=e0376ca9 | Category breakdown requested: user_id=1
+2026-08-29 23:53:44,434 | INFO | finance_tracker.dashboard | req=e0376ca9 | Category breakdown generated: user_id=1
+2026-08-29 23:53:44,435 | INFO | finance_tracker.middleware | req=e0376ca9 | GET /api/v1/dashboard/category-breakdown | 200 | 6.60ms
+2026-08-29 23:53:44,456 | INFO | finance_tracker.dashboard | req=370ced87 | Category breakdown requested: user_id=1
+2026-08-29 23:53:44,457 | INFO | finance_tracker.dashboard | req=370ced87 | Category breakdown generated: user_id=1
+2026-08-29 23:53:44,458 | INFO | finance_tracker.middleware | req=370ced87 | GET /api/v1/dashboard/category-breakdown | 200 | 4.64ms
+2026-08-29 23:53:44,479 | INFO | finance_tracker.middleware | req=17a03883 | GET /api/v1/dashboard/category-breakdown | 422 | 3.60ms
+2026-08-29 23:53:44,500 | INFO | finance_tracker.middleware | req=c9cd5596 | GET /api/v1/dashboard/category-breakdown | 422 | 4.62ms
+2026-08-29 23:53:44,510 | INFO | finance_tracker.middleware | req=cec8350a | GET /api/v1/dashboard/category-breakdown | 401 | 1.78ms
+2026-08-29 23:53:44,532 | INFO | finance_tracker.middleware | req=d4a97304 | GET /api/v1/dashboard/status | 200 | 4.32ms
+2026-08-29 23:53:44,554 | INFO | finance_tracker.middleware | req=4785416a | GET /api/v1/dashboard/status | 422 | 3.39ms
+2026-08-29 23:53:44,574 | INFO | finance_tracker.middleware | req=dac80a52 | GET /api/v1/dashboard/status | 422 | 3.30ms
+2026-08-29 23:53:44,595 | INFO | finance_tracker.middleware | req=574525e8 | GET /api/v1/dashboard/status | 422 | 3.25ms
+2026-08-29 23:53:44,618 | INFO | finance_tracker.middleware | req=82e8883a | GET /api/v1/dashboard/status | 422 | 3.68ms
+2026-08-29 23:53:44,629 | INFO | finance_tracker.middleware | req=e2292e22 | GET /api/v1/dashboard/status | 401 | 2.00ms
+2026-08-29 23:53:44,652 | INFO | finance_tracker.dashboard | req=4b15b02d | Recent transactions requested: user_id=1, limit=5
+2026-08-29 23:53:44,654 | INFO | finance_tracker.dashboard | req=4b15b02d | Recent transactions returned: user_id=1, count=0
+2026-08-29 23:53:44,654 | INFO | finance_tracker.middleware | req=4b15b02d | GET /api/v1/dashboard/recent-transactions | 200 | 6.73ms
+2026-08-29 23:53:44,677 | INFO | finance_tracker.dashboard | req=b3ed9ebf | Recent transactions requested: user_id=1, limit=10
+2026-08-29 23:53:44,678 | INFO | finance_tracker.dashboard | req=b3ed9ebf | Recent transactions returned: user_id=1, count=0
+2026-08-29 23:53:44,678 | INFO | finance_tracker.middleware | req=b3ed9ebf | GET /api/v1/dashboard/recent-transactions | 200 | 4.46ms
+2026-08-29 23:53:44,700 | INFO | finance_tracker.middleware | req=98877361 | GET /api/v1/dashboard/recent-transactions | 422 | 3.77ms
+2026-08-29 23:53:44,721 | INFO | finance_tracker.middleware | req=a40f4a10 | GET /api/v1/dashboard/recent-transactions | 422 | 3.46ms
+2026-08-29 23:53:44,742 | INFO | finance_tracker.middleware | req=38d41b34 | GET /api/v1/dashboard/recent-transactions | 422 | 3.18ms
+2026-08-29 23:53:44,751 | INFO | finance_tracker.middleware | req=5a8f4d1c | GET /api/v1/dashboard/recent-transactions | 401 | 1.75ms
+2026-08-29 23:53:44,771 | INFO | finance_tracker.transactions | req=410d8b83 | Transaction create attempt: user_id=1, amount=50000.0, type=TransactionType.INCOME
+2026-08-29 23:53:44,776 | INFO | finance_tracker.transactions | req=410d8b83 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:44,777 | INFO | finance_tracker.middleware | req=410d8b83 | POST /api/v1/transactions | 201 | 9.20ms
+2026-08-29 23:53:44,781 | INFO | finance_tracker.transactions | req=eb6452a2 | Transaction create attempt: user_id=1, amount=5000.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:44,783 | INFO | finance_tracker.transactions | req=eb6452a2 | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:44,784 | INFO | finance_tracker.middleware | req=eb6452a2 | POST /api/v1/transactions | 201 | 5.71ms
+2026-08-29 23:53:44,792 | INFO | finance_tracker.middleware | req=2380ab89 | GET /api/v1/reports/cash-flow | 200 | 5.73ms
+2026-08-29 23:53:44,803 | INFO | finance_tracker.middleware | req=6b38c6e2 | GET /api/v1/reports/cash-flow | 401 | 1.94ms
+2026-08-29 23:53:44,823 | INFO | finance_tracker.middleware | req=a0ed7ccb | GET /api/v1/reports/cash-flow | 422 | 3.39ms
+2026-08-29 23:53:44,844 | INFO | finance_tracker.middleware | req=33c0e869 | GET /api/v1/reports/cash-flow | 422 | 3.58ms
+2026-08-29 23:53:44,865 | INFO | finance_tracker.middleware | req=71dbc4b9 | GET /api/v1/reports/cash-flow | 422 | 3.48ms
+2026-08-29 23:53:44,886 | INFO | finance_tracker.transactions | req=254b65a9 | Transaction create attempt: user_id=1, amount=5000.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:44,888 | INFO | finance_tracker.transactions | req=254b65a9 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:44,889 | INFO | finance_tracker.middleware | req=254b65a9 | POST /api/v1/transactions | 201 | 6.59ms
+2026-08-29 23:53:44,897 | INFO | finance_tracker.middleware | req=039d2b84 | GET /api/v1/reports/category-analysis | 200 | 5.18ms
+2026-08-29 23:53:44,909 | INFO | finance_tracker.middleware | req=0dfb9bd2 | GET /api/v1/reports/category-analysis | 401 | 2.24ms
+2026-08-29 23:53:44,937 | INFO | finance_tracker.middleware | req=c4aa3fb1 | GET /api/v1/reports/category-analysis | 422 | 5.75ms
+2026-08-29 23:53:44,962 | INFO | finance_tracker.middleware | req=cd426793 | GET /api/v1/reports/category-analysis | 422 | 4.11ms
+2026-08-29 23:53:44,987 | INFO | finance_tracker.middleware | req=3fccc207 | GET /api/v1/reports/category-analysis | 422 | 4.06ms
+2026-08-29 23:53:45,012 | INFO | finance_tracker.middleware | req=000cca5e | GET /api/v1/reports/category-analysis | 422 | 3.91ms
+2026-08-29 23:53:45,036 | INFO | finance_tracker.transactions | req=917e9acc | Transaction create attempt: user_id=1, amount=50000.0, type=TransactionType.INCOME
+2026-08-29 23:53:45,039 | INFO | finance_tracker.transactions | req=917e9acc | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:45,040 | INFO | finance_tracker.middleware | req=917e9acc | POST /api/v1/transactions | 201 | 7.01ms
+2026-08-29 23:53:45,046 | INFO | finance_tracker.transactions | req=8925a1ec | Transaction create attempt: user_id=1, amount=5000.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,048 | INFO | finance_tracker.transactions | req=8925a1ec | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:45,049 | INFO | finance_tracker.middleware | req=8925a1ec | POST /api/v1/transactions | 201 | 6.82ms
+2026-08-29 23:53:45,056 | INFO | finance_tracker.middleware | req=6c360216 | GET /api/v1/reports/income-vs-expense | 200 | 5.02ms
+2026-08-29 23:53:45,070 | INFO | finance_tracker.middleware | req=b4461faf | GET /api/v1/reports/income-vs-expense | 401 | 2.15ms
+2026-08-29 23:53:45,096 | INFO | finance_tracker.middleware | req=7dd32b56 | GET /api/v1/reports/income-vs-expense | 422 | 5.80ms
+2026-08-29 23:53:45,125 | INFO | finance_tracker.middleware | req=4af2e777 | GET /api/v1/reports/income-vs-expense | 422 | 4.84ms
+2026-08-29 23:53:45,157 | INFO | finance_tracker.budgets | req=cb394132 | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:45,161 | INFO | finance_tracker.budgets | req=cb394132 | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:45,162 | INFO | finance_tracker.middleware | req=cb394132 | POST /api/v1/budgets/ | 201 | 8.89ms
+2026-08-29 23:53:45,167 | INFO | finance_tracker.transactions | req=a45b7c35 | Transaction create attempt: user_id=1, amount=5000.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,170 | INFO | finance_tracker.transactions | req=a45b7c35 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:45,171 | INFO | finance_tracker.middleware | req=a45b7c35 | POST /api/v1/transactions | 201 | 6.77ms
+2026-08-29 23:53:45,179 | INFO | finance_tracker.middleware | req=546bd151 | GET /api/v1/reports/budget-performance | 200 | 6.52ms
+2026-08-29 23:53:45,195 | INFO | finance_tracker.middleware | req=c95e714a | GET /api/v1/reports/budget-performance | 401 | 2.63ms
+2026-08-29 23:53:45,222 | INFO | finance_tracker.middleware | req=1536ae7c | GET /api/v1/reports/budget-performance | 422 | 4.17ms
+2026-08-29 23:53:45,247 | INFO | finance_tracker.middleware | req=a3c636b9 | GET /api/v1/reports/budget-performance | 422 | 4.57ms
+2026-08-29 23:53:45,270 | INFO | finance_tracker.middleware | req=2151754b | GET /api/v1/reports/budget-performance | 422 | 4.31ms
+2026-08-29 23:53:45,291 | INFO | finance_tracker.middleware | req=c3ebad3e | GET /api/v1/reports/budget-performance | 422 | 3.28ms
+2026-08-29 23:53:45,312 | INFO | finance_tracker.transactions | req=92994a04 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,314 | INFO | finance_tracker.transactions | req=92994a04 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:45,315 | INFO | finance_tracker.middleware | req=92994a04 | POST /api/v1/transactions | 201 | 6.33ms
+2026-08-29 23:53:45,336 | INFO | finance_tracker.transactions | req=558d7e5c | Transaction create attempt: user_id=1, amount=50000.0, type=TransactionType.INCOME
+2026-08-29 23:53:45,338 | INFO | finance_tracker.transactions | req=558d7e5c | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:45,339 | INFO | finance_tracker.middleware | req=558d7e5c | POST /api/v1/transactions | 201 | 6.08ms
+2026-08-29 23:53:45,350 | INFO | finance_tracker.middleware | req=1c14d258 | POST /api/v1/transactions | 401 | 2.24ms
+2026-08-29 23:53:45,370 | INFO | finance_tracker.middleware | req=5f738fe7 | POST /api/v1/transactions | 422 | 3.48ms
+2026-08-29 23:53:45,391 | INFO | finance_tracker.middleware | req=71d81b4f | POST /api/v1/transactions | 422 | 4.45ms
+2026-08-29 23:53:45,413 | INFO | finance_tracker.middleware | req=27f6320f | POST /api/v1/transactions | 422 | 4.41ms
+2026-08-29 23:53:45,440 | INFO | finance_tracker.middleware | req=61dfeec8 | POST /api/v1/transactions | 422 | 4.84ms
+2026-08-29 23:53:45,468 | INFO | finance_tracker.middleware | req=bb9d272a | POST /api/v1/transactions | 422 | 4.44ms
+2026-08-29 23:53:45,494 | INFO | finance_tracker.middleware | req=07fdf5c5 | POST /api/v1/transactions | 422 | 4.30ms
+2026-08-29 23:53:45,518 | INFO | finance_tracker.middleware | req=175cf35a | POST /api/v1/transactions | 422 | 3.96ms
+2026-08-29 23:53:45,541 | INFO | finance_tracker.transactions | req=3e6b28e3 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,543 | INFO | finance_tracker.transactions | req=3e6b28e3 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:45,544 | INFO | finance_tracker.middleware | req=3e6b28e3 | POST /api/v1/transactions | 201 | 6.41ms
+2026-08-29 23:53:45,549 | INFO | finance_tracker.transactions | req=5bc11d90 | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:45,551 | INFO | finance_tracker.transactions | req=5bc11d90 | Transaction list returned: user_id=1, count=1
+2026-08-29 23:53:45,552 | INFO | finance_tracker.middleware | req=5bc11d90 | GET /api/v1/transactions | 200 | 5.95ms
+2026-08-29 23:53:45,564 | INFO | finance_tracker.middleware | req=e64c3b9c | GET /api/v1/transactions | 401 | 2.18ms
+2026-08-29 23:53:45,587 | INFO | finance_tracker.transactions | req=4f6a1053 | Transaction create attempt: user_id=1, amount=100.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,590 | INFO | finance_tracker.transactions | req=4f6a1053 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:45,591 | INFO | finance_tracker.middleware | req=4f6a1053 | POST /api/v1/transactions | 201 | 7.00ms
+2026-08-29 23:53:45,596 | INFO | finance_tracker.transactions | req=87071c72 | Transaction create attempt: user_id=1, amount=101.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,598 | INFO | finance_tracker.transactions | req=87071c72 | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:45,599 | INFO | finance_tracker.middleware | req=87071c72 | POST /api/v1/transactions | 201 | 6.11ms
+2026-08-29 23:53:45,604 | INFO | finance_tracker.transactions | req=2ae9c678 | Transaction create attempt: user_id=1, amount=102.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,606 | INFO | finance_tracker.transactions | req=2ae9c678 | Transaction created: txn_id=3, user_id=1
+2026-08-29 23:53:45,607 | INFO | finance_tracker.middleware | req=2ae9c678 | POST /api/v1/transactions | 201 | 6.05ms
+2026-08-29 23:53:45,612 | INFO | finance_tracker.transactions | req=9fcb458d | Transaction list requested: user_id=1, page=1, limit=2
+2026-08-29 23:53:45,613 | INFO | finance_tracker.transactions | req=9fcb458d | Transaction list returned: user_id=1, count=2
+2026-08-29 23:53:45,614 | INFO | finance_tracker.middleware | req=9fcb458d | GET /api/v1/transactions | 200 | 4.81ms
+2026-08-29 23:53:45,638 | INFO | finance_tracker.middleware | req=90bae93c | GET /api/v1/transactions | 422 | 4.04ms
+2026-08-29 23:53:45,661 | INFO | finance_tracker.middleware | req=f391f95d | GET /api/v1/transactions | 422 | 4.71ms
+2026-08-29 23:53:45,684 | INFO | finance_tracker.transactions | req=23e8e788 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,687 | INFO | finance_tracker.transactions | req=23e8e788 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:45,688 | INFO | finance_tracker.middleware | req=23e8e788 | POST /api/v1/transactions | 201 | 7.15ms
+2026-08-29 23:53:45,693 | INFO | finance_tracker.transactions | req=8130c0bf | Transaction create attempt: user_id=1, amount=50000.0, type=TransactionType.INCOME
+2026-08-29 23:53:45,695 | INFO | finance_tracker.transactions | req=8130c0bf | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:45,696 | INFO | finance_tracker.middleware | req=8130c0bf | POST /api/v1/transactions | 201 | 6.59ms
+2026-08-29 23:53:45,701 | INFO | finance_tracker.transactions | req=90665b4a | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:45,703 | INFO | finance_tracker.transactions | req=90665b4a | Transaction list returned: user_id=1, count=1
+2026-08-29 23:53:45,704 | INFO | finance_tracker.middleware | req=90665b4a | GET /api/v1/transactions | 200 | 5.86ms
+2026-08-29 23:53:45,727 | INFO | finance_tracker.transactions | req=9d0a8538 | Transaction create attempt: user_id=1, amount=250.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,729 | INFO | finance_tracker.transactions | req=9d0a8538 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:45,730 | INFO | finance_tracker.middleware | req=9d0a8538 | POST /api/v1/transactions | 201 | 6.67ms
+2026-08-29 23:53:45,736 | INFO | finance_tracker.transactions | req=2cf72a0d | Transaction create attempt: user_id=1, amount=100.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,738 | INFO | finance_tracker.transactions | req=2cf72a0d | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:45,739 | INFO | finance_tracker.middleware | req=2cf72a0d | POST /api/v1/transactions | 201 | 6.21ms
+2026-08-29 23:53:45,744 | INFO | finance_tracker.transactions | req=df8013e5 | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:45,746 | INFO | finance_tracker.transactions | req=df8013e5 | Transaction list returned: user_id=1, count=1
+2026-08-29 23:53:45,747 | INFO | finance_tracker.middleware | req=df8013e5 | GET /api/v1/transactions | 200 | 5.95ms
+2026-08-29 23:53:45,770 | INFO | finance_tracker.transactions | req=f0323bb1 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,773 | INFO | finance_tracker.transactions | req=f0323bb1 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:45,774 | INFO | finance_tracker.middleware | req=f0323bb1 | POST /api/v1/transactions | 201 | 6.72ms
+2026-08-29 23:53:45,780 | INFO | finance_tracker.transactions | req=a4b749f3 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,782 | INFO | finance_tracker.transactions | req=a4b749f3 | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:45,782 | INFO | finance_tracker.middleware | req=a4b749f3 | POST /api/v1/transactions | 201 | 6.79ms
+2026-08-29 23:53:45,788 | INFO | finance_tracker.transactions | req=a6a8c147 | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:45,790 | INFO | finance_tracker.transactions | req=a6a8c147 | Transaction list returned: user_id=1, count=1
+2026-08-29 23:53:45,790 | INFO | finance_tracker.middleware | req=a6a8c147 | GET /api/v1/transactions | 200 | 5.78ms
+2026-08-29 23:53:45,814 | INFO | finance_tracker.transactions | req=108eb6da | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,816 | INFO | finance_tracker.transactions | req=108eb6da | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:45,817 | INFO | finance_tracker.middleware | req=108eb6da | POST /api/v1/transactions | 201 | 6.78ms
+2026-08-29 23:53:45,822 | INFO | finance_tracker.transactions | req=e3f60563 | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:45,824 | INFO | finance_tracker.transactions | req=e3f60563 | Transaction list returned: user_id=1, count=1
+2026-08-29 23:53:45,825 | INFO | finance_tracker.middleware | req=e3f60563 | GET /api/v1/transactions | 200 | 5.89ms
+2026-08-29 23:53:45,848 | INFO | finance_tracker.transactions | req=ee375b81 | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:45,849 | INFO | finance_tracker.transactions | req=ee375b81 | Transaction list returned: user_id=1, count=0
+2026-08-29 23:53:45,850 | INFO | finance_tracker.middleware | req=ee375b81 | GET /api/v1/transactions | 200 | 5.30ms
+2026-08-29 23:53:45,872 | INFO | finance_tracker.transactions | req=6f7205af | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:45,874 | INFO | finance_tracker.transactions | req=6f7205af | Transaction list returned: user_id=1, count=0
+2026-08-29 23:53:45,875 | INFO | finance_tracker.middleware | req=6f7205af | GET /api/v1/transactions | 200 | 6.33ms
+2026-08-29 23:53:45,902 | INFO | finance_tracker.transactions | req=b454084c | Transaction create attempt: user_id=1, amount=100.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,904 | INFO | finance_tracker.transactions | req=b454084c | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:45,905 | INFO | finance_tracker.middleware | req=b454084c | POST /api/v1/transactions | 201 | 9.31ms
+2026-08-29 23:53:45,910 | INFO | finance_tracker.transactions | req=bc150cea | Transaction create attempt: user_id=1, amount=200.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,912 | INFO | finance_tracker.transactions | req=bc150cea | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:45,913 | INFO | finance_tracker.middleware | req=bc150cea | POST /api/v1/transactions | 201 | 6.00ms
+2026-08-29 23:53:45,918 | INFO | finance_tracker.transactions | req=044fcdb8 | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:45,920 | INFO | finance_tracker.transactions | req=044fcdb8 | Transaction list returned: user_id=1, count=2
+2026-08-29 23:53:45,921 | INFO | finance_tracker.middleware | req=044fcdb8 | GET /api/v1/transactions | 200 | 5.82ms
+2026-08-29 23:53:45,945 | INFO | finance_tracker.transactions | req=06919e89 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:45,947 | INFO | finance_tracker.transactions | req=06919e89 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:45,948 | INFO | finance_tracker.middleware | req=06919e89 | POST /api/v1/transactions | 201 | 6.98ms
+2026-08-29 23:53:45,955 | INFO | finance_tracker.transactions | req=e69f131a | Transaction fetched: txn_id=1, user_id=1
+2026-08-29 23:53:45,956 | INFO | finance_tracker.middleware | req=e69f131a | GET /api/v1/transactions/1 | 200 | 5.42ms
+2026-08-29 23:53:45,979 | WARNING | finance_tracker.transactions | req=3cfbf6f5 | Transaction not found: txn_id=999999, user_id=1
+2026-08-29 23:53:45,980 | INFO | finance_tracker.middleware | req=3cfbf6f5 | GET /api/v1/transactions/999999 | 404 | 4.76ms
+2026-08-29 23:53:46,003 | INFO | finance_tracker.transactions | req=0e3d1747 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:46,006 | INFO | finance_tracker.transactions | req=0e3d1747 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:46,007 | INFO | finance_tracker.middleware | req=0e3d1747 | POST /api/v1/transactions | 201 | 7.41ms
+2026-08-29 23:53:46,011 | INFO | finance_tracker.middleware | req=63199a61 | GET /api/v1/transactions/1 | 401 | 2.27ms
+2026-08-29 23:53:46,036 | INFO | finance_tracker.transactions | req=90a08642 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:46,039 | INFO | finance_tracker.transactions | req=90a08642 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:46,039 | INFO | finance_tracker.middleware | req=90a08642 | POST /api/v1/transactions | 201 | 6.86ms
+2026-08-29 23:53:46,045 | INFO | finance_tracker.transactions | req=840cecc1 | Transaction update attempt: txn_id=1, user_id=1
+2026-08-29 23:53:46,047 | INFO | finance_tracker.transactions | req=840cecc1 | Transaction fetched: txn_id=1, user_id=1
+2026-08-29 23:53:46,126 | INFO | finance_tracker.transactions | req=840cecc1 | Transaction updated: txn_id=1, user_id=1
+2026-08-29 23:53:46,127 | INFO | finance_tracker.middleware | req=840cecc1 | PATCH /api/v1/transactions/1 | 200 | 86.01ms
+2026-08-29 23:53:46,157 | INFO | finance_tracker.transactions | req=bb2e5548 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:46,160 | INFO | finance_tracker.transactions | req=bb2e5548 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:46,161 | INFO | finance_tracker.middleware | req=bb2e5548 | POST /api/v1/transactions | 201 | 8.70ms
+2026-08-29 23:53:46,167 | INFO | finance_tracker.transactions | req=d82239ce | Transaction update attempt: txn_id=1, user_id=1
+2026-08-29 23:53:46,168 | INFO | finance_tracker.transactions | req=d82239ce | Transaction fetched: txn_id=1, user_id=1
+2026-08-29 23:53:46,171 | INFO | finance_tracker.transactions | req=d82239ce | Transaction updated: txn_id=1, user_id=1
+2026-08-29 23:53:46,172 | INFO | finance_tracker.middleware | req=d82239ce | PATCH /api/v1/transactions/1 | 200 | 8.67ms
+2026-08-29 23:53:46,198 | INFO | finance_tracker.transactions | req=f0d26d52 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:46,200 | INFO | finance_tracker.transactions | req=f0d26d52 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:46,201 | INFO | finance_tracker.middleware | req=f0d26d52 | POST /api/v1/transactions | 201 | 6.99ms
+2026-08-29 23:53:46,206 | INFO | finance_tracker.transactions | req=cf924a91 | Transaction update attempt: txn_id=1, user_id=1
+2026-08-29 23:53:46,207 | INFO | finance_tracker.transactions | req=cf924a91 | Transaction fetched: txn_id=1, user_id=1
+2026-08-29 23:53:46,209 | INFO | finance_tracker.transactions | req=cf924a91 | Transaction updated: txn_id=1, user_id=1
+2026-08-29 23:53:46,210 | INFO | finance_tracker.middleware | req=cf924a91 | PATCH /api/v1/transactions/1 | 200 | 7.46ms
+2026-08-29 23:53:46,236 | INFO | finance_tracker.transactions | req=236fb064 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:46,238 | INFO | finance_tracker.transactions | req=236fb064 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:46,239 | INFO | finance_tracker.middleware | req=236fb064 | POST /api/v1/transactions | 201 | 6.66ms
+2026-08-29 23:53:46,244 | INFO | finance_tracker.middleware | req=8b813246 | PATCH /api/v1/transactions/1 | 422 | 3.37ms
+2026-08-29 23:53:46,268 | INFO | finance_tracker.transactions | req=2eb2fd59 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:46,271 | INFO | finance_tracker.transactions | req=2eb2fd59 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:46,272 | INFO | finance_tracker.middleware | req=2eb2fd59 | POST /api/v1/transactions | 201 | 8.20ms
+2026-08-29 23:53:46,277 | INFO | finance_tracker.middleware | req=0f2a1a61 | PATCH /api/v1/transactions/1 | 422 | 3.70ms
+2026-08-29 23:53:46,300 | INFO | finance_tracker.transactions | req=3f2fe874 | Transaction update attempt: txn_id=999999, user_id=1
+2026-08-29 23:53:46,301 | WARNING | finance_tracker.transactions | req=3f2fe874 | Transaction not found: txn_id=999999, user_id=1
+2026-08-29 23:53:46,302 | INFO | finance_tracker.middleware | req=3f2fe874 | PATCH /api/v1/transactions/999999 | 404 | 5.42ms
+2026-08-29 23:53:46,324 | INFO | finance_tracker.transactions | req=7a048d33 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:46,326 | INFO | finance_tracker.transactions | req=7a048d33 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:46,327 | INFO | finance_tracker.middleware | req=7a048d33 | POST /api/v1/transactions | 201 | 6.75ms
+2026-08-29 23:53:46,332 | WARNING | finance_tracker.transactions | req=949e9d50 | Transaction delete attempt: txn_id=1, user_id=1
+2026-08-29 23:53:46,333 | INFO | finance_tracker.transactions | req=949e9d50 | Transaction fetched: txn_id=1, user_id=1
+2026-08-29 23:53:46,335 | WARNING | finance_tracker.transactions | req=949e9d50 | Transaction deleted: txn_id=1, user_id=1
+2026-08-29 23:53:46,336 | INFO | finance_tracker.middleware | req=949e9d50 | DELETE /api/v1/transactions/1 | 200 | 6.79ms
+2026-08-29 23:53:46,342 | WARNING | finance_tracker.transactions | req=1b5cc68f | Transaction not found: txn_id=1, user_id=1
+2026-08-29 23:53:46,342 | INFO | finance_tracker.middleware | req=1b5cc68f | GET /api/v1/transactions/1 | 404 | 4.08ms
+2026-08-29 23:53:46,366 | WARNING | finance_tracker.transactions | req=4e88efc2 | Transaction delete attempt: txn_id=999999, user_id=1
+2026-08-29 23:53:46,367 | WARNING | finance_tracker.transactions | req=4e88efc2 | Transaction not found: txn_id=999999, user_id=1
+2026-08-29 23:53:46,367 | INFO | finance_tracker.middleware | req=4e88efc2 | DELETE /api/v1/transactions/999999 | 404 | 5.43ms
+2026-08-29 23:53:46,380 | INFO | finance_tracker.middleware | req=455e0e13 | DELETE /api/v1/transactions/999999 | 401 | 2.81ms
+2026-08-29 23:53:46,391 | INFO | finance_tracker.middleware | req=1246c98b | GET /api/v1/health | 200 | 1.44ms
+2026-08-29 23:53:46,401 | INFO | finance_tracker.middleware | req=ad0004cf | GET /api/v1/health | 200 | 1.17ms
+2026-08-29 23:53:46,425 | INFO | finance_tracker.middleware | req=e1e6dc34 | GET /api/v1/users/me | 200 | 4.82ms
+2026-08-29 23:53:46,438 | INFO | finance_tracker.middleware | req=c652cd56 | GET /api/v1/users/me | 401 | 0.93ms
+2026-08-29 23:53:46,450 | INFO | finance_tracker.middleware | req=623b5fca | GET /api/v1/users/me | 401 | 2.40ms
+2026-08-29 23:53:46,476 | INFO | finance_tracker.middleware | req=35c73f66 | PATCH /api/v1/users/me | 200 | 6.68ms
+2026-08-29 23:53:46,506 | INFO | finance_tracker.middleware | req=b02d80a1 | PATCH /api/v1/users/me | 200 | 10.55ms
+2026-08-29 23:53:46,545 | INFO | finance_tracker.middleware | req=b792e257 | PATCH /api/v1/users/me | 200 | 9.69ms
+2026-08-29 23:53:46,574 | INFO | finance_tracker.middleware | req=4c9b49fd | PATCH /api/v1/users/me | 200 | 5.88ms
+2026-08-29 23:53:46,599 | INFO | finance_tracker.middleware | req=41772f52 | PATCH /api/v1/users/me | 422 | 4.34ms
+2026-08-29 23:53:46,623 | INFO | finance_tracker.middleware | req=3ffd012b | PATCH /api/v1/users/me | 422 | 3.94ms
+2026-08-29 23:53:46,647 | INFO | finance_tracker.middleware | req=1ac9a978 | PATCH /api/v1/users/me | 422 | 5.30ms
+2026-08-29 23:53:46,658 | INFO | finance_tracker.middleware | req=0b46228b | PATCH /api/v1/users/me | 401 | 2.27ms
+2026-08-29 23:53:46,697 | INFO | finance_tracker.middleware | req=4ad9d409 | PATCH /api/v1/users/change-password | 200 | 20.90ms
+2026-08-29 23:53:46,726 | INFO | finance_tracker.middleware | req=27c6b17e | PATCH /api/v1/users/change-password | 400 | 10.65ms
+2026-08-29 23:53:46,748 | INFO | finance_tracker.middleware | req=c66c5826 | PATCH /api/v1/users/change-password | 422 | 3.83ms
+2026-08-29 23:53:46,770 | INFO | finance_tracker.middleware | req=61248409 | PATCH /api/v1/users/change-password | 422 | 4.96ms
+2026-08-29 23:53:46,793 | INFO | finance_tracker.middleware | req=397ad380 | PATCH /api/v1/users/change-password | 422 | 3.87ms
+2026-08-29 23:53:46,804 | INFO | finance_tracker.middleware | req=71d1f1fe | PATCH /api/v1/users/change-password | 401 | 2.50ms
+2026-08-29 23:53:46,828 | INFO | finance_tracker.middleware | req=79a343ad | DELETE /api/v1/users/me | 200 | 4.89ms
+2026-08-29 23:53:46,840 | INFO | finance_tracker.middleware | req=064c850d | DELETE /api/v1/users/me | 401 | 2.23ms
+2026-08-29 23:53:46,851 | INFO | finance_tracker.middleware | req=d1c6b2cc | DELETE /api/v1/users/me | 401 | 2.40ms
+2026-08-29 23:53:48,553 | INFO | finance_tracker.Auth | req=5fbf33d4 | Registration attempt: register@finora.com
+2026-08-29 23:53:48,579 | INFO | finance_tracker.Auth | req=5fbf33d4 | User registered successfully: user_id=1, email=register@finora.com
+2026-08-29 23:53:48,580 | INFO | finance_tracker.middleware | req=5fbf33d4 | POST /api/v1/auth/register | 201 | 31.31ms
+2026-08-29 23:53:48,596 | INFO | finance_tracker.Auth | req=ae450d43 | Registration attempt: duplicate@finora.com
+2026-08-29 23:53:48,608 | INFO | finance_tracker.Auth | req=ae450d43 | User registered successfully: user_id=1, email=duplicate@finora.com
+2026-08-29 23:53:48,609 | INFO | finance_tracker.middleware | req=ae450d43 | POST /api/v1/auth/register | 201 | 15.36ms
+2026-08-29 23:53:48,613 | INFO | finance_tracker.Auth | req=fe18b1db | Registration attempt: duplicate@finora.com
+2026-08-29 23:53:48,614 | WARNING | finance_tracker.Auth | req=fe18b1db | Registration failed: email already exists (duplicate@finora.com)
+2026-08-29 23:53:48,615 | INFO | finance_tracker.middleware | req=fe18b1db | POST /api/v1/auth/register | 400 | 3.68ms
+2026-08-29 23:53:48,628 | INFO | finance_tracker.middleware | req=619b9d84 | POST /api/v1/auth/register | 422 | 2.05ms
+2026-08-29 23:53:48,640 | INFO | finance_tracker.middleware | req=5763c6ae | POST /api/v1/auth/register | 422 | 3.01ms
+2026-08-29 23:53:48,650 | INFO | finance_tracker.middleware | req=82985883 | POST /api/v1/auth/register | 422 | 1.90ms
+2026-08-29 23:53:48,660 | INFO | finance_tracker.Auth | req=696bcbff | Registration attempt: login@finora.com
+2026-08-29 23:53:48,669 | INFO | finance_tracker.Auth | req=696bcbff | User registered successfully: user_id=1, email=login@finora.com
+2026-08-29 23:53:48,671 | INFO | finance_tracker.middleware | req=696bcbff | POST /api/v1/auth/register | 201 | 11.94ms
+2026-08-29 23:53:48,678 | INFO | finance_tracker.Auth | req=825caf98 | Login attempt: login@finora.com
+2026-08-29 23:53:48,686 | INFO | finance_tracker.Auth | req=825caf98 | Login successful: user_id=1, email=login@finora.com
+2026-08-29 23:53:48,687 | INFO | finance_tracker.middleware | req=825caf98 | POST /api/v1/auth/login | 200 | 14.13ms
+2026-08-29 23:53:48,697 | INFO | finance_tracker.Auth | req=2b1e3bbd | Registration attempt: wrong-password@finora.com
+2026-08-29 23:53:48,707 | INFO | finance_tracker.Auth | req=2b1e3bbd | User registered successfully: user_id=1, email=wrong-password@finora.com
+2026-08-29 23:53:48,708 | INFO | finance_tracker.middleware | req=2b1e3bbd | POST /api/v1/auth/register | 201 | 12.54ms
+2026-08-29 23:53:48,714 | INFO | finance_tracker.Auth | req=74c36b1f | Login attempt: wrong-password@finora.com
+2026-08-29 23:53:48,722 | WARNING | finance_tracker.Auth | req=74c36b1f | Login failed: wrong password (user_id=1, email=wrong-password@finora.com)
+2026-08-29 23:53:48,723 | INFO | finance_tracker.middleware | req=74c36b1f | POST /api/v1/auth/login | 401 | 13.26ms
+2026-08-29 23:53:48,737 | INFO | finance_tracker.Auth | req=68677f62 | Login attempt: does-not-exist@finora.com
+2026-08-29 23:53:48,738 | WARNING | finance_tracker.Auth | req=68677f62 | Login failed: user not found (does-not-exist@finora.com)
+2026-08-29 23:53:48,739 | INFO | finance_tracker.middleware | req=68677f62 | POST /api/v1/auth/login | 401 | 7.35ms
+2026-08-29 23:53:48,751 | INFO | finance_tracker.middleware | req=b39c894c | POST /api/v1/auth/login | 422 | 4.38ms
+2026-08-29 23:53:48,772 | INFO | finance_tracker.Auth | req=d35a8734 | Profile accessed: user_id=1
+2026-08-29 23:53:48,773 | INFO | finance_tracker.middleware | req=d35a8734 | GET /api/v1/auth/me | 200 | 4.81ms
+2026-08-29 23:53:48,782 | INFO | finance_tracker.middleware | req=6dacdf00 | GET /api/v1/auth/me | 401 | 0.70ms
+2026-08-29 23:53:48,792 | INFO | finance_tracker.middleware | req=a02d539c | GET /api/v1/auth/me | 401 | 2.02ms
+2026-08-29 23:53:48,816 | INFO | finance_tracker.budgets | req=59cb25bb | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:48,824 | INFO | finance_tracker.budgets | req=59cb25bb | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:48,825 | INFO | finance_tracker.middleware | req=59cb25bb | POST /api/v1/budgets/ | 201 | 15.78ms
+2026-08-29 23:53:48,836 | INFO | finance_tracker.middleware | req=ff30f286 | POST /api/v1/budgets/ | 401 | 1.96ms
+2026-08-29 23:53:48,857 | INFO | finance_tracker.budgets | req=daaf0a68 | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:48,859 | WARNING | finance_tracker.budgets | req=daaf0a68 | Invalid category in budget: user_id=1, category_id=1
+2026-08-29 23:53:48,860 | INFO | finance_tracker.middleware | req=daaf0a68 | POST /api/v1/budgets/ | 404 | 6.26ms
+2026-08-29 23:53:48,881 | INFO | finance_tracker.middleware | req=619afb16 | POST /api/v1/budgets/ | 422 | 4.55ms
+2026-08-29 23:53:48,902 | INFO | finance_tracker.middleware | req=2a582719 | POST /api/v1/budgets/ | 422 | 3.82ms
+2026-08-29 23:53:48,922 | INFO | finance_tracker.middleware | req=66b3e3fd | POST /api/v1/budgets/ | 422 | 3.44ms
+2026-08-29 23:53:48,942 | INFO | finance_tracker.budgets | req=ac0091fa | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:48,945 | INFO | finance_tracker.budgets | req=ac0091fa | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:48,946 | INFO | finance_tracker.middleware | req=ac0091fa | POST /api/v1/budgets/ | 201 | 6.87ms
+2026-08-29 23:53:48,950 | INFO | finance_tracker.budgets | req=00d60c0c | Budget list requested: user_id=1, month=None, year=None
+2026-08-29 23:53:48,952 | INFO | finance_tracker.budgets | req=00d60c0c | Budget list returned: user_id=1, count=1
+2026-08-29 23:53:48,953 | INFO | finance_tracker.middleware | req=00d60c0c | GET /api/v1/budgets/ | 200 | 5.53ms
+2026-08-29 23:53:48,974 | INFO | finance_tracker.budgets | req=dbd3e61c | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:48,977 | INFO | finance_tracker.budgets | req=dbd3e61c | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:48,978 | INFO | finance_tracker.middleware | req=dbd3e61c | POST /api/v1/budgets/ | 201 | 7.12ms
+2026-08-29 23:53:48,982 | INFO | finance_tracker.budgets | req=cb2c4039 | Budget create attempt: user_id=1, month=9, year=2026
+2026-08-29 23:53:48,984 | INFO | finance_tracker.budgets | req=cb2c4039 | Budget created: budget_id=2, user_id=1
+2026-08-29 23:53:48,985 | INFO | finance_tracker.middleware | req=cb2c4039 | POST /api/v1/budgets/ | 201 | 5.74ms
+2026-08-29 23:53:48,990 | INFO | finance_tracker.budgets | req=b45dc18e | Budget list requested: user_id=1, month=8, year=None
+2026-08-29 23:53:48,991 | INFO | finance_tracker.budgets | req=b45dc18e | Budget list returned: user_id=1, count=1
+2026-08-29 23:53:48,992 | INFO | finance_tracker.middleware | req=b45dc18e | GET /api/v1/budgets/ | 200 | 5.07ms
+2026-08-29 23:53:49,012 | INFO | finance_tracker.budgets | req=554d7d71 | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:49,015 | INFO | finance_tracker.budgets | req=554d7d71 | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:49,016 | INFO | finance_tracker.middleware | req=554d7d71 | POST /api/v1/budgets/ | 201 | 6.24ms
+2026-08-29 23:53:49,020 | INFO | finance_tracker.budgets | req=c1f8873c | Budget create attempt: user_id=1, month=8, year=2027
+2026-08-29 23:53:49,022 | INFO | finance_tracker.budgets | req=c1f8873c | Budget created: budget_id=2, user_id=1
+2026-08-29 23:53:49,023 | INFO | finance_tracker.middleware | req=c1f8873c | POST /api/v1/budgets/ | 201 | 5.75ms
+2026-08-29 23:53:49,028 | INFO | finance_tracker.budgets | req=3903611c | Budget list requested: user_id=1, month=None, year=2026
+2026-08-29 23:53:49,030 | INFO | finance_tracker.budgets | req=3903611c | Budget list returned: user_id=1, count=1
+2026-08-29 23:53:49,031 | INFO | finance_tracker.middleware | req=3903611c | GET /api/v1/budgets/ | 200 | 5.68ms
+2026-08-29 23:53:49,052 | INFO | finance_tracker.budgets | req=8c27098f | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:49,054 | INFO | finance_tracker.budgets | req=8c27098f | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:49,055 | INFO | finance_tracker.middleware | req=8c27098f | POST /api/v1/budgets/ | 201 | 6.80ms
+2026-08-29 23:53:49,060 | INFO | finance_tracker.budgets | req=dd3d8e6b | Budget create attempt: user_id=1, month=8, year=2027
+2026-08-29 23:53:49,062 | INFO | finance_tracker.budgets | req=dd3d8e6b | Budget created: budget_id=2, user_id=1
+2026-08-29 23:53:49,063 | INFO | finance_tracker.middleware | req=dd3d8e6b | POST /api/v1/budgets/ | 201 | 5.99ms
+2026-08-29 23:53:49,068 | INFO | finance_tracker.budgets | req=574b1843 | Budget create attempt: user_id=1, month=9, year=2026
+2026-08-29 23:53:49,071 | INFO | finance_tracker.budgets | req=574b1843 | Budget created: budget_id=3, user_id=1
+2026-08-29 23:53:49,072 | INFO | finance_tracker.middleware | req=574b1843 | POST /api/v1/budgets/ | 201 | 6.11ms
+2026-08-29 23:53:49,077 | INFO | finance_tracker.budgets | req=5881fcd3 | Budget list requested: user_id=1, month=8, year=2026
+2026-08-29 23:53:49,080 | INFO | finance_tracker.budgets | req=5881fcd3 | Budget list returned: user_id=1, count=1
+2026-08-29 23:53:49,081 | INFO | finance_tracker.middleware | req=5881fcd3 | GET /api/v1/budgets/ | 200 | 7.01ms
+2026-08-29 23:53:49,096 | INFO | finance_tracker.middleware | req=7d47d145 | GET /api/v1/budgets/ | 401 | 2.54ms
+2026-08-29 23:53:49,122 | INFO | finance_tracker.budgets | req=88a09f44 | Current month budgets requested: user_id=1
+2026-08-29 23:53:49,124 | INFO | finance_tracker.budgets | req=88a09f44 | Current month budgets returned: user_id=1, count=0
+2026-08-29 23:53:49,125 | INFO | finance_tracker.middleware | req=88a09f44 | GET /api/v1/budgets/current-month | 200 | 6.40ms
+2026-08-29 23:53:49,137 | INFO | finance_tracker.middleware | req=28032546 | GET /api/v1/budgets/current-month | 401 | 2.24ms
+2026-08-29 23:53:49,160 | INFO | finance_tracker.budgets | req=2d50d501 | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:49,163 | INFO | finance_tracker.budgets | req=2d50d501 | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:49,164 | INFO | finance_tracker.middleware | req=2d50d501 | POST /api/v1/budgets/ | 201 | 7.04ms
+2026-08-29 23:53:49,170 | INFO | finance_tracker.budgets | req=1e61b18e | Budget fetched: budget_id=1, user_id=1
+2026-08-29 23:53:49,171 | INFO | finance_tracker.middleware | req=1e61b18e | GET /api/v1/budgets/1 | 200 | 5.64ms
+2026-08-29 23:53:49,193 | WARNING | finance_tracker.budgets | req=8fde8c08 | Budget not found: budget_id=999999, user_id=1
+2026-08-29 23:53:49,194 | INFO | finance_tracker.middleware | req=8fde8c08 | GET /api/v1/budgets/999999 | 404 | 4.38ms
+2026-08-29 23:53:49,214 | INFO | finance_tracker.budgets | req=9b27e4cb | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:49,217 | INFO | finance_tracker.budgets | req=9b27e4cb | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:49,218 | INFO | finance_tracker.middleware | req=9b27e4cb | POST /api/v1/budgets/ | 201 | 7.01ms
+2026-08-29 23:53:49,221 | INFO | finance_tracker.middleware | req=3b796b1b | GET /api/v1/budgets/1 | 401 | 1.68ms
+2026-08-29 23:53:49,242 | INFO | finance_tracker.budgets | req=8528258d | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:49,244 | INFO | finance_tracker.budgets | req=8528258d | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:49,245 | INFO | finance_tracker.middleware | req=8528258d | POST /api/v1/budgets/ | 201 | 6.92ms
+2026-08-29 23:53:49,250 | INFO | finance_tracker.budgets | req=dd17e304 | Budget fetched: budget_id=1, user_id=1
+2026-08-29 23:53:49,255 | INFO | finance_tracker.middleware | req=dd17e304 | GET /api/v1/budgets/status/1 | 200 | 8.15ms
+2026-08-29 23:53:49,276 | WARNING | finance_tracker.budgets | req=824d3028 | Budget not found: budget_id=999999, user_id=1
+2026-08-29 23:53:49,277 | INFO | finance_tracker.middleware | req=824d3028 | GET /api/v1/budgets/status/999999 | 404 | 4.06ms
+2026-08-29 23:53:49,297 | INFO | finance_tracker.budgets | req=28182f65 | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:49,299 | INFO | finance_tracker.budgets | req=28182f65 | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:49,300 | INFO | finance_tracker.middleware | req=28182f65 | POST /api/v1/budgets/ | 201 | 6.66ms
+2026-08-29 23:53:49,305 | INFO | finance_tracker.budgets | req=347837f6 | Budget update attempt: budget_id=1, user_id=1
+2026-08-29 23:53:49,306 | INFO | finance_tracker.budgets | req=347837f6 | Budget fetched: budget_id=1, user_id=1
+2026-08-29 23:53:49,309 | INFO | finance_tracker.budgets | req=347837f6 | Budget updated: budget_id=1, user_id=1
+2026-08-29 23:53:49,310 | INFO | finance_tracker.middleware | req=347837f6 | PUT /api/v1/budgets/1 | 200 | 8.59ms
+2026-08-29 23:53:49,336 | INFO | finance_tracker.budgets | req=651d608b | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:49,339 | INFO | finance_tracker.budgets | req=651d608b | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:49,340 | INFO | finance_tracker.middleware | req=651d608b | POST /api/v1/budgets/ | 201 | 7.79ms
+2026-08-29 23:53:49,347 | INFO | finance_tracker.budgets | req=0a365972 | Budget update attempt: budget_id=1, user_id=1
+2026-08-29 23:53:49,348 | INFO | finance_tracker.budgets | req=0a365972 | Budget fetched: budget_id=1, user_id=1
+2026-08-29 23:53:49,351 | INFO | finance_tracker.budgets | req=0a365972 | Budget updated: budget_id=1, user_id=1
+2026-08-29 23:53:49,352 | INFO | finance_tracker.middleware | req=0a365972 | PUT /api/v1/budgets/1 | 200 | 10.57ms
+2026-08-29 23:53:49,378 | INFO | finance_tracker.budgets | req=85867f6b | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:49,381 | INFO | finance_tracker.budgets | req=85867f6b | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:49,382 | INFO | finance_tracker.middleware | req=85867f6b | POST /api/v1/budgets/ | 201 | 7.38ms
+2026-08-29 23:53:49,388 | INFO | finance_tracker.middleware | req=b6691dda | PUT /api/v1/budgets/1 | 422 | 3.67ms
+2026-08-29 23:53:49,412 | INFO | finance_tracker.budgets | req=7d95d50f | Budget update attempt: budget_id=999999, user_id=1
+2026-08-29 23:53:49,413 | WARNING | finance_tracker.budgets | req=7d95d50f | Budget not found: budget_id=999999, user_id=1
+2026-08-29 23:53:49,414 | INFO | finance_tracker.middleware | req=7d95d50f | PUT /api/v1/budgets/999999 | 404 | 5.37ms
+2026-08-29 23:53:49,436 | INFO | finance_tracker.budgets | req=2d52044c | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:49,438 | INFO | finance_tracker.budgets | req=2d52044c | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:49,439 | INFO | finance_tracker.middleware | req=2d52044c | POST /api/v1/budgets/ | 201 | 7.08ms
+2026-08-29 23:53:49,444 | WARNING | finance_tracker.budgets | req=8109b495 | Budget delete attempt: budget_id=1, user_id=1
+2026-08-29 23:53:49,445 | INFO | finance_tracker.budgets | req=8109b495 | Budget fetched: budget_id=1, user_id=1
+2026-08-29 23:53:49,447 | WARNING | finance_tracker.budgets | req=8109b495 | Budget deleted: budget_id=1, user_id=1
+2026-08-29 23:53:49,448 | INFO | finance_tracker.middleware | req=8109b495 | DELETE /api/v1/budgets/1 | 200 | 6.66ms
+2026-08-29 23:53:49,453 | WARNING | finance_tracker.budgets | req=5ebd971e | Budget not found: budget_id=1, user_id=1
+2026-08-29 23:53:49,454 | INFO | finance_tracker.middleware | req=5ebd971e | GET /api/v1/budgets/1 | 404 | 3.93ms
+2026-08-29 23:53:49,476 | WARNING | finance_tracker.budgets | req=f49ec5cf | Budget delete attempt: budget_id=999999, user_id=1
+2026-08-29 23:53:49,477 | WARNING | finance_tracker.budgets | req=f49ec5cf | Budget not found: budget_id=999999, user_id=1
+2026-08-29 23:53:49,478 | INFO | finance_tracker.middleware | req=f49ec5cf | DELETE /api/v1/budgets/999999 | 404 | 5.69ms
+2026-08-29 23:53:49,489 | INFO | finance_tracker.middleware | req=be208790 | DELETE /api/v1/budgets/999999 | 401 | 2.08ms
+2026-08-29 23:53:49,510 | INFO | finance_tracker.categories | req=0539efa7 | Category create attempt: user_id=1, name=Salary, type=TransactionType.INCOME
+2026-08-29 23:53:49,515 | INFO | finance_tracker.categories | req=0539efa7 | Category created: category_id=1, user_id=1
+2026-08-29 23:53:49,517 | INFO | finance_tracker.middleware | req=0539efa7 | POST /api/v1/categories/ | 201 | 9.87ms
+2026-08-29 23:53:49,539 | INFO | finance_tracker.categories | req=691ee25c | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:49,542 | INFO | finance_tracker.categories | req=691ee25c | Category created: category_id=1, user_id=1
+2026-08-29 23:53:49,542 | INFO | finance_tracker.middleware | req=691ee25c | POST /api/v1/categories/ | 201 | 7.05ms
+2026-08-29 23:53:49,554 | INFO | finance_tracker.middleware | req=30c14529 | POST /api/v1/categories/ | 401 | 2.35ms
+2026-08-29 23:53:49,575 | INFO | finance_tracker.middleware | req=295879e0 | POST /api/v1/categories/ | 422 | 4.38ms
+2026-08-29 23:53:49,596 | INFO | finance_tracker.middleware | req=967862ff | POST /api/v1/categories/ | 422 | 3.37ms
+2026-08-29 23:53:49,617 | INFO | finance_tracker.middleware | req=36ca851e | POST /api/v1/categories/ | 422 | 3.51ms
+2026-08-29 23:53:49,638 | INFO | finance_tracker.middleware | req=c195a318 | POST /api/v1/categories/ | 422 | 3.92ms
+2026-08-29 23:53:49,660 | INFO | finance_tracker.categories | req=b27cebc2 | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:49,663 | INFO | finance_tracker.categories | req=b27cebc2 | Category created: category_id=1, user_id=1
+2026-08-29 23:53:49,664 | INFO | finance_tracker.middleware | req=b27cebc2 | POST /api/v1/categories/ | 201 | 8.37ms
+2026-08-29 23:53:49,669 | INFO | finance_tracker.categories | req=afcc8d42 | Category list requested: user_id=1, type=None
+2026-08-29 23:53:49,670 | INFO | finance_tracker.categories | req=afcc8d42 | Category list returned: user_id=1, count=1
+2026-08-29 23:53:49,671 | INFO | finance_tracker.middleware | req=afcc8d42 | GET /api/v1/categories/ | 200 | 5.31ms
+2026-08-29 23:53:49,682 | INFO | finance_tracker.middleware | req=8b6fee97 | GET /api/v1/categories/ | 401 | 1.80ms
+2026-08-29 23:53:49,702 | INFO | finance_tracker.categories | req=64140e79 | Category create attempt: user_id=1, name=Salary, type=TransactionType.INCOME
+2026-08-29 23:53:49,705 | INFO | finance_tracker.categories | req=64140e79 | Category created: category_id=1, user_id=1
+2026-08-29 23:53:49,705 | INFO | finance_tracker.middleware | req=64140e79 | POST /api/v1/categories/ | 201 | 6.88ms
+2026-08-29 23:53:49,710 | INFO | finance_tracker.categories | req=ffff6fbc | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:49,712 | INFO | finance_tracker.categories | req=ffff6fbc | Category created: category_id=2, user_id=1
+2026-08-29 23:53:49,713 | INFO | finance_tracker.middleware | req=ffff6fbc | POST /api/v1/categories/ | 201 | 5.65ms
+2026-08-29 23:53:49,717 | INFO | finance_tracker.categories | req=1acd6032 | Category list requested: user_id=1, type=TransactionType.INCOME
+2026-08-29 23:53:49,719 | INFO | finance_tracker.categories | req=1acd6032 | Category list returned: user_id=1, count=1
+2026-08-29 23:53:49,720 | INFO | finance_tracker.middleware | req=1acd6032 | GET /api/v1/categories/ | 200 | 5.23ms
+2026-08-29 23:53:49,741 | INFO | finance_tracker.categories | req=c861ad65 | Category create attempt: user_id=1, name=Salary, type=TransactionType.INCOME
+2026-08-29 23:53:49,744 | INFO | finance_tracker.categories | req=c861ad65 | Category created: category_id=1, user_id=1
+2026-08-29 23:53:49,744 | INFO | finance_tracker.middleware | req=c861ad65 | POST /api/v1/categories/ | 201 | 7.05ms
+2026-08-29 23:53:49,749 | INFO | finance_tracker.categories | req=eb95fecb | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:49,752 | INFO | finance_tracker.categories | req=eb95fecb | Category created: category_id=2, user_id=1
+2026-08-29 23:53:49,753 | INFO | finance_tracker.middleware | req=eb95fecb | POST /api/v1/categories/ | 201 | 6.74ms
+2026-08-29 23:53:49,757 | INFO | finance_tracker.categories | req=58943599 | Category list requested: user_id=1, type=TransactionType.EXPENSE
+2026-08-29 23:53:49,758 | INFO | finance_tracker.categories | req=58943599 | Category list returned: user_id=1, count=1
+2026-08-29 23:53:49,759 | INFO | finance_tracker.middleware | req=58943599 | GET /api/v1/categories/ | 200 | 4.09ms
+2026-08-29 23:53:49,779 | INFO | finance_tracker.categories | req=8479fcef | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:49,782 | INFO | finance_tracker.categories | req=8479fcef | Category created: category_id=1, user_id=1
+2026-08-29 23:53:49,783 | INFO | finance_tracker.middleware | req=8479fcef | POST /api/v1/categories/ | 201 | 7.50ms
+2026-08-29 23:53:49,788 | INFO | finance_tracker.categories | req=1b338447 | Category fetched: category_id=1, user_id=1
+2026-08-29 23:53:49,789 | INFO | finance_tracker.middleware | req=1b338447 | GET /api/v1/categories/1 | 200 | 4.25ms
+2026-08-29 23:53:49,810 | INFO | finance_tracker.categories | req=2cc744e6 | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:49,813 | INFO | finance_tracker.categories | req=2cc744e6 | Category created: category_id=1, user_id=1
+2026-08-29 23:53:49,814 | INFO | finance_tracker.middleware | req=2cc744e6 | POST /api/v1/categories/ | 201 | 6.96ms
+2026-08-29 23:53:49,817 | INFO | finance_tracker.middleware | req=da1c8fff | GET /api/v1/categories/1 | 401 | 1.56ms
+2026-08-29 23:53:49,838 | WARNING | finance_tracker.categories | req=fb99e90f | Category not found: category_id=999999, user_id=1
+2026-08-29 23:53:49,839 | INFO | finance_tracker.middleware | req=fb99e90f | GET /api/v1/categories/999999 | 404 | 4.44ms
+2026-08-29 23:53:49,859 | INFO | finance_tracker.categories | req=963a8f41 | Category create attempt: user_id=1, name=Old Name, type=TransactionType.EXPENSE
+2026-08-29 23:53:49,862 | INFO | finance_tracker.categories | req=963a8f41 | Category created: category_id=1, user_id=1
+2026-08-29 23:53:49,863 | INFO | finance_tracker.middleware | req=963a8f41 | POST /api/v1/categories/ | 201 | 6.54ms
+2026-08-29 23:53:49,867 | INFO | finance_tracker.categories | req=51a29bcd | Category update attempt: category_id=1, user_id=1
+2026-08-29 23:53:49,868 | INFO | finance_tracker.categories | req=51a29bcd | Category fetched: category_id=1, user_id=1
+2026-08-29 23:53:49,872 | INFO | finance_tracker.categories | req=51a29bcd | Category updated: category_id=1, user_id=1
+2026-08-29 23:53:49,873 | INFO | finance_tracker.middleware | req=51a29bcd | PUT /api/v1/categories/1 | 200 | 8.55ms
+2026-08-29 23:53:49,894 | INFO | finance_tracker.categories | req=8e14e591 | Category create attempt: user_id=1, name=Adjustable Category, type=TransactionType.EXPENSE
+2026-08-29 23:53:49,897 | INFO | finance_tracker.categories | req=8e14e591 | Category created: category_id=1, user_id=1
+2026-08-29 23:53:49,898 | INFO | finance_tracker.middleware | req=8e14e591 | POST /api/v1/categories/ | 201 | 7.30ms
+2026-08-29 23:53:49,902 | INFO | finance_tracker.categories | req=671692f8 | Category update attempt: category_id=1, user_id=1
+2026-08-29 23:53:49,903 | INFO | finance_tracker.categories | req=671692f8 | Category fetched: category_id=1, user_id=1
+2026-08-29 23:53:49,905 | INFO | finance_tracker.categories | req=671692f8 | Category updated: category_id=1, user_id=1
+2026-08-29 23:53:49,906 | INFO | finance_tracker.middleware | req=671692f8 | PUT /api/v1/categories/1 | 200 | 6.82ms
+2026-08-29 23:53:49,927 | INFO | finance_tracker.categories | req=2dbd44c4 | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:49,930 | INFO | finance_tracker.categories | req=2dbd44c4 | Category created: category_id=1, user_id=1
+2026-08-29 23:53:49,930 | INFO | finance_tracker.middleware | req=2dbd44c4 | POST /api/v1/categories/ | 201 | 6.66ms
+2026-08-29 23:53:49,936 | INFO | finance_tracker.middleware | req=e9adced4 | PUT /api/v1/categories/1 | 422 | 3.11ms
+2026-08-29 23:53:49,956 | INFO | finance_tracker.categories | req=42aebf44 | Category update attempt: category_id=999999, user_id=1
+2026-08-29 23:53:49,957 | WARNING | finance_tracker.categories | req=42aebf44 | Category not found: category_id=999999, user_id=1
+2026-08-29 23:53:49,958 | INFO | finance_tracker.middleware | req=42aebf44 | PUT /api/v1/categories/999999 | 404 | 4.62ms
+2026-08-29 23:53:49,978 | INFO | finance_tracker.categories | req=49cabf21 | Category create attempt: user_id=1, name=Food, type=TransactionType.EXPENSE
+2026-08-29 23:53:49,981 | INFO | finance_tracker.categories | req=49cabf21 | Category created: category_id=1, user_id=1
+2026-08-29 23:53:49,982 | INFO | finance_tracker.middleware | req=49cabf21 | POST /api/v1/categories/ | 201 | 7.08ms
+2026-08-29 23:53:49,986 | WARNING | finance_tracker.categories | req=60cb618e | Category delete attempt: category_id=1, user_id=1
+2026-08-29 23:53:49,987 | INFO | finance_tracker.categories | req=60cb618e | Category fetched: category_id=1, user_id=1
+2026-08-29 23:53:49,991 | WARNING | finance_tracker.categories | req=60cb618e | Category deleted: category_id=1, user_id=1
+2026-08-29 23:53:49,992 | INFO | finance_tracker.middleware | req=60cb618e | DELETE /api/v1/categories/1 | 200 | 8.56ms
+2026-08-29 23:53:49,997 | WARNING | finance_tracker.categories | req=2b05f399 | Category not found: category_id=1, user_id=1
+2026-08-29 23:53:49,998 | INFO | finance_tracker.middleware | req=2b05f399 | GET /api/v1/categories/1 | 404 | 4.23ms
+2026-08-29 23:53:50,021 | WARNING | finance_tracker.categories | req=a3bc65a2 | Category delete attempt: category_id=999999, user_id=1
+2026-08-29 23:53:50,021 | WARNING | finance_tracker.categories | req=a3bc65a2 | Category not found: category_id=999999, user_id=1
+2026-08-29 23:53:50,022 | INFO | finance_tracker.middleware | req=a3bc65a2 | DELETE /api/v1/categories/999999 | 404 | 5.32ms
+2026-08-29 23:53:50,034 | INFO | finance_tracker.middleware | req=bb5264ff | DELETE /api/v1/categories/999999 | 401 | 2.38ms
+2026-08-29 23:53:50,057 | INFO | finance_tracker.dashboard | req=58b0135f | Dashboard summary requested: user_id=1
+2026-08-29 23:53:50,067 | INFO | finance_tracker.dashboard | req=58b0135f | Dashboard summary generated: user_id=1
+2026-08-29 23:53:50,068 | INFO | finance_tracker.middleware | req=58b0135f | GET /api/v1/dashboard/summary | 200 | 15.17ms
+2026-08-29 23:53:50,101 | INFO | finance_tracker.dashboard | req=7a4148ea | Dashboard summary requested: user_id=1
+2026-08-29 23:53:50,106 | INFO | finance_tracker.dashboard | req=7a4148ea | Dashboard summary generated: user_id=1
+2026-08-29 23:53:50,107 | INFO | finance_tracker.middleware | req=7a4148ea | GET /api/v1/dashboard/summary | 200 | 11.29ms
+2026-08-29 23:53:50,145 | INFO | finance_tracker.middleware | req=9649a5fa | GET /api/v1/dashboard/summary | 422 | 6.02ms
+2026-08-29 23:53:50,174 | INFO | finance_tracker.middleware | req=708c285b | GET /api/v1/dashboard/summary | 422 | 3.99ms
+2026-08-29 23:53:50,186 | INFO | finance_tracker.middleware | req=acab349f | GET /api/v1/dashboard/summary | 401 | 2.21ms
+2026-08-29 23:53:50,209 | INFO | finance_tracker.dashboard | req=5251e0a0 | Monthly trend requested: user_id=1
+2026-08-29 23:53:50,211 | INFO | finance_tracker.dashboard | req=5251e0a0 | Monthly trend generated: user_id=1
+2026-08-29 23:53:50,212 | INFO | finance_tracker.middleware | req=5251e0a0 | GET /api/v1/dashboard/monthly-trend | 200 | 7.07ms
+2026-08-29 23:53:50,234 | INFO | finance_tracker.dashboard | req=5354793f | Monthly trend requested: user_id=1
+2026-08-29 23:53:50,235 | INFO | finance_tracker.dashboard | req=5354793f | Monthly trend generated: user_id=1
+2026-08-29 23:53:50,236 | INFO | finance_tracker.middleware | req=5354793f | GET /api/v1/dashboard/monthly-trend | 200 | 5.57ms
+2026-08-29 23:53:50,258 | INFO | finance_tracker.middleware | req=f969d85d | GET /api/v1/dashboard/monthly-trend | 422 | 3.79ms
+2026-08-29 23:53:50,269 | INFO | finance_tracker.middleware | req=d7916840 | GET /api/v1/dashboard/monthly-trend | 401 | 2.20ms
+2026-08-29 23:53:50,290 | INFO | finance_tracker.dashboard | req=89834932 | Category breakdown requested: user_id=1
+2026-08-29 23:53:50,292 | INFO | finance_tracker.dashboard | req=89834932 | Category breakdown generated: user_id=1
+2026-08-29 23:53:50,293 | INFO | finance_tracker.middleware | req=89834932 | GET /api/v1/dashboard/category-breakdown | 200 | 6.50ms
+2026-08-29 23:53:50,315 | INFO | finance_tracker.dashboard | req=e06703b4 | Category breakdown requested: user_id=1
+2026-08-29 23:53:50,316 | INFO | finance_tracker.dashboard | req=e06703b4 | Category breakdown generated: user_id=1
+2026-08-29 23:53:50,316 | INFO | finance_tracker.middleware | req=e06703b4 | GET /api/v1/dashboard/category-breakdown | 200 | 4.96ms
+2026-08-29 23:53:50,337 | INFO | finance_tracker.middleware | req=45f6cc31 | GET /api/v1/dashboard/category-breakdown | 422 | 3.79ms
+2026-08-29 23:53:50,359 | INFO | finance_tracker.middleware | req=6dbfcf3f | GET /api/v1/dashboard/category-breakdown | 422 | 4.25ms
+2026-08-29 23:53:50,370 | INFO | finance_tracker.middleware | req=f65e2b9b | GET /api/v1/dashboard/category-breakdown | 401 | 2.08ms
+2026-08-29 23:53:50,392 | INFO | finance_tracker.middleware | req=2c06c8e9 | GET /api/v1/dashboard/status | 200 | 4.10ms
+2026-08-29 23:53:50,414 | INFO | finance_tracker.middleware | req=fc94007f | GET /api/v1/dashboard/status | 422 | 3.67ms
+2026-08-29 23:53:50,442 | INFO | finance_tracker.middleware | req=7ccf3cd4 | GET /api/v1/dashboard/status | 422 | 4.40ms
+2026-08-29 23:53:50,469 | INFO | finance_tracker.middleware | req=3ebba3e5 | GET /api/v1/dashboard/status | 422 | 4.14ms
+2026-08-29 23:53:50,495 | INFO | finance_tracker.middleware | req=5f96b657 | GET /api/v1/dashboard/status | 422 | 4.09ms
+2026-08-29 23:53:50,507 | INFO | finance_tracker.middleware | req=c462b951 | GET /api/v1/dashboard/status | 401 | 2.09ms
+2026-08-29 23:53:50,530 | INFO | finance_tracker.dashboard | req=a9d04c9a | Recent transactions requested: user_id=1, limit=5
+2026-08-29 23:53:50,532 | INFO | finance_tracker.dashboard | req=a9d04c9a | Recent transactions returned: user_id=1, count=0
+2026-08-29 23:53:50,532 | INFO | finance_tracker.middleware | req=a9d04c9a | GET /api/v1/dashboard/recent-transactions | 200 | 5.94ms
+2026-08-29 23:53:50,555 | INFO | finance_tracker.dashboard | req=9b5a9566 | Recent transactions requested: user_id=1, limit=10
+2026-08-29 23:53:50,555 | INFO | finance_tracker.dashboard | req=9b5a9566 | Recent transactions returned: user_id=1, count=0
+2026-08-29 23:53:50,556 | INFO | finance_tracker.middleware | req=9b5a9566 | GET /api/v1/dashboard/recent-transactions | 200 | 4.58ms
+2026-08-29 23:53:50,578 | INFO | finance_tracker.middleware | req=1423d832 | GET /api/v1/dashboard/recent-transactions | 422 | 3.75ms
+2026-08-29 23:53:50,601 | INFO | finance_tracker.middleware | req=b341a80f | GET /api/v1/dashboard/recent-transactions | 422 | 3.92ms
+2026-08-29 23:53:50,624 | INFO | finance_tracker.middleware | req=ac381258 | GET /api/v1/dashboard/recent-transactions | 422 | 3.54ms
+2026-08-29 23:53:50,636 | INFO | finance_tracker.middleware | req=62e43fcc | GET /api/v1/dashboard/recent-transactions | 401 | 2.11ms
+2026-08-29 23:53:50,659 | INFO | finance_tracker.transactions | req=53e81efb | Transaction create attempt: user_id=1, amount=50000.0, type=TransactionType.INCOME
+2026-08-29 23:53:50,664 | INFO | finance_tracker.transactions | req=53e81efb | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:50,665 | INFO | finance_tracker.middleware | req=53e81efb | POST /api/v1/transactions | 201 | 10.38ms
+2026-08-29 23:53:50,670 | INFO | finance_tracker.transactions | req=1439a0f0 | Transaction create attempt: user_id=1, amount=5000.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:50,672 | INFO | finance_tracker.transactions | req=1439a0f0 | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:50,672 | INFO | finance_tracker.middleware | req=1439a0f0 | POST /api/v1/transactions | 201 | 5.44ms
+2026-08-29 23:53:50,680 | INFO | finance_tracker.middleware | req=cd5c74cd | GET /api/v1/reports/cash-flow | 200 | 5.92ms
+2026-08-29 23:53:50,691 | INFO | finance_tracker.middleware | req=a37e82ed | GET /api/v1/reports/cash-flow | 401 | 2.00ms
+2026-08-29 23:53:50,713 | INFO | finance_tracker.middleware | req=82bdce16 | GET /api/v1/reports/cash-flow | 422 | 3.60ms
+2026-08-29 23:53:50,735 | INFO | finance_tracker.middleware | req=eec16be6 | GET /api/v1/reports/cash-flow | 422 | 3.59ms
+2026-08-29 23:53:50,757 | INFO | finance_tracker.middleware | req=7c257c4f | GET /api/v1/reports/cash-flow | 422 | 3.45ms
+2026-08-29 23:53:50,778 | INFO | finance_tracker.transactions | req=60ec7ab0 | Transaction create attempt: user_id=1, amount=5000.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:50,780 | INFO | finance_tracker.transactions | req=60ec7ab0 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:50,781 | INFO | finance_tracker.middleware | req=60ec7ab0 | POST /api/v1/transactions | 201 | 6.23ms
+2026-08-29 23:53:50,787 | INFO | finance_tracker.middleware | req=7b8624dc | GET /api/v1/reports/category-analysis | 200 | 4.32ms
+2026-08-29 23:53:50,798 | INFO | finance_tracker.middleware | req=eda05438 | GET /api/v1/reports/category-analysis | 401 | 2.15ms
+2026-08-29 23:53:50,821 | INFO | finance_tracker.middleware | req=e1d81ebd | GET /api/v1/reports/category-analysis | 422 | 4.61ms
+2026-08-29 23:53:50,842 | INFO | finance_tracker.middleware | req=931687f3 | GET /api/v1/reports/category-analysis | 422 | 3.56ms
+2026-08-29 23:53:50,864 | INFO | finance_tracker.middleware | req=296ae620 | GET /api/v1/reports/category-analysis | 422 | 3.34ms
+2026-08-29 23:53:50,886 | INFO | finance_tracker.middleware | req=198b9a40 | GET /api/v1/reports/category-analysis | 422 | 4.08ms
+2026-08-29 23:53:50,908 | INFO | finance_tracker.transactions | req=afdd2456 | Transaction create attempt: user_id=1, amount=50000.0, type=TransactionType.INCOME
+2026-08-29 23:53:50,910 | INFO | finance_tracker.transactions | req=afdd2456 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:50,911 | INFO | finance_tracker.middleware | req=afdd2456 | POST /api/v1/transactions | 201 | 6.35ms
+2026-08-29 23:53:50,916 | INFO | finance_tracker.transactions | req=4a2f2664 | Transaction create attempt: user_id=1, amount=5000.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:50,918 | INFO | finance_tracker.transactions | req=4a2f2664 | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:50,918 | INFO | finance_tracker.middleware | req=4a2f2664 | POST /api/v1/transactions | 201 | 5.65ms
+2026-08-29 23:53:50,925 | INFO | finance_tracker.middleware | req=12de28f5 | GET /api/v1/reports/income-vs-expense | 200 | 4.64ms
+2026-08-29 23:53:50,937 | INFO | finance_tracker.middleware | req=5fc8553f | GET /api/v1/reports/income-vs-expense | 401 | 2.17ms
+2026-08-29 23:53:50,958 | INFO | finance_tracker.middleware | req=d17887e5 | GET /api/v1/reports/income-vs-expense | 422 | 4.57ms
+2026-08-29 23:53:50,980 | INFO | finance_tracker.middleware | req=14d45761 | GET /api/v1/reports/income-vs-expense | 422 | 3.52ms
+2026-08-29 23:53:51,003 | INFO | finance_tracker.budgets | req=9a050043 | Budget create attempt: user_id=1, month=8, year=2026
+2026-08-29 23:53:51,006 | INFO | finance_tracker.budgets | req=9a050043 | Budget created: budget_id=1, user_id=1
+2026-08-29 23:53:51,006 | INFO | finance_tracker.middleware | req=9a050043 | POST /api/v1/budgets/ | 201 | 7.05ms
+2026-08-29 23:53:51,011 | INFO | finance_tracker.transactions | req=7990d4ce | Transaction create attempt: user_id=1, amount=5000.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,013 | INFO | finance_tracker.transactions | req=7990d4ce | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,014 | INFO | finance_tracker.middleware | req=7990d4ce | POST /api/v1/transactions | 201 | 5.52ms
+2026-08-29 23:53:51,021 | INFO | finance_tracker.middleware | req=79e5cb75 | GET /api/v1/reports/budget-performance | 200 | 5.07ms
+2026-08-29 23:53:51,032 | INFO | finance_tracker.middleware | req=2ec2bc91 | GET /api/v1/reports/budget-performance | 401 | 2.00ms
+2026-08-29 23:53:51,053 | INFO | finance_tracker.middleware | req=d4642c18 | GET /api/v1/reports/budget-performance | 422 | 3.45ms
+2026-08-29 23:53:51,076 | INFO | finance_tracker.middleware | req=ff2a3cf7 | GET /api/v1/reports/budget-performance | 422 | 4.30ms
+2026-08-29 23:53:51,104 | INFO | finance_tracker.middleware | req=879c0866 | GET /api/v1/reports/budget-performance | 422 | 5.82ms
+2026-08-29 23:53:51,130 | INFO | finance_tracker.middleware | req=a985647e | GET /api/v1/reports/budget-performance | 422 | 3.77ms
+2026-08-29 23:53:51,153 | INFO | finance_tracker.transactions | req=dd29dd63 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,156 | INFO | finance_tracker.transactions | req=dd29dd63 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,156 | INFO | finance_tracker.middleware | req=dd29dd63 | POST /api/v1/transactions | 201 | 6.59ms
+2026-08-29 23:53:51,178 | INFO | finance_tracker.transactions | req=6f993fe2 | Transaction create attempt: user_id=1, amount=50000.0, type=TransactionType.INCOME
+2026-08-29 23:53:51,181 | INFO | finance_tracker.transactions | req=6f993fe2 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,181 | INFO | finance_tracker.middleware | req=6f993fe2 | POST /api/v1/transactions | 201 | 6.51ms
+2026-08-29 23:53:51,193 | INFO | finance_tracker.middleware | req=335392e6 | POST /api/v1/transactions | 401 | 2.23ms
+2026-08-29 23:53:51,216 | INFO | finance_tracker.middleware | req=578942bc | POST /api/v1/transactions | 422 | 4.34ms
+2026-08-29 23:53:51,246 | INFO | finance_tracker.middleware | req=6d29061a | POST /api/v1/transactions | 422 | 6.24ms
+2026-08-29 23:53:51,271 | INFO | finance_tracker.middleware | req=74466af1 | POST /api/v1/transactions | 422 | 4.03ms
+2026-08-29 23:53:51,295 | INFO | finance_tracker.middleware | req=59668222 | POST /api/v1/transactions | 422 | 3.85ms
+2026-08-29 23:53:51,317 | INFO | finance_tracker.middleware | req=1338587b | POST /api/v1/transactions | 422 | 3.57ms
+2026-08-29 23:53:51,338 | INFO | finance_tracker.middleware | req=72472a28 | POST /api/v1/transactions | 422 | 3.63ms
+2026-08-29 23:53:51,360 | INFO | finance_tracker.middleware | req=2d412fa8 | POST /api/v1/transactions | 422 | 4.39ms
+2026-08-29 23:53:51,381 | INFO | finance_tracker.transactions | req=0427cb7b | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,383 | INFO | finance_tracker.transactions | req=0427cb7b | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,384 | INFO | finance_tracker.middleware | req=0427cb7b | POST /api/v1/transactions | 201 | 6.37ms
+2026-08-29 23:53:51,389 | INFO | finance_tracker.transactions | req=1bed6e95 | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:51,391 | INFO | finance_tracker.transactions | req=1bed6e95 | Transaction list returned: user_id=1, count=1
+2026-08-29 23:53:51,392 | INFO | finance_tracker.middleware | req=1bed6e95 | GET /api/v1/transactions | 200 | 6.04ms
+2026-08-29 23:53:51,404 | INFO | finance_tracker.middleware | req=7bed3db5 | GET /api/v1/transactions | 401 | 2.03ms
+2026-08-29 23:53:51,427 | INFO | finance_tracker.transactions | req=40e48e54 | Transaction create attempt: user_id=1, amount=100.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,430 | INFO | finance_tracker.transactions | req=40e48e54 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,431 | INFO | finance_tracker.middleware | req=40e48e54 | POST /api/v1/transactions | 201 | 7.74ms
+2026-08-29 23:53:51,438 | INFO | finance_tracker.transactions | req=9a29e6de | Transaction create attempt: user_id=1, amount=101.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,441 | INFO | finance_tracker.transactions | req=9a29e6de | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:51,443 | INFO | finance_tracker.middleware | req=9a29e6de | POST /api/v1/transactions | 201 | 8.05ms
+2026-08-29 23:53:51,450 | INFO | finance_tracker.transactions | req=0a3b7562 | Transaction create attempt: user_id=1, amount=102.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,453 | INFO | finance_tracker.transactions | req=0a3b7562 | Transaction created: txn_id=3, user_id=1
+2026-08-29 23:53:51,455 | INFO | finance_tracker.middleware | req=0a3b7562 | POST /api/v1/transactions | 201 | 9.25ms
+2026-08-29 23:53:51,463 | INFO | finance_tracker.transactions | req=b5a5cb8a | Transaction list requested: user_id=1, page=1, limit=2
+2026-08-29 23:53:51,465 | INFO | finance_tracker.transactions | req=b5a5cb8a | Transaction list returned: user_id=1, count=2
+2026-08-29 23:53:51,466 | INFO | finance_tracker.middleware | req=b5a5cb8a | GET /api/v1/transactions | 200 | 8.44ms
+2026-08-29 23:53:51,495 | INFO | finance_tracker.middleware | req=cb5d514d | GET /api/v1/transactions | 422 | 4.36ms
+2026-08-29 23:53:51,520 | INFO | finance_tracker.middleware | req=9eb1f91b | GET /api/v1/transactions | 422 | 4.86ms
+2026-08-29 23:53:51,542 | INFO | finance_tracker.transactions | req=e7acf842 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,544 | INFO | finance_tracker.transactions | req=e7acf842 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,545 | INFO | finance_tracker.middleware | req=e7acf842 | POST /api/v1/transactions | 201 | 6.66ms
+2026-08-29 23:53:51,550 | INFO | finance_tracker.transactions | req=d94b23d6 | Transaction create attempt: user_id=1, amount=50000.0, type=TransactionType.INCOME
+2026-08-29 23:53:51,552 | INFO | finance_tracker.transactions | req=d94b23d6 | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:51,553 | INFO | finance_tracker.middleware | req=d94b23d6 | POST /api/v1/transactions | 201 | 5.87ms
+2026-08-29 23:53:51,558 | INFO | finance_tracker.transactions | req=8d7200c8 | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:51,560 | INFO | finance_tracker.transactions | req=8d7200c8 | Transaction list returned: user_id=1, count=1
+2026-08-29 23:53:51,561 | INFO | finance_tracker.middleware | req=8d7200c8 | GET /api/v1/transactions | 200 | 6.63ms
+2026-08-29 23:53:51,584 | INFO | finance_tracker.transactions | req=8fe04e96 | Transaction create attempt: user_id=1, amount=250.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,586 | INFO | finance_tracker.transactions | req=8fe04e96 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,587 | INFO | finance_tracker.middleware | req=8fe04e96 | POST /api/v1/transactions | 201 | 6.62ms
+2026-08-29 23:53:51,592 | INFO | finance_tracker.transactions | req=34929d9d | Transaction create attempt: user_id=1, amount=100.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,594 | INFO | finance_tracker.transactions | req=34929d9d | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:51,595 | INFO | finance_tracker.middleware | req=34929d9d | POST /api/v1/transactions | 201 | 6.12ms
+2026-08-29 23:53:51,600 | INFO | finance_tracker.transactions | req=9f7e5e39 | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:51,602 | INFO | finance_tracker.transactions | req=9f7e5e39 | Transaction list returned: user_id=1, count=1
+2026-08-29 23:53:51,603 | INFO | finance_tracker.middleware | req=9f7e5e39 | GET /api/v1/transactions | 200 | 5.95ms
+2026-08-29 23:53:51,627 | INFO | finance_tracker.transactions | req=8fd42a47 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,629 | INFO | finance_tracker.transactions | req=8fd42a47 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,630 | INFO | finance_tracker.middleware | req=8fd42a47 | POST /api/v1/transactions | 201 | 6.87ms
+2026-08-29 23:53:51,637 | INFO | finance_tracker.transactions | req=e6144de0 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,640 | INFO | finance_tracker.transactions | req=e6144de0 | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:51,641 | INFO | finance_tracker.middleware | req=e6144de0 | POST /api/v1/transactions | 201 | 8.82ms
+2026-08-29 23:53:51,648 | INFO | finance_tracker.transactions | req=a747f516 | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:51,651 | INFO | finance_tracker.transactions | req=a747f516 | Transaction list returned: user_id=1, count=1
+2026-08-29 23:53:51,653 | INFO | finance_tracker.middleware | req=a747f516 | GET /api/v1/transactions | 200 | 8.42ms
+2026-08-29 23:53:51,685 | INFO | finance_tracker.transactions | req=80030e0f | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,688 | INFO | finance_tracker.transactions | req=80030e0f | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,689 | INFO | finance_tracker.middleware | req=80030e0f | POST /api/v1/transactions | 201 | 9.15ms
+2026-08-29 23:53:51,696 | INFO | finance_tracker.transactions | req=72bb6b54 | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:51,698 | INFO | finance_tracker.transactions | req=72bb6b54 | Transaction list returned: user_id=1, count=1
+2026-08-29 23:53:51,699 | INFO | finance_tracker.middleware | req=72bb6b54 | GET /api/v1/transactions | 200 | 8.28ms
+2026-08-29 23:53:51,726 | INFO | finance_tracker.transactions | req=b26633a2 | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:51,728 | INFO | finance_tracker.transactions | req=b26633a2 | Transaction list returned: user_id=1, count=0
+2026-08-29 23:53:51,729 | INFO | finance_tracker.middleware | req=b26633a2 | GET /api/v1/transactions | 200 | 7.07ms
+2026-08-29 23:53:51,756 | INFO | finance_tracker.transactions | req=e3d2607c | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:51,758 | INFO | finance_tracker.transactions | req=e3d2607c | Transaction list returned: user_id=1, count=0
+2026-08-29 23:53:51,759 | INFO | finance_tracker.middleware | req=e3d2607c | GET /api/v1/transactions | 200 | 7.27ms
+2026-08-29 23:53:51,791 | INFO | finance_tracker.transactions | req=0b3b9826 | Transaction create attempt: user_id=1, amount=100.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,793 | INFO | finance_tracker.transactions | req=0b3b9826 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,795 | INFO | finance_tracker.middleware | req=0b3b9826 | POST /api/v1/transactions | 201 | 11.36ms
+2026-08-29 23:53:51,801 | INFO | finance_tracker.transactions | req=ae426dff | Transaction create attempt: user_id=1, amount=200.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,803 | INFO | finance_tracker.transactions | req=ae426dff | Transaction created: txn_id=2, user_id=1
+2026-08-29 23:53:51,804 | INFO | finance_tracker.middleware | req=ae426dff | POST /api/v1/transactions | 201 | 6.86ms
+2026-08-29 23:53:51,810 | INFO | finance_tracker.transactions | req=6bd771ff | Transaction list requested: user_id=1, page=1, limit=20
+2026-08-29 23:53:51,812 | INFO | finance_tracker.transactions | req=6bd771ff | Transaction list returned: user_id=1, count=2
+2026-08-29 23:53:51,813 | INFO | finance_tracker.middleware | req=6bd771ff | GET /api/v1/transactions | 200 | 6.18ms
+2026-08-29 23:53:51,837 | INFO | finance_tracker.transactions | req=5f70bf5e | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,840 | INFO | finance_tracker.transactions | req=5f70bf5e | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,841 | INFO | finance_tracker.middleware | req=5f70bf5e | POST /api/v1/transactions | 201 | 7.09ms
+2026-08-29 23:53:51,848 | INFO | finance_tracker.transactions | req=77eaca77 | Transaction fetched: txn_id=1, user_id=1
+2026-08-29 23:53:51,849 | INFO | finance_tracker.middleware | req=77eaca77 | GET /api/v1/transactions/1 | 200 | 6.27ms
+2026-08-29 23:53:51,875 | WARNING | finance_tracker.transactions | req=46ce6c34 | Transaction not found: txn_id=999999, user_id=1
+2026-08-29 23:53:51,876 | INFO | finance_tracker.middleware | req=46ce6c34 | GET /api/v1/transactions/999999 | 404 | 5.59ms
+2026-08-29 23:53:51,900 | INFO | finance_tracker.transactions | req=e2ab4770 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,903 | INFO | finance_tracker.transactions | req=e2ab4770 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,904 | INFO | finance_tracker.middleware | req=e2ab4770 | POST /api/v1/transactions | 201 | 7.20ms
+2026-08-29 23:53:51,907 | INFO | finance_tracker.middleware | req=5e57cd41 | GET /api/v1/transactions/1 | 401 | 1.75ms
+2026-08-29 23:53:51,929 | INFO | finance_tracker.transactions | req=183cdb75 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:51,931 | INFO | finance_tracker.transactions | req=183cdb75 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:51,932 | INFO | finance_tracker.middleware | req=183cdb75 | POST /api/v1/transactions | 201 | 6.25ms
+2026-08-29 23:53:51,937 | INFO | finance_tracker.transactions | req=2bd954f2 | Transaction update attempt: txn_id=1, user_id=1
+2026-08-29 23:53:51,938 | INFO | finance_tracker.transactions | req=2bd954f2 | Transaction fetched: txn_id=1, user_id=1
+2026-08-29 23:53:52,009 | INFO | finance_tracker.transactions | req=2bd954f2 | Transaction updated: txn_id=1, user_id=1
+2026-08-29 23:53:52,011 | INFO | finance_tracker.middleware | req=2bd954f2 | PATCH /api/v1/transactions/1 | 200 | 77.00ms
+2026-08-29 23:53:52,042 | INFO | finance_tracker.transactions | req=2ef3e579 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:52,044 | INFO | finance_tracker.transactions | req=2ef3e579 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:52,045 | INFO | finance_tracker.middleware | req=2ef3e579 | POST /api/v1/transactions | 201 | 7.58ms
+2026-08-29 23:53:52,052 | INFO | finance_tracker.transactions | req=f5b6a36f | Transaction update attempt: txn_id=1, user_id=1
+2026-08-29 23:53:52,052 | INFO | finance_tracker.transactions | req=f5b6a36f | Transaction fetched: txn_id=1, user_id=1
+2026-08-29 23:53:52,055 | INFO | finance_tracker.transactions | req=f5b6a36f | Transaction updated: txn_id=1, user_id=1
+2026-08-29 23:53:52,056 | INFO | finance_tracker.middleware | req=f5b6a36f | PATCH /api/v1/transactions/1 | 200 | 7.67ms
+2026-08-29 23:53:52,082 | INFO | finance_tracker.transactions | req=f29489a9 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:52,084 | INFO | finance_tracker.transactions | req=f29489a9 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:52,085 | INFO | finance_tracker.middleware | req=f29489a9 | POST /api/v1/transactions | 201 | 6.97ms
+2026-08-29 23:53:52,090 | INFO | finance_tracker.transactions | req=b58c07b5 | Transaction update attempt: txn_id=1, user_id=1
+2026-08-29 23:53:52,091 | INFO | finance_tracker.transactions | req=b58c07b5 | Transaction fetched: txn_id=1, user_id=1
+2026-08-29 23:53:52,093 | INFO | finance_tracker.transactions | req=b58c07b5 | Transaction updated: txn_id=1, user_id=1
+2026-08-29 23:53:52,094 | INFO | finance_tracker.middleware | req=b58c07b5 | PATCH /api/v1/transactions/1 | 200 | 7.53ms
+2026-08-29 23:53:52,118 | INFO | finance_tracker.transactions | req=93f234f5 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:52,120 | INFO | finance_tracker.transactions | req=93f234f5 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:52,121 | INFO | finance_tracker.middleware | req=93f234f5 | POST /api/v1/transactions | 201 | 7.48ms
+2026-08-29 23:53:52,126 | INFO | finance_tracker.middleware | req=321a5fa3 | PATCH /api/v1/transactions/1 | 422 | 3.16ms
+2026-08-29 23:53:52,151 | INFO | finance_tracker.transactions | req=36ba2790 | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:52,153 | INFO | finance_tracker.transactions | req=36ba2790 | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:52,154 | INFO | finance_tracker.middleware | req=36ba2790 | POST /api/v1/transactions | 201 | 8.58ms
+2026-08-29 23:53:52,161 | INFO | finance_tracker.middleware | req=749ae004 | PATCH /api/v1/transactions/1 | 422 | 4.45ms
+2026-08-29 23:53:52,191 | INFO | finance_tracker.transactions | req=4fb3be13 | Transaction update attempt: txn_id=999999, user_id=1
+2026-08-29 23:53:52,192 | WARNING | finance_tracker.transactions | req=4fb3be13 | Transaction not found: txn_id=999999, user_id=1
+2026-08-29 23:53:52,193 | INFO | finance_tracker.middleware | req=4fb3be13 | PATCH /api/v1/transactions/999999 | 404 | 6.14ms
+2026-08-29 23:53:52,217 | INFO | finance_tracker.transactions | req=33c98fbb | Transaction create attempt: user_id=1, amount=500.0, type=TransactionType.EXPENSE
+2026-08-29 23:53:52,219 | INFO | finance_tracker.transactions | req=33c98fbb | Transaction created: txn_id=1, user_id=1
+2026-08-29 23:53:52,220 | INFO | finance_tracker.middleware | req=33c98fbb | POST /api/v1/transactions | 201 | 7.15ms
+2026-08-29 23:53:52,226 | WARNING | finance_tracker.transactions | req=1a746933 | Transaction delete attempt: txn_id=1, user_id=1
+2026-08-29 23:53:52,226 | INFO | finance_tracker.transactions | req=1a746933 | Transaction fetched: txn_id=1, user_id=1
+2026-08-29 23:53:52,229 | WARNING | finance_tracker.transactions | req=1a746933 | Transaction deleted: txn_id=1, user_id=1
+2026-08-29 23:53:52,229 | INFO | finance_tracker.middleware | req=1a746933 | DELETE /api/v1/transactions/1 | 200 | 6.59ms
+2026-08-29 23:53:52,235 | WARNING | finance_tracker.transactions | req=50026b10 | Transaction not found: txn_id=1, user_id=1
+2026-08-29 23:53:52,236 | INFO | finance_tracker.middleware | req=50026b10 | GET /api/v1/transactions/1 | 404 | 4.54ms
+2026-08-29 23:53:52,259 | WARNING | finance_tracker.transactions | req=8e11d27c | Transaction delete attempt: txn_id=999999, user_id=1
+2026-08-29 23:53:52,260 | WARNING | finance_tracker.transactions | req=8e11d27c | Transaction not found: txn_id=999999, user_id=1
+2026-08-29 23:53:52,261 | INFO | finance_tracker.middleware | req=8e11d27c | DELETE /api/v1/transactions/999999 | 404 | 5.26ms
+2026-08-29 23:53:52,274 | INFO | finance_tracker.middleware | req=6753e687 | DELETE /api/v1/transactions/999999 | 401 | 3.15ms
+2026-08-29 23:53:52,284 | INFO | finance_tracker.middleware | req=d92bad75 | GET /api/v1/health | 200 | 1.27ms
+2026-08-29 23:53:52,294 | INFO | finance_tracker.middleware | req=c8b9f662 | GET /api/v1/health | 200 | 1.01ms
+2026-08-29 23:53:52,316 | INFO | finance_tracker.middleware | req=789662be | GET /api/v1/users/me | 200 | 4.18ms
+2026-08-29 23:53:52,326 | INFO | finance_tracker.middleware | req=dea7b46f | GET /api/v1/users/me | 401 | 0.78ms
+2026-08-29 23:53:52,337 | INFO | finance_tracker.middleware | req=10aac9b1 | GET /api/v1/users/me | 401 | 2.12ms
+2026-08-29 23:53:52,361 | INFO | finance_tracker.middleware | req=7acdce56 | PATCH /api/v1/users/me | 200 | 6.39ms
+2026-08-29 23:53:52,389 | INFO | finance_tracker.middleware | req=f44f91a8 | PATCH /api/v1/users/me | 200 | 9.35ms
+2026-08-29 23:53:52,414 | INFO | finance_tracker.middleware | req=284cc551 | PATCH /api/v1/users/me | 200 | 6.96ms
+2026-08-29 23:53:52,438 | INFO | finance_tracker.middleware | req=cd583d30 | PATCH /api/v1/users/me | 200 | 5.02ms
+2026-08-29 23:53:52,461 | INFO | finance_tracker.middleware | req=7a19a35f | PATCH /api/v1/users/me | 422 | 3.92ms
+2026-08-29 23:53:52,483 | INFO | finance_tracker.middleware | req=46d6fd3d | PATCH /api/v1/users/me | 422 | 3.97ms
+2026-08-29 23:53:52,508 | INFO | finance_tracker.middleware | req=6aa069e9 | PATCH /api/v1/users/me | 422 | 5.38ms
+2026-08-29 23:53:52,520 | INFO | finance_tracker.middleware | req=fbed9dd8 | PATCH /api/v1/users/me | 401 | 2.52ms
+2026-08-29 23:53:52,560 | INFO | finance_tracker.middleware | req=c78ae2bf | PATCH /api/v1/users/change-password | 200 | 21.14ms
+2026-08-29 23:53:52,607 | INFO | finance_tracker.middleware | req=4ce7511d | PATCH /api/v1/users/change-password | 400 | 19.29ms
+2026-08-29 23:53:52,635 | INFO | finance_tracker.middleware | req=60c247c8 | PATCH /api/v1/users/change-password | 422 | 4.42ms
+2026-08-29 23:53:52,660 | INFO | finance_tracker.middleware | req=5b9506c3 | PATCH /api/v1/users/change-password | 422 | 5.03ms
+2026-08-29 23:53:52,685 | INFO | finance_tracker.middleware | req=db0cee4d | PATCH /api/v1/users/change-password | 422 | 4.32ms
+2026-08-29 23:53:52,697 | INFO | finance_tracker.middleware | req=f3c7f954 | PATCH /api/v1/users/change-password | 401 | 2.57ms
+2026-08-29 23:53:52,721 | INFO | finance_tracker.middleware | req=d65baabd | DELETE /api/v1/users/me | 200 | 5.09ms
+2026-08-29 23:53:52,732 | INFO | finance_tracker.middleware | req=a5618c3f | DELETE /api/v1/users/me | 401 | 2.22ms
+2026-08-29 23:53:52,743 | INFO | finance_tracker.middleware | req=c67cf3e6 | DELETE /api/v1/users/me | 401 | 2.52ms

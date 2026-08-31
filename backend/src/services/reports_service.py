@@ -4,20 +4,19 @@
 
 from datetime import datetime
 
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
 
 from src.db.models import (
-    Transaction,
     Budget,
     Category,
+    Transaction,
     TransactionType,
     User,
 )
 
 
 class ReportsService:
-
     # ----------------------------------------------
     # CASH FLOW
     # ----------------------------------------------
@@ -104,7 +103,6 @@ class ReportsService:
         data = []
 
         for row in rows:
-
             percentage = 0.0
 
             if grand_total > 0:
@@ -173,7 +171,6 @@ class ReportsService:
         }
 
         for row in rows:
-
             month_no = int(row.month)
 
             if row.type == TransactionType.INCOME:
@@ -210,7 +207,6 @@ class ReportsService:
         output = []
 
         for budget in budgets:
-
             spent_query = db.query(
                 func.coalesce(func.sum(Transaction.amount), 0)
             ).filter(
@@ -229,7 +225,6 @@ class ReportsService:
             )
 
             if budget.category_id:
-
                 spent_query = spent_query.filter(
                     Transaction.category_id == budget.category_id
                 )
@@ -241,7 +236,6 @@ class ReportsService:
             category_name = "Overall"
 
             if budget.category_id:
-
                 category = (
                     db.query(Category).filter(Category.id == budget.category_id).first()
                 )

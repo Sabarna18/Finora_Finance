@@ -8,15 +8,14 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 
-from src.db.models import User
 from src.core.security import (
-    verify_password,
     hash_password,
+    verify_password,
 )
+from src.db.models import User
 
 
 class UserService:
-
     # ----------------------------------------------
     # PROFILE
     # ----------------------------------------------
@@ -38,7 +37,6 @@ class UserService:
         updates = payload.model_dump(exclude_unset=True)
 
         if "email" in updates:
-
             existing = (
                 db.query(User)
                 .filter(

@@ -3,156 +3,108 @@
 // ======================================================
 
 import {
-  useEffect,
   useState,
+  type FormEvent,
 } from "react";
 
 import {
-  TransactionCreate,
-  TransactionResponse,
   TransactionType,
+  type TransactionCreate,
+  type TransactionResponse,
 } from "../../api/transactions.api";
 
-// import {
-//   CategoryResponse,
-// } from "../../api/";
-
-import { CategoryResponse } from "../../types/api";
+import type {
+  CategoryResponse,
+} from "../../types/api";
 
 interface Props {
-
-  transaction?:
-    TransactionResponse | null;
-
-  categories:
-    CategoryResponse[];
-
+  transaction?: TransactionResponse | null;
+  categories: CategoryResponse[];
   loading: boolean;
-
   onSubmit: (
     payload: TransactionCreate
   ) => void;
-
 }
 
-
 export default function TransactionForm({
-
   transaction,
-
   categories,
-
   loading,
-
   onSubmit,
-
 }: Props) {
+  // ====================================================
+  // DEFAULT DATE
+  // ====================================================
+
+  const defaultDate =
+    new Date()
+      .toISOString()
+      .split("T")[0];
 
   // ====================================================
   // FORM STATE
   // ====================================================
+
   const [
     amount,
     setAmount,
-  ] = useState(0);
-
+  ] = useState(
+    transaction?.amount ?? 0
+  );
 
   const [
     type,
     setType,
   ] = useState<TransactionType>(
-    TransactionType.EXPENSE
+    transaction?.type ??
+      TransactionType.EXPENSE
   );
-
 
   const [
     description,
     setDescription,
-  ] = useState("");
-
+  ] = useState(
+    transaction?.description ?? ""
+  );
 
   const [
     categoryId,
     setCategoryId,
   ] = useState<number | null>(
-    null
+    transaction?.category_id ?? null
   );
-
 
   const [
     transactionDate,
     setTransactionDate,
   ] = useState(
-    new Date()
-      .toISOString()
-      .split("T")[0]
+    transaction?.date
+      ? transaction.date.split("T")[0]
+      : defaultDate
   );
-
 
   const [
     error,
     setError,
   ] = useState("");
 
-
-  // ====================================================
-  // LOAD EXISTING TRANSACTION
-  // ====================================================
-  useEffect(() => {
-
-    if (!transaction) {
-      return;
-    }
-
-    setAmount(
-      transaction.amount
-    );
-
-    setType(
-      transaction.type
-    );
-
-    setDescription(
-      transaction.description || ""
-    );
-
-    setCategoryId(
-      transaction.category_id ?? null
-    );
-
-    setTransactionDate(
-      transaction.date
-        ? transaction.date.split("T")[0]
-        : new Date()
-            .toISOString()
-            .split("T")[0]
-    );
-
-  }, [transaction]);
-
-
   // ====================================================
   // VALIDATION
   // ====================================================
+
   const isFormValid =
-
     amount > 0 &&
-
     categoryId !== null &&
-
-    description.trim()
-      .length >= 3 &&
-
+    description.trim().length >= 3 &&
     transactionDate.length > 0;
-
 
   // ====================================================
   // SUBMIT
   // ====================================================
-  function handleSubmit(
-    event: React.FormEvent
-  ) {
 
+  function handleSubmit(
+    event: FormEvent
+  ) {
     event.preventDefault();
 
     setError("");
@@ -160,142 +112,109 @@ export default function TransactionForm({
     // ----------------------------
     // Amount
     // ----------------------------
-    if (amount <= 0) {
 
+    if (amount <= 0) {
       setError(
         "Amount must be greater than 0."
       );
 
       return;
-
     }
 
     // ----------------------------
     // Category
     // ----------------------------
-    if (
-      categoryId === null
-    ) {
 
+    if (categoryId === null) {
       setError(
         "Please select a category."
       );
 
       return;
-
     }
 
     // ----------------------------
     // Date
     // ----------------------------
-    if (
-      !transactionDate
-    ) {
 
+    if (!transactionDate) {
       setError(
         "Please select a transaction date."
       );
 
       return;
-
     }
 
     // ----------------------------
     // Description
     // ----------------------------
-    if (
-      description.trim()
-        .length < 3
-    ) {
 
+    if (
+      description.trim().length < 3
+    ) {
       setError(
         "Description must be at least 3 characters."
       );
 
       return;
-
     }
 
     // ----------------------------
     // Submit
     // ----------------------------
+
     onSubmit({
-
       amount,
-
       type,
-
-      date:
-        transactionDate,
-
-      description:
-        description.trim(),
-
-      category_id:
-        categoryId,
-
+      date: transactionDate,
+      description: description.trim(),
+      category_id: categoryId,
     });
-
   }
-
 
   // ====================================================
   // UI
   // ====================================================
+
   return (
-
     <form
-
-      onSubmit={
-        handleSubmit
-      }
-
+      onSubmit={handleSubmit}
       className="
         space-y-5
       "
-
     >
-
       {/* ======================================
           ERROR
       ====================================== */}
-      {error && (
 
+      {error && (
         <div
           className="
             rounded-xl
-
             border
             border-red-900/50
-
             bg-red-950/30
-
             px-4
             py-3
-
             text-sm
             text-red-400
           "
         >
           {error}
         </div>
-
       )}
-
 
       {/* ======================================
           AMOUNT
       ====================================== */}
-      <div>
 
+      <div>
         <label
           className="
             mb-2
             block
-
             text-sm
             font-medium
-
             text-zinc-300
           "
         >
@@ -303,17 +222,10 @@ export default function TransactionForm({
         </label>
 
         <input
-
           type="number"
-
           min={0}
-
           step="1.00"
-
-          value={
-            amount || ""
-          }
-
+          value={amount || ""}
           onChange={(e) =>
             setAmount(
               Number(
@@ -321,46 +233,33 @@ export default function TransactionForm({
               )
             )
           }
-
           placeholder="Enter amount"
-
           className="
             w-full
-
             rounded-xl
-
             border
             border-zinc-700
-
             bg-zinc-900
-
             px-4
             py-3
-
             text-white
-
             outline-none
-
             focus:border-violet-500
           "
         />
-
       </div>
-
 
       {/* ======================================
           TYPE
       ====================================== */}
-      <div>
 
+      <div>
         <label
           className="
             mb-2
             block
-
             text-sm
             font-medium
-
             text-zinc-300
           "
         >
@@ -368,37 +267,26 @@ export default function TransactionForm({
         </label>
 
         <select
-
           value={type}
-
           onChange={(e) =>
             setType(
               e.target.value as
-              TransactionType
+                TransactionType
             )
           }
-
           className="
             w-full
-
             rounded-xl
-
             border
             border-zinc-700
-
             bg-zinc-900
-
             px-4
             py-3
-
             text-white
-
             outline-none
-
             focus:border-violet-500
           "
         >
-
           <option
             value={
               TransactionType.INCOME
@@ -414,25 +302,20 @@ export default function TransactionForm({
           >
             Expense
           </option>
-
         </select>
-
       </div>
-
 
       {/* ======================================
           CATEGORY
       ====================================== */}
-      <div>
 
+      <div>
         <label
           className="
             mb-2
             block
-
             text-sm
             font-medium
-
             text-zinc-300
           "
         >
@@ -440,11 +323,7 @@ export default function TransactionForm({
         </label>
 
         <select
-
-          value={
-            categoryId ?? ""
-          }
-
+          value={categoryId ?? ""}
           onChange={(e) =>
             setCategoryId(
               Number(
@@ -452,72 +331,47 @@ export default function TransactionForm({
               )
             )
           }
-
           className="
             w-full
-
             rounded-xl
-
             border
             border-zinc-700
-
             bg-zinc-900
-
             px-4
             py-3
-
             text-white
-
             outline-none
-
             focus:border-violet-500
           "
         >
-
           <option value="">
             Select Category
           </option>
 
           {categories.map(
             (category) => (
-
               <option
-
-                key={
-                  category.id
-                }
-
-                value={
-                  category.id
-                }
-
+                key={category.id}
+                value={category.id}
               >
-
                 {category.name}
-
               </option>
-
             )
           )}
-
         </select>
-
       </div>
-
 
       {/* ======================================
           DATE
       ====================================== */}
-      <div>
 
+      <div>
         <label
           className="
             mb-2
             block
-
             text-sm
             font-medium
-
             text-zinc-300
           "
         >
@@ -525,56 +379,39 @@ export default function TransactionForm({
         </label>
 
         <input
-
           type="date"
-
-          value={
-            transactionDate
-          }
-
+          value={transactionDate}
           onChange={(e) =>
             setTransactionDate(
               e.target.value
             )
           }
-
           className="
             w-full
-
             rounded-xl
-
             border
             border-zinc-700
-
             bg-zinc-900
-
             px-4
             py-3
-
             text-white
-
             outline-none
-
             focus:border-violet-500
           "
         />
-
       </div>
-
 
       {/* ======================================
           DESCRIPTION
       ====================================== */}
-      <div>
 
+      <div>
         <label
           className="
             mb-2
             block
-
             text-sm
             font-medium
-
             text-zinc-300
           "
         >
@@ -582,95 +419,61 @@ export default function TransactionForm({
         </label>
 
         <textarea
-
           rows={4}
-
-          value={
-            description
-          }
-
+          value={description}
           onChange={(e) =>
             setDescription(
               e.target.value
             )
           }
-
           placeholder="Enter description"
-
           className="
             w-full
-
             resize-none
-
             rounded-xl
-
             border
             border-zinc-700
-
             bg-zinc-900
-
             px-4
             py-3
-
             text-white
-
             outline-none
-
             focus:border-violet-500
           "
         />
-
       </div>
-
 
       {/* ======================================
           SUBMIT
       ====================================== */}
+
       <button
-
         type="submit"
-
         disabled={
           loading ||
           !isFormValid
         }
-
         className="
           w-full
-
           rounded-xl
-
           bg-white
-
           px-4
           py-3
-
           font-semibold
           text-black
-
           transition-opacity
-
           hover:opacity-90
-
           disabled:cursor-not-allowed
           disabled:opacity-50
         "
       >
-
         {loading
-
           ? "Saving..."
-
           : transaction
-
             ? "Update Transaction"
-
             : "Create Transaction"}
-
       </button>
-
     </form>
-
   );
-
 }
+
