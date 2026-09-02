@@ -65,6 +65,7 @@ RUN uv sync \
     --frozen \
     --no-dev
 
+ENV PATH="/backend/.venv/bin:$PATH"
 
 # ==========================================================
 # Application source

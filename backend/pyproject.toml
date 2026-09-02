@@ -13,13 +13,14 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "python-jose[email]>=3.5.0",
     "python-multipart>=0.0.26",
-    "sqlalchemy>=2.0.49",
+    "sqlalchemy>=2.0,<3.0",
     "uvicorn>=0.45.0",
     "psycopg2-binary>=2.9,<3",
     "pytest>=9.1.1",
     "httpx>=0.28.1",
     "ruff>=0.16.4",
     "black>=26.5.1",
+    "psycopg[binary]>=3.0,<4.0",
 ]
 
 

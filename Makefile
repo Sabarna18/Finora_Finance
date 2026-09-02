@@ -1,358 +1,702 @@
 # ============================================================
-# Finora - Project Makefile
+# Finora Makefile
+# ============================================================
+#
+# Docker-first development and quality-gate orchestration.
+#
+# Project structure:
+#
+#   scripts/
+#       backend-check.sh
+#       db-check.sh
+#       frontend-check.sh
+#
+#   backend/
+#       scripts/
+#           generate_db_summary.py
+#
+#   frontend/
+#
+#   compose.yml
+#
+#
+# Quality architecture:
+#
+#                       make check
+#                           │
+#                           ▼
+#                  Compose validation
+#                           │
+#                           ▼
+#                Build / recreate Docker
+#                           │
+#              ┌────────────┴────────────┐
+#              ▼                         ▼
+#          PostgreSQL                 Backend
+#              │                         │
+#              └────────────┬────────────┘
+#                           │
+#                    Quality Gates
+#                           │
+#           ┌───────────────┼───────────────┐
+#           ▼               ▼               ▼
+#        Backend             DB           Frontend
+#           │               │               │
+#           │               │               │
+#           ▼               ▼               ▼
+#       Docker            Docker          Host
+#
+#
+# IMPORTANT:
+#
+# `make check` is self-contained.
+#
+# It can be executed when:
+#
+#   - containers are stopped
+#   - containers do not exist
+#   - images do not exist
+#
+# The environment is automatically created.
+#
+# After the quality gate finishes, Docker containers are
+# automatically stopped and removed.
+#
+# ============================================================
+
+
+# ============================================================
+# SHELL
 # ============================================================
 
 SHELL := /bin/bash
 
-ROOT_DIR := $(shell pwd)
+.SHELLFLAGS := -euo pipefail -c
+
+
+# ============================================================
+# DOCKER
+# ============================================================
+
+COMPOSE := docker compose
+
+COMPOSE_FILE := compose.yml
+
+BACKEND_SERVICE := backend
+
+POSTGRES_SERVICE := postgres
+
+WEB_SERVICE := web
+
+
+# ============================================================
+# PROJECT PATHS
+# ============================================================
+
+ROOT_DIR := $(CURDIR)
+
+SCRIPTS_DIR := $(ROOT_DIR)/scripts
+
+FRONTEND_DIR := $(ROOT_DIR)/frontend
+
+
+# ============================================================
+# QUALITY SCRIPTS
+# ============================================================
+
+BACKEND_CHECK := $(SCRIPTS_DIR)/backend-check.sh
+
+DB_CHECK := $(SCRIPTS_DIR)/db-check.sh
+
+FRONTEND_CHECK := $(SCRIPTS_DIR)/frontend-check.sh
 
 
 # ============================================================
 # PHONY TARGETS
 # ============================================================
 
-.PHONY: check
-.PHONY: require-docker-services
-.PHONY: backend-check
-.PHONY: backend-test
-.PHONY: frontend-check
-.PHONY: frontend-build
-.PHONY: db-check
-.PHONY: db-upgrade
-.PHONY: format
-.PHONY: clean
+.PHONY: \
+	help \
+	up \
+	down \
+	restart \
+	build \
+	ps \
+	logs \
+	compose-check \
+	script-check \
+	wait \
+	backend \
+	backend-check \
+	db \
+	db-check \
+	db-upgrade \
+	frontend \
+	frontend-check \
+	check \
+	check-fast \
+	clean
 
 
 # ============================================================
-# DOCKER ENVIRONMENT VALIDATION
-#
-# Required by:
-#
-#   - make check
-#   - make backend-check
-#   - make backend-test
-#   - make db-check
-#   - make db-upgrade
-#
-# Required running services:
-#
-#   backend
-#   postgres
-#
-# The database and backend quality gates intentionally execute
-# inside the backend container.
-#
-# Docker network:
-#
-#   backend → postgres:5432
-#
+# DEFAULT TARGET
 # ============================================================
 
-require-docker-services:
-	@echo "→ Checking required Docker services..."
+.DEFAULT_GOAL := help
 
-	@if ! docker info >/dev/null 2>&1; then \
-		echo ""; \
-		echo "✗ Docker daemon is not running or is not accessible."; \
-		echo ""; \
-		echo "Start Docker and try again."; \
-		echo ""; \
+
+# ============================================================
+# HELP
+# ============================================================
+
+help:
+	@echo ""
+	@echo "============================================================"
+	@echo "                    Finora Makefile"
+	@echo "============================================================"
+	@echo ""
+	@echo "Docker:"
+	@echo "  make up               Start Docker environment"
+	@echo "  make down             Stop and remove Docker containers"
+	@echo "  make restart          Restart Docker environment"
+	@echo "  make build            Build Docker images"
+	@echo "  make ps               Show service status"
+	@echo "  make logs             Follow service logs"
+	@echo ""
+	@echo "Backend:"
+	@echo "  make backend          Backend quality gate"
+	@echo "  make backend-check    Backend quality gate"
+	@echo ""
+	@echo "Database:"
+	@echo "  make db               Database quality gate"
+	@echo "  make db-check         Database quality gate"
+	@echo "  make db-upgrade       Apply Alembic migrations"
+	@echo ""
+	@echo "Frontend:"
+	@echo "  make frontend         Frontend quality gate"
+	@echo "  make frontend-check   Frontend quality gate"
+	@echo ""
+	@echo "Quality:"
+	@echo "  make compose-check    Validate Compose configuration"
+	@echo "  make script-check     Validate quality scripts"
+	@echo "  make wait             Wait for required services"
+	@echo "  make check            Complete quality gate + cleanup"
+	@echo "  make check-fast       Fast quality gate + cleanup"
+	@echo ""
+	@echo "Maintenance:"
+	@echo "  make clean            Stop and remove containers"
+	@echo ""
+
+
+# ============================================================
+# DOCKER LIFECYCLE
+# ============================================================
+
+up:
+	@echo ""
+	@echo "============================================================"
+	@echo " Starting Finora"
+	@echo "============================================================"
+	@echo ""
+
+	$(COMPOSE) -f "$(COMPOSE_FILE)" up -d
+
+
+down:
+	@echo ""
+	@echo "============================================================"
+	@echo " Stopping Finora"
+	@echo "============================================================"
+	@echo ""
+
+	$(COMPOSE) -f "$(COMPOSE_FILE)" down --remove-orphans
+
+	@echo ""
+	@echo "✓ Docker containers stopped and removed"
+	@echo ""
+
+
+restart:
+	@echo ""
+	@echo "============================================================"
+	@echo " Restarting Finora"
+	@echo "============================================================"
+	@echo ""
+
+	$(COMPOSE) -f "$(COMPOSE_FILE)" restart
+
+
+build:
+	@echo ""
+	@echo "============================================================"
+	@echo " Building Finora Docker Images"
+	@echo "============================================================"
+	@echo ""
+
+	$(COMPOSE) -f "$(COMPOSE_FILE)" build
+
+
+ps:
+	@echo ""
+	@echo "============================================================"
+	@echo " Finora Service Status"
+	@echo "============================================================"
+	@echo ""
+
+	$(COMPOSE) -f "$(COMPOSE_FILE)" ps
+
+
+logs:
+	@echo ""
+	@echo "============================================================"
+	@echo " Following Finora Logs"
+	@echo "============================================================"
+	@echo ""
+
+	$(COMPOSE) -f "$(COMPOSE_FILE)" logs -f
+
+
+# ============================================================
+# COMPOSE VALIDATION
+# ============================================================
+
+compose-check:
+	@echo ""
+	@echo "============================================================"
+	@echo " Docker Compose Validation"
+	@echo "============================================================"
+	@echo ""
+
+	@if [[ ! -f "$(COMPOSE_FILE)" ]]; then \
+		echo "✗ Missing $(COMPOSE_FILE)"; \
 		exit 1; \
 	fi
 
-	@if ! docker compose ps --status running --services | grep -qx 'postgres'; then \
-		echo ""; \
-		echo "✗ Finora PostgreSQL container is not running."; \
-		echo ""; \
-		echo "Start the Finora Docker environment with:"; \
-		echo ""; \
-		echo "    docker compose up -d"; \
-		echo ""; \
-		exit 1; \
-	fi
+	$(COMPOSE) -f "$(COMPOSE_FILE)" config --quiet
 
-	@if ! docker compose ps --status running --services | grep -qx 'backend'; then \
-		echo ""; \
-		echo "✗ Finora backend container is not running."; \
-		echo ""; \
-		echo "Start the Finora Docker environment with:"; \
-		echo ""; \
-		echo "    docker compose up -d"; \
-		echo ""; \
-		exit 1; \
-	fi
-
-	@echo "✓ Required Docker services are running"
+	@echo ""
+	@echo "✓ Docker Compose configuration valid"
 	@echo ""
 
 
 # ============================================================
-# FULL LOCAL QUALITY GATE
-#
-# Execution order:
-#
-#   1. Backend quality
-#   2. Database validation
-#   3. Frontend quality
-#
-# IMPORTANT:
-#
-#   Backend and database validation execute INSIDE Docker.
-#
-#       backend-check.sh
-#              │
-#              ▼
-#       backend container
-#
-#       db-check.sh
-#              │
-#              ▼
-#       backend container
-#              │
-#              ▼
-#       postgres:5432
-#
-#   Frontend validation remains host-side.
-#
-# REQUIREMENT:
-#
-#   Docker services must be running before:
-#
-#       make check
-#
+# QUALITY SCRIPT VALIDATION
 # ============================================================
 
-check: require-docker-services
+script-check:
+	@echo ""
 	@echo "============================================================"
-	@echo " Finora - Full Project Quality Gate"
+	@echo " Quality Script Validation"
 	@echo "============================================================"
 	@echo ""
 
+	@for script in \
+		"$(BACKEND_CHECK)" \
+		"$(DB_CHECK)" \
+		"$(FRONTEND_CHECK)"; do \
+		if [[ ! -f "$$script" ]]; then \
+			echo "✗ Missing quality script:"; \
+			echo "  $$script"; \
+			exit 1; \
+		fi; \
+		if [[ ! -x "$$script" ]]; then \
+			echo "✗ Quality script is not executable:"; \
+			echo "  $$script"; \
+			echo ""; \
+			echo "Run:"; \
+			echo "  chmod +x \"$$script\""; \
+			exit 1; \
+		fi; \
+	done
+
+	@echo "✓ All quality scripts are available"
+	@echo ""
+
+
+# ============================================================
+# SERVICE READINESS
+# ============================================================
+
+wait:
+	@echo ""
 	@echo "============================================================"
-	@echo " [1/3] BACKEND QUALITY GATE"
+	@echo " Waiting for Docker Services"
 	@echo "============================================================"
 	@echo ""
 
-	@$(MAKE) backend-check
+	@echo "Waiting for PostgreSQL..."
+
+	@for i in $$(seq 1 60); do \
+		if $(COMPOSE) -f "$(COMPOSE_FILE)" exec -T \
+			$(POSTGRES_SERVICE) \
+			pg_isready >/dev/null 2>&1; then \
+			echo "✓ PostgreSQL is ready"; \
+			break; \
+		fi; \
+		if [[ "$$i" -eq 60 ]]; then \
+			echo "✗ PostgreSQL did not become ready"; \
+			echo ""; \
+			$(COMPOSE) -f "$(COMPOSE_FILE)" logs \
+				$(POSTGRES_SERVICE); \
+			exit 1; \
+		fi; \
+		sleep 2; \
+	done
 
 	@echo ""
-	@echo "============================================================"
-	@echo " [2/3] DATABASE QUALITY GATE"
-	@echo "============================================================"
-	@echo ""
+	@echo "Waiting for backend..."
 
-	@$(MAKE) db-check
+	@for i in $$(seq 1 60); do \
+		if $(COMPOSE) -f "$(COMPOSE_FILE)" exec -T \
+			$(BACKEND_SERVICE) \
+			python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')" \
+			>/dev/null 2>&1; then \
+			echo "✓ Backend is ready"; \
+			break; \
+		fi; \
+		if [[ "$$i" -eq 60 ]]; then \
+			echo "✗ Backend did not become ready"; \
+			echo ""; \
+			$(COMPOSE) -f "$(COMPOSE_FILE)" logs \
+				$(BACKEND_SERVICE); \
+			exit 1; \
+		fi; \
+		sleep 2; \
+	done
 
 	@echo ""
-	@echo "============================================================"
-	@echo " [3/3] FRONTEND QUALITY GATE"
-	@echo "============================================================"
-	@echo ""
-
-	@$(MAKE) frontend-check
-
-	@echo ""
-	@echo "============================================================"
-	@echo " ✓ ALL QUALITY GATES PASSED"
-	@echo "============================================================"
-	@echo ""
-
-	@echo "Backend   : PASS"
-	@echo "Database  : PASS"
-	@echo "Frontend  : PASS"
-	@echo ""
-
-	@echo "Repository is ready for Git push."
+	@echo "✓ Required Docker services are ready"
 	@echo ""
 
 
 # ============================================================
 # BACKEND QUALITY GATE
+# ============================================================
 #
-# Executes inside the running backend container.
+# The backend quality script lives on the HOST:
 #
-# The container provides:
+#     scripts/backend-check.sh
 #
-#   - Python environment
-#   - uv environment
-#   - locked dependencies
-#   - application source
-#   - test environment
+# It is intentionally not mounted into the backend image.
 #
-# Database/Alembic validation is intentionally NOT performed
-# here.
+# The script is streamed directly into the running backend
+# container and executed with bash.
 #
 # ============================================================
 
-backend-check: require-docker-services
-	@docker compose exec backend ./scripts/backend-check.sh
+backend: backend-check
+
+
+backend-check:
+	@echo ""
+	@echo "============================================================"
+	@echo "              BACKEND QUALITY GATE"
+	@echo "============================================================"
+	@echo ""
+
+	@if [[ ! -f "$(BACKEND_CHECK)" ]]; then \
+		echo "✗ Backend quality script not found:"; \
+		echo "  $(BACKEND_CHECK)"; \
+		exit 1; \
+	fi
+
+	@if [[ ! -r "$(BACKEND_CHECK)" ]]; then \
+		echo "✗ Backend quality script is not readable:"; \
+		echo "  $(BACKEND_CHECK)"; \
+		exit 1; \
+	fi
+
+	@echo "→ Executing backend quality gate inside Docker..."
+	@echo ""
+
+	cat "$(BACKEND_CHECK)" | \
+		$(COMPOSE) -f "$(COMPOSE_FILE)" exec -T \
+		$(BACKEND_SERVICE) \
+		bash -s
+
+	@echo ""
+	@echo "✓ Backend quality gate passed"
+	@echo ""
 
 
 # ============================================================
-# BACKEND TESTS
-#
-# Runs pytest inside the backend container.
-#
+# DATABASE QUALITY GATE
 # ============================================================
 
-backend-test: require-docker-services
-	@docker compose exec backend uv run pytest
+db: db-check
 
 
-# ============================================================
-# DATABASE CHECK
-#
-# Executes db-check.sh inside the backend container.
-#
-# db-check.sh validates:
-#
-#   - PostgreSQL availability
-#   - PostgreSQL authentication
-#   - Alembic current
-#   - Alembic heads
-#   - Alembic migration consistency
-#
-# Docker network:
-#
-#   backend → postgres:5432
-#
-# IMPORTANT:
-#
-#   This target NEVER applies migrations.
-#
-# ============================================================
+db-check:
+	@echo ""
+	@echo "============================================================"
+	@echo "              DATABASE QUALITY GATE"
+	@echo "============================================================"
+	@echo ""
 
-db-check: require-docker-services
-	@docker compose exec backend ./scripts/db-check.sh
+	@if [[ ! -x "$(DB_CHECK)" ]]; then \
+		echo "✗ Database quality script unavailable:"; \
+		echo "  $(DB_CHECK)"; \
+		exit 1; \
+	fi
+
+	@echo "→ Executing database quality gate..."
+	@echo ""
+
+	bash "$(DB_CHECK)"
+
+	@echo ""
+	@echo "✓ Database quality gate passed"
+	@echo ""
 
 
 # ============================================================
 # DATABASE MIGRATION
+# ============================================================
 #
-# Explicitly applies pending migrations.
+# Explicit schema mutation.
 #
-# IMPORTANT:
+# NOT part of:
 #
-#   This operation modifies the database schema.
-#
-#   Alembic executes inside the backend container and connects
-#   to PostgreSQL through:
-#
-#       postgres:5432
-#
-#   This target is intentionally NOT part of:
-#
-#       make check
+#   make db-check
+#   make check
 #
 # ============================================================
 
-db-upgrade: require-docker-services
+db-upgrade:
 	@echo ""
 	@echo "============================================================"
-	@echo " Finora - Database Migration"
+	@echo "              DATABASE MIGRATION"
 	@echo "============================================================"
 	@echo ""
 
-	@echo "→ Applying database migrations..."
-	@echo ""
+	$(COMPOSE) -f "$(COMPOSE_FILE)" exec -T \
+		$(BACKEND_SERVICE) \
+		alembic upgrade head
 
-	@docker compose exec backend uv run alembic upgrade head
-
 	@echo ""
-	@echo "✓ Database migrations applied successfully."
+	@echo "✓ Alembic migrations applied"
 	@echo ""
 
 
 # ============================================================
 # FRONTEND QUALITY GATE
+# ============================================================
 #
-# Delegated to:
+# The production `web` container is intentionally Nginx/static
+# only.
 #
-#     scripts/frontend-check.sh
+# Therefore frontend source validation runs on the host using
+# the project's existing Node toolchain.
 #
-# This remains host-side.
+# No additional Docker service is introduced.
 #
 # ============================================================
+
+frontend: frontend-check
+
 
 frontend-check:
-	@./scripts/frontend-check.sh
-
-
-# ============================================================
-# FRONTEND PRODUCTION BUILD
-#
-# Runs the production build independently.
-#
-# ============================================================
-
-frontend-build:
-	@cd frontend && npm run build
-
-
-# ============================================================
-# FORMAT / AUTO-FIX
-#
-# Applies safe formatting/lint fixes.
-#
-# Backend formatting executes inside Docker so that formatting
-# uses the same Python tooling as the backend quality gate.
-#
-# Frontend formatting remains host-side.
-#
-# ============================================================
-
-format: require-docker-services
 	@echo ""
 	@echo "============================================================"
-	@echo " Finora - Format & Auto-Fix"
+	@echo "              FRONTEND QUALITY GATE"
 	@echo "============================================================"
 	@echo ""
 
-	@echo "→ Applying backend Ruff fixes..."
-	@docker compose exec backend uv run ruff check src tests --fix
+	@if [[ ! -x "$(FRONTEND_CHECK)" ]]; then \
+		echo "✗ Frontend quality script unavailable:"; \
+		echo "  $(FRONTEND_CHECK)"; \
+		exit 1; \
+	fi
+
+	@echo "→ Executing frontend quality gate..."
+	@echo ""
+
+	bash "$(FRONTEND_CHECK)"
 
 	@echo ""
-	@echo "→ Formatting backend with Ruff..."
-	@docker compose exec backend uv run ruff format src tests
+	@echo "✓ Frontend quality gate passed"
+	@echo ""
 
-	@echo ""
-	@echo "→ Formatting backend with Black..."
-	@docker compose exec backend uv run black src tests
 
-	@echo ""
-	@echo "→ Applying frontend ESLint safe fixes..."
-	@cd frontend && npm run lint -- --fix
+# ============================================================
+# COMPLETE QUALITY GATE
+# ============================================================
+#
+# Self-contained.
+#
+# Flow:
+#
+#   1. Validate Compose
+#   2. Validate quality scripts
+#   3. Build/recreate Docker environment
+#   4. Wait for services
+#   5. Backend quality
+#   6. Database quality
+#   7. Frontend quality
+#   8. ALWAYS clean up Docker containers
+#
+# Cleanup occurs whether the quality gate passes or fails.
+#
+# ============================================================
 
-	@echo ""
-	@echo "============================================================"
-	@echo " ✓ Formatting and safe fixes complete"
-	@echo "============================================================"
-	@echo ""
+check:
+	@set -e; \
+	cleanup() { \
+		echo ""; \
+		echo "============================================================"; \
+		echo " Docker Cleanup"; \
+		echo "============================================================"; \
+		echo ""; \
+		$(COMPOSE) -f "$(COMPOSE_FILE)" down --remove-orphans || true; \
+		echo ""; \
+		echo "✓ Docker containers stopped and removed"; \
+		echo ""; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	\
+	echo ""; \
+	echo "============================================================"; \
+	echo "                 FINORA QUALITY GATE"; \
+	echo "============================================================"; \
+	echo ""; \
+	\
+	echo "Quality architecture:"; \
+	echo ""; \
+	echo "  Backend  → Docker backend container"; \
+	echo "  Database → Docker PostgreSQL"; \
+	echo "  Frontend → Host Node toolchain"; \
+	echo "  Web      → Docker Nginx/static container"; \
+	echo ""; \
+	\
+	echo "============================================================"; \
+	echo " Pre-flight"; \
+	echo "============================================================"; \
+	echo ""; \
+	$(MAKE) compose-check; \
+	$(MAKE) script-check; \
+	\
+	echo ""; \
+	echo "============================================================"; \
+	echo " Starting Quality-Gate Environment"; \
+	echo "============================================================"; \
+	echo ""; \
+	$(COMPOSE) -f "$(COMPOSE_FILE)" up -d --build --force-recreate; \
+	\
+	$(MAKE) wait; \
+	\
+	echo ""; \
+	echo "============================================================"; \
+	echo " Stage 1 / 3 — BACKEND"; \
+	echo "============================================================"; \
+	echo ""; \
+	$(MAKE) backend-check; \
+	\
+	echo ""; \
+	echo "============================================================"; \
+	echo " Stage 2 / 3 — DATABASE"; \
+	echo "============================================================"; \
+	echo ""; \
+	$(MAKE) db-check; \
+	\
+	echo ""; \
+	echo "============================================================"; \
+	echo " Stage 3 / 3 — FRONTEND"; \
+	echo "============================================================"; \
+	echo ""; \
+	$(MAKE) frontend-check; \
+	\
+	echo ""; \
+	echo "============================================================"; \
+	echo "            FINORA QUALITY GATE PASSED"; \
+	echo "============================================================"; \
+	echo ""; \
+	echo "✓ Compose configuration"; \
+	echo "✓ Docker services ready"; \
+	echo "✓ Backend quality"; \
+	echo "✓ Database quality"; \
+	echo "✓ Frontend quality"; \
+	echo ""; \
+	echo "→ Docker cleanup will now run automatically."; \
+	echo ""
+
+
+# ============================================================
+# FAST QUALITY GATE
+# ============================================================
+#
+# Same quality gates, but skips Docker image rebuilding.
+#
+# It still recreates the containers and automatically cleans
+# them up after the gate.
+#
+# ============================================================
+
+check-fast:
+	@set -e; \
+	cleanup() { \
+		echo ""; \
+		echo "============================================================"; \
+		echo " Docker Cleanup"; \
+		echo "============================================================"; \
+		echo ""; \
+		$(COMPOSE) -f "$(COMPOSE_FILE)" down --remove-orphans || true; \
+		echo ""; \
+		echo "✓ Docker containers stopped and removed"; \
+		echo ""; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	\
+	echo ""; \
+	echo "============================================================"; \
+	echo "              FINORA FAST QUALITY GATE"; \
+	echo "============================================================"; \
+	echo ""; \
+	\
+	$(MAKE) compose-check; \
+	$(MAKE) script-check; \
+	\
+	echo ""; \
+	echo "→ Starting existing Docker images..."; \
+	echo ""; \
+	$(COMPOSE) -f "$(COMPOSE_FILE)" up -d --force-recreate; \
+	\
+	$(MAKE) wait; \
+	\
+	echo ""; \
+	echo "Stage 1 / 3 — BACKEND"; \
+	$(MAKE) backend-check; \
+	\
+	echo ""; \
+	echo "Stage 2 / 3 — DATABASE"; \
+	$(MAKE) db-check; \
+	\
+	echo ""; \
+	echo "Stage 3 / 3 — FRONTEND"; \
+	$(MAKE) frontend-check; \
+	\
+	echo ""; \
+	echo "============================================================"; \
+	echo "          FINORA FAST QUALITY GATE PASSED"; \
+	echo "============================================================"; \
+	echo ""; \
+	echo "→ Docker cleanup will now run automatically."; \
+	echo ""
 
 
 # ============================================================
 # CLEAN
-#
-# Removes generated local development artifacts.
-#
-# Does NOT remove:
-#
-#   - .env
-#   - databases
-#   - Docker volumes
-#   - source code
-#
 # ============================================================
 
 clean:
-	@rm -rf backend/.pytest_cache
-	@rm -rf backend/.ruff_cache
-	@rm -rf backend/.mypy_cache
-	@rm -rf backend/htmlcov
-	@rm -rf backend/.coverage
-	@rm -rf frontend/dist
-	@rm -rf frontend/.vite
-	@rm -rf frontend/coverage
+	@echo ""
+	@echo "============================================================"
+	@echo " Cleaning Finora Docker Environment"
+	@echo "============================================================"
+	@echo ""
 
-	@echo "✓ Generated artifacts cleaned"
+	$(COMPOSE) -f "$(COMPOSE_FILE)" down \
+		--remove-orphans
 
+	@echo ""
+	@echo "✓ Docker environment cleaned"
+	@echo ""

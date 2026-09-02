@@ -1,0 +1,52 @@
+
+==========================================================
+              Finora Database Quality Gate
+==========================================================
+
+Project root : /home/sabarna-guha/Desktop/Projects/accessories projects/Personal-Finance-Tracker
+Compose file : compose.yml
+Report       : reports/database/db-check-20260902_205051.txt
+
+
+----------------------------------------------------------
+ Environment Requirements
+----------------------------------------------------------
+
+[0;32m[PASS][0m Required command available: docker
+
+----------------------------------------------------------
+ 1. Docker Compose Validation
+----------------------------------------------------------
+
+[0;32m[PASS][0m Compose file exists
+[0;32m[PASS][0m Docker Compose configuration is valid
+
+----------------------------------------------------------
+ Container Runtime
+----------------------------------------------------------
+
+[0;32m[PASS][0m postgres container is running
+[0;32m[PASS][0m backend container is running
+
+----------------------------------------------------------
+ 2. PostgreSQL Health
+----------------------------------------------------------
+
+PostgreSQL health status: healthy
+[0;32m[PASS][0m PostgreSQL container is healthy
+
+----------------------------------------------------------
+ 3. PostgreSQL Readiness
+----------------------------------------------------------
+
+[0;32m[PASS][0m PostgreSQL accepts connections
+
+----------------------------------------------------------
+ 4. Backend → PostgreSQL Connectivity
+----------------------------------------------------------
+
+[0;34m[INFO][0m Testing database connectivity from the backend container...
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+ModuleNotFoundError: No module named 'sqlalchemy'
+[0;31m[FAIL][0m Backend can connect to PostgreSQL

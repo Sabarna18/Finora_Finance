@@ -1,0 +1,22 @@
+
+==========================================================
+              Finora Database Quality Gate
+==========================================================
+
+Project root : /home/sabarna-guha/Desktop/Projects/accessories projects/Personal-Finance-Tracker
+Compose file : compose.yaml
+Report       : reports/database/db-check-20260902_204757.txt
+
+
+----------------------------------------------------------
+ Environment Requirements
+----------------------------------------------------------
+
+[0;32m[PASS][0m Required command available: docker
+
+----------------------------------------------------------
+ 1. Docker Compose Validation
+----------------------------------------------------------
+
+[0;31m[FAIL][0m Compose file exists
+Missing: compose.yaml

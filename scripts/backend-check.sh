@@ -2,30 +2,53 @@
 
 # ============================================================
 # Finora Backend Quality Gate
+# ============================================================
 #
 # Purpose:
-#   Final backend verification before Git push.
+#   Validate the Finora backend application code before Git
+#   push / CI execution.
 #
-# IMPORTANT:
+# Execution model:
 #
-#   This script is intended to run INSIDE the Finora backend
-#   Docker container.
+#   This script MUST run inside the backend Docker container.
 #
-#   The Makefile is responsible for entering the container:
+#   Example:
 #
 #       docker compose exec backend ./scripts/backend-check.sh
 #
-#   This script itself does NOT:
 #
-#     - Start Docker
-#     - Stop Docker
-#     - Manage Docker containers
-#     - Run Alembic
-#     - Modify the database schema
+# Responsibilities:
 #
-#   Database validation is handled separately by:
+#   ✓ Docker backend environment
+#   ✓ Backend project structure
+#   ✓ Dependency lock consistency
+#   ✓ Ruff linting
+#   ✓ Ruff formatting
+#   ✓ Black formatting
+#   ✓ Backend tests
 #
-#       scripts/db-check.sh
+#
+# NOT responsible for:
+#
+#   ✗ Starting Docker
+#   ✗ Stopping Docker
+#   ✗ Managing containers
+#   ✗ PostgreSQL validation
+#   ✗ Database connectivity
+#   ✗ Database integrity
+#   ✗ Alembic validation
+#   ✗ Database migrations
+#
+# Database quality gates are handled by:
+#
+#       root/scripts/db-check.sh
+#
+#
+# Important:
+#
+#   This script is READ/VALIDATE ONLY.
+#
+#   It does NOT automatically modify source files.
 #
 # ============================================================
 
@@ -42,10 +65,47 @@ cd "${BACKEND_DIR}"
 
 
 # ============================================================
+# QUALITY-GATE STATE
+# ============================================================
+
+TOTAL_GATES=0
+PASSED_GATES=0
+FAILED_GATES=0
+
+GATE_RESULTS=()
+
+
+# ============================================================
+# DISPLAY
+# ============================================================
+
+if [[ -t 1 ]]; then
+
+    RESET='\033[0m'
+    BOLD='\033[1m'
+    GREEN='\033[0;32m'
+    RED='\033[0;31m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+
+else
+
+    RESET=''
+    BOLD=''
+    GREEN=''
+    RED=''
+    YELLOW=''
+    BLUE=''
+
+fi
+
+
+# ============================================================
 # HELPERS
 # ============================================================
 
 print_header() {
+
     echo ""
     echo "============================================================"
     echo " $1"
@@ -53,71 +113,150 @@ print_header() {
     echo ""
 }
 
+
+print_section() {
+
+    echo ""
+    echo "------------------------------------------------------------"
+    echo " $1"
+    echo "------------------------------------------------------------"
+    echo ""
+}
+
+
 print_step() {
-    echo "→ $1"
+
+    echo -e "${BLUE}→${RESET} $1"
 }
 
-print_success() {
-    echo "✓ $1"
+
+pass_gate() {
+
+    local name="$1"
+
+    TOTAL_GATES=$((TOTAL_GATES + 1))
+    PASSED_GATES=$((PASSED_GATES + 1))
+
+    GATE_RESULTS+=(
+        "PASS|${name}"
+    )
+
+    echo -e "${GREEN}✓ PASS${RESET} ${name}"
     echo ""
+
 }
 
-print_error() {
+
+fail_gate() {
+
+    local name="$1"
+
+    TOTAL_GATES=$((TOTAL_GATES + 1))
+    FAILED_GATES=$((FAILED_GATES + 1))
+
+    GATE_RESULTS+=(
+        "FAIL|${name}"
+    )
+
+    echo -e "${RED}✗ FAIL${RESET} ${name}"
     echo ""
-    echo "✗ $1"
+
+}
+
+
+warn() {
+
+    echo -e "${YELLOW}! WARN${RESET} $1"
     echo ""
+
 }
 
 
 # ============================================================
-# DOCKER ENVIRONMENT VALIDATION
-#
-# This script is expected to execute inside the backend
-# container.
-#
-# /backend is the application working directory defined by
-# the Docker image.
+# ERROR HANDLER
+# ============================================================
+
+on_error() {
+
+    local exit_code="$?"
+
+    echo ""
+    echo -e "${RED}${BOLD}Backend quality gate aborted.${RESET}"
+    echo ""
+    echo "Exit code: ${exit_code}"
+    echo ""
+
+    exit "${exit_code}"
+}
+
+
+trap on_error ERR
+
+
+# ============================================================
+# HEADER
 # ============================================================
 
 print_header "Finora Backend Quality Gate"
 
+echo "Execution environment:"
+echo "  • Docker backend container"
+echo "  • Working directory: ${BACKEND_DIR}"
+echo ""
+
+echo "Database validation:"
+echo "  • Handled separately by db-check.sh"
+echo "  • No database operations are performed here"
+echo ""
+
 
 # ============================================================
-# 0. VERIFY CONTAINER ENVIRONMENT
+# 0. DOCKER BACKEND ENVIRONMENT
 # ============================================================
 
-print_step "Verifying Docker backend environment..."
+print_section "1. Backend Container Environment"
 
-if [[ ! -d "${BACKEND_DIR}" ]]; then
-    print_error "Backend application directory not found."
+print_step "Verifying backend application directory..."
 
-    echo "Expected:"
-    echo ""
-    echo "    ${BACKEND_DIR}"
-    echo ""
 
-    exit 1
-fi
+if [[ -d "${BACKEND_DIR}" ]]; then
 
-if [[ ! -f "${BACKEND_DIR}/pyproject.toml" ]]; then
-    print_error "Backend Docker environment is invalid."
+    pass_gate \
+        "Backend application directory exists"
 
-    echo "Missing:"
-    echo ""
-    echo "    ${BACKEND_DIR}/pyproject.toml"
-    echo ""
+else
+
+    fail_gate \
+        "Backend application directory exists"
 
     exit 1
+
 fi
 
-print_success "Docker backend environment OK"
+
+print_step "Checking pyproject.toml..."
+
+
+if [[ -f "${BACKEND_DIR}/pyproject.toml" ]]; then
+
+    pass_gate \
+        "pyproject.toml exists"
+
+else
+
+    fail_gate \
+        "pyproject.toml exists"
+
+    exit 1
+
+fi
 
 
 # ============================================================
 # 1. BACKEND STRUCTURE
 # ============================================================
 
-print_step "Checking backend structure..."
+print_section "2. Backend Structure"
 
 required_files=(
     "pyproject.toml"
@@ -125,11 +264,21 @@ required_files=(
     "alembic.ini"
 )
 
+
 for file in "${required_files[@]}"; do
-    if [[ ! -f "${file}" ]]; then
-        print_error "Missing required file: ${file}"
-        exit 1
+
+    if [[ -f "${file}" ]]; then
+
+        pass_gate \
+            "Required file exists: ${file}"
+
+    else
+
+        fail_gate \
+            "Required file exists: ${file}"
+
     fi
+
 done
 
 
@@ -139,153 +288,264 @@ required_directories=(
     "migrations"
 )
 
+
 for directory in "${required_directories[@]}"; do
-    if [[ ! -d "${directory}" ]]; then
-        print_error "Missing required directory: ${directory}"
-        exit 1
+
+    if [[ -d "${directory}" ]]; then
+
+        pass_gate \
+            "Required directory exists: ${directory}"
+
+    else
+
+        fail_gate \
+            "Required directory exists: ${directory}"
+
     fi
+
 done
 
-print_success "Backend structure OK"
+
+if [[ "${FAILED_GATES}" -gt 0 ]]; then
+
+    echo "Backend structure validation failed."
+
+    exit 1
+
+fi
 
 
 # ============================================================
-# 2. LOCK FILE
+# 2. DEPENDENCY LOCK
 # ============================================================
 
-print_step "Checking locked dependencies..."
+print_section "3. Dependency Lock"
 
-uv lock --check
+print_step "Checking uv.lock consistency..."
 
-print_success "uv.lock is up to date"
+
+if uv lock --check; then
+
+    pass_gate \
+        "uv.lock is synchronized with project dependencies"
+
+else
+
+    fail_gate \
+        "uv.lock is synchronized with project dependencies"
+
+    echo ""
+    echo "Fix:"
+    echo ""
+    echo "    uv lock"
+    echo ""
+
+    exit 1
+
+fi
 
 
 # ============================================================
-# 3. RUFF SAFE FIXES
+# 3. RUFF LINT
 # ============================================================
 
-print_step "Applying safe Ruff fixes..."
+print_section "4. Ruff Linting"
 
-uv run ruff check src tests --fix
+print_step "Running Ruff..."
 
-print_success "Safe Ruff fixes applied"
+
+if uv run ruff check src tests; then
+
+    pass_gate \
+        "Ruff linting passes"
+
+else
+
+    fail_gate \
+        "Ruff linting passes"
+
+    echo ""
+    echo "Ruff found issues requiring manual correction."
+    echo ""
+
+    exit 1
+
+fi
 
 
 # ============================================================
 # 4. RUFF FORMAT
 # ============================================================
 
-print_step "Formatting Python with Ruff..."
+print_section "5. Ruff Formatting"
 
-uv run ruff format src tests
+print_step "Checking Ruff formatting..."
 
-print_success "Ruff formatting complete"
+
+if uv run ruff format --check src tests; then
+
+    pass_gate \
+        "Ruff formatting is clean"
+
+else
+
+    fail_gate \
+        "Ruff formatting is clean"
+
+    echo ""
+    echo "Formatting changes are required."
+    echo ""
+    echo "Run locally:"
+    echo ""
+    echo "    uv run ruff format src tests"
+    echo ""
+
+    exit 1
+
+fi
 
 
 # ============================================================
 # 5. BLACK
 # ============================================================
 
-print_step "Running Black..."
-
-uv run black src tests
-
-print_success "Black formatting complete"
-
-
-# ============================================================
-# 6. FINAL RUFF FIX
-# ============================================================
-
-print_step "Running final Ruff auto-fix..."
-
-uv run ruff check src tests --fix
-
-print_success "Final Ruff auto-fix complete"
-
-
-# ============================================================
-# 7. RUFF VALIDATION
-# ============================================================
-
-print_step "Running final Ruff validation..."
-
-if ! uv run ruff check src tests; then
-    print_error "Ruff validation failed."
-
-    echo "Manual correction is required."
-    echo ""
-
-    exit 1
-fi
-
-print_success "Ruff validation passed"
-
-
-# ============================================================
-# 8. RUFF FORMAT VALIDATION
-# ============================================================
-
-print_step "Checking Ruff formatting..."
-
-uv run ruff format --check src tests
-
-print_success "Ruff formatting passed"
-
-
-# ============================================================
-# 9. BLACK VALIDATION
-# ============================================================
+print_section "6. Black Formatting"
 
 print_step "Checking Black formatting..."
 
-uv run black --check src tests
 
-print_success "Black validation passed"
+if uv run black --check src tests; then
+
+    pass_gate \
+        "Black formatting is clean"
+
+else
+
+    fail_gate \
+        "Black formatting is clean"
+
+    echo ""
+    echo "Black formatting changes are required."
+    echo ""
+    echo "Run locally:"
+    echo ""
+    echo "    uv run black src tests"
+    echo ""
+
+    exit 1
+
+fi
 
 
 # ============================================================
-# 10. BACKEND TESTS
-#
-# Tests run inside the same Docker Python environment as the
-# application.
-#
-# Database/Alembic validation is intentionally NOT performed
-# here.
+# 6. BACKEND TESTS
 # ============================================================
 
-print_step "Running backend tests..."
+print_section "7. Backend Tests"
 
-uv run pytest
+print_step "Running pytest inside backend container..."
 
-print_success "Backend tests passed"
+
+if uv run pytest; then
+
+    pass_gate \
+        "Backend test suite passes"
+
+else
+
+    fail_gate \
+        "Backend test suite passes"
+
+    echo ""
+    echo "Backend tests failed."
+    echo ""
+
+    exit 1
+
+fi
 
 
 # ============================================================
-# FINAL
+# FINAL REPORT
 # ============================================================
 
-print_header "✓ BACKEND QUALITY GATE PASSED"
+print_section "Backend Quality-Gate Report"
 
-echo "Backend is ready for Git push."
+
+echo "Gate results:"
 echo ""
 
-echo "  ✓ Docker backend environment valid"
-echo "  ✓ Structure valid"
-echo "  ✓ Dependencies locked"
-echo "  ✓ Ruff clean"
-echo "  ✓ Ruff formatting clean"
-echo "  ✓ Black clean"
-echo "  ✓ Backend tests passed"
+
+for result in "${GATE_RESULTS[@]}"; do
+
+    status="${result%%|*}"
+    name="${result#*|}"
+
+
+    if [[ "${status}" == "PASS" ]]; then
+
+        echo -e "  ${GREEN}[PASS]${RESET} ${name}"
+
+    else
+
+        echo -e "  ${RED}[FAIL]${RESET} ${name}"
+
+    fi
+
+done
+
+
+echo ""
+echo "------------------------------------------------------------"
 echo ""
 
-echo "Database:"
-echo "  • PostgreSQL validation is handled separately"
-echo "  • Alembic was NOT executed"
-echo "  • No database changes were made"
+echo "Total gates : ${TOTAL_GATES}"
+echo "Passed      : ${PASSED_GATES}"
+echo "Failed      : ${FAILED_GATES}"
+
 echo ""
 
-echo "Execution environment:"
-echo "  • Docker backend container"
+
+# ============================================================
+# FINAL RESULT
+# ============================================================
+
+if [[ "${FAILED_GATES}" -eq 0 ]]; then
+
+    echo "============================================================"
+    echo -e " ${GREEN}${BOLD}BACKEND QUALITY GATE PASSED${RESET}"
+    echo "============================================================"
+    echo ""
+
+    echo "Backend is ready for the next quality-gate stage."
+    echo ""
+
+    echo "Validated:"
+    echo "  ✓ Docker backend environment"
+    echo "  ✓ Backend structure"
+    echo "  ✓ Dependency lock"
+    echo "  ✓ Ruff linting"
+    echo "  ✓ Ruff formatting"
+    echo "  ✓ Black formatting"
+    echo "  ✓ Backend tests"
+    echo ""
+
+    echo "Database:"
+    echo "  → PostgreSQL validation: db-check.sh"
+    echo "  → Database connectivity: db-check.sh"
+    echo "  → Alembic validation: db-check.sh"
+    echo "  → Database summary: db-check.sh"
+    echo ""
+
+    exit 0
+
+fi
+
+
+echo "============================================================"
+echo -e " ${RED}${BOLD}BACKEND QUALITY GATE FAILED${RESET}"
+echo "============================================================"
 echo ""
+
+exit 1
 
