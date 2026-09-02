@@ -4,40 +4,39 @@
 # Finora Backend Quality Gate
 #
 # Purpose:
-#   Final local verification before Git push.
+#   Final backend verification before Git push.
 #
-# Responsibilities:
-#   1. Validate backend structure
-#   2. Validate uv.lock
-#   3. Automatically fix safe Ruff issues
-#   4. Format Python code
-#   5. Validate Ruff
-#   6. Validate Black
-#   7. Run backend tests
+# IMPORTANT:
 #
-# Intentionally NOT handled here:
-#   - Docker
-#   - PostgreSQL connectivity
-#   - Alembic upgrade/check
-#   - Production environment validation
+#   This script is intended to run INSIDE the Finora backend
+#   Docker container.
 #
-# Those checks belong in CI/CD.
+#   The Makefile is responsible for entering the container:
 #
-# Usage:
+#       docker compose exec backend ./scripts/backend-check.sh
 #
-#     make check
+#   This script itself does NOT:
+#
+#     - Start Docker
+#     - Stop Docker
+#     - Manage Docker containers
+#     - Run Alembic
+#     - Modify the database schema
+#
+#   Database validation is handled separately by:
+#
+#       scripts/db-check.sh
 #
 # ============================================================
 
-set -euo pipefail
+set -Eeuo pipefail
 
 
 # ============================================================
 # PATHS
 # ============================================================
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BACKEND_DIR="${ROOT_DIR}/backend"
+BACKEND_DIR="/backend"
 
 cd "${BACKEND_DIR}"
 
@@ -63,12 +62,55 @@ print_success() {
     echo ""
 }
 
+print_error() {
+    echo ""
+    echo "✗ $1"
+    echo ""
+}
+
 
 # ============================================================
-# START
+# DOCKER ENVIRONMENT VALIDATION
+#
+# This script is expected to execute inside the backend
+# container.
+#
+# /backend is the application working directory defined by
+# the Docker image.
 # ============================================================
 
 print_header "Finora Backend Quality Gate"
+
+
+# ============================================================
+# 0. VERIFY CONTAINER ENVIRONMENT
+# ============================================================
+
+print_step "Verifying Docker backend environment..."
+
+if [[ ! -d "${BACKEND_DIR}" ]]; then
+    print_error "Backend application directory not found."
+
+    echo "Expected:"
+    echo ""
+    echo "    ${BACKEND_DIR}"
+    echo ""
+
+    exit 1
+fi
+
+if [[ ! -f "${BACKEND_DIR}/pyproject.toml" ]]; then
+    print_error "Backend Docker environment is invalid."
+
+    echo "Missing:"
+    echo ""
+    echo "    ${BACKEND_DIR}/pyproject.toml"
+    echo ""
+
+    exit 1
+fi
+
+print_success "Docker backend environment OK"
 
 
 # ============================================================
@@ -85,10 +127,11 @@ required_files=(
 
 for file in "${required_files[@]}"; do
     if [[ ! -f "${file}" ]]; then
-        echo "✗ Missing required file: ${file}"
+        print_error "Missing required file: ${file}"
         exit 1
     fi
 done
+
 
 required_directories=(
     "src"
@@ -98,7 +141,7 @@ required_directories=(
 
 for directory in "${required_directories[@]}"; do
     if [[ ! -d "${directory}" ]]; then
-        echo "✗ Missing required directory: ${directory}"
+        print_error "Missing required directory: ${directory}"
         exit 1
     fi
 done
@@ -118,7 +161,7 @@ print_success "uv.lock is up to date"
 
 
 # ============================================================
-# 3. RUFF SAFE AUTO-FIX
+# 3. RUFF SAFE FIXES
 # ============================================================
 
 print_step "Applying safe Ruff fixes..."
@@ -140,7 +183,7 @@ print_success "Ruff formatting complete"
 
 
 # ============================================================
-# 5. BLACK FORMAT
+# 5. BLACK
 # ============================================================
 
 print_step "Running Black..."
@@ -151,37 +194,32 @@ print_success "Black formatting complete"
 
 
 # ============================================================
-# 6. FINAL RUFF AUTO-FIX
+# 6. FINAL RUFF FIX
 # ============================================================
 
-print_step "Running final Ruff auto-fix pass..."
+print_step "Running final Ruff auto-fix..."
 
 uv run ruff check src tests --fix
 
-print_success "Final Ruff auto-fix pass complete"
+print_success "Final Ruff auto-fix complete"
 
 
 # ============================================================
-# 7. RUFF LINT VALIDATION
+# 7. RUFF VALIDATION
 # ============================================================
 
-print_step "Running final Ruff lint check..."
+print_step "Running final Ruff validation..."
 
 if ! uv run ruff check src tests; then
-    echo ""
-    echo "✗ Ruff found issues that cannot be automatically fixed."
-    echo ""
+    print_error "Ruff validation failed."
+
     echo "Manual correction is required."
     echo ""
-    echo "Run:"
-    echo ""
-    echo "    cd backend"
-    echo "    uv run ruff check src tests"
-    echo ""
+
     exit 1
 fi
 
-print_success "Ruff lint passed"
+print_success "Ruff validation passed"
 
 
 # ============================================================
@@ -203,11 +241,17 @@ print_step "Checking Black formatting..."
 
 uv run black --check src tests
 
-print_success "Black formatting passed"
+print_success "Black validation passed"
 
 
 # ============================================================
-# 10. PYTEST
+# 10. BACKEND TESTS
+#
+# Tests run inside the same Docker Python environment as the
+# application.
+#
+# Database/Alembic validation is intentionally NOT performed
+# here.
 # ============================================================
 
 print_step "Running backend tests..."
@@ -218,23 +262,30 @@ print_success "Backend tests passed"
 
 
 # ============================================================
-# FINAL STATUS
+# FINAL
 # ============================================================
 
-print_header "✓ BACKEND CHECKS PASSED"
+print_header "✓ BACKEND QUALITY GATE PASSED"
 
 echo "Backend is ready for Git push."
 echo ""
+
+echo "  ✓ Docker backend environment valid"
 echo "  ✓ Structure valid"
 echo "  ✓ Dependencies locked"
-echo "  ✓ Ruff issues fixed"
-echo "  ✓ Python formatted"
-echo "  ✓ Ruff lint clean"
+echo "  ✓ Ruff clean"
 echo "  ✓ Ruff formatting clean"
 echo "  ✓ Black clean"
 echo "  ✓ Backend tests passed"
 echo ""
-echo "Docker, PostgreSQL, and Alembic validation"
-echo "are handled by CI/CD."
+
+echo "Database:"
+echo "  • PostgreSQL validation is handled separately"
+echo "  • Alembic was NOT executed"
+echo "  • No database changes were made"
+echo ""
+
+echo "Execution environment:"
+echo "  • Docker backend container"
 echo ""
 

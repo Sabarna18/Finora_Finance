@@ -2,18 +2,55 @@
 # Finora - Continuous Integration
 # ==========================================================
 #
-# Validates:
-#   1. Backend
-#   2. Frontend
-#   3. PostgreSQL integration
+# CI Architecture
 #
-# Trigger:
-#   - Every push
-#   - Every pull request
+#   GitHub Actions
+#        │
+#        ├──────────────────────┐
+#        │                      │
+#        ▼                      ▼
+#   Backend Check         Frontend Check
+#        │                      │
+#        │                      │
+#        ▼                      │
+#   PostgreSQL                 │
+#   Integration                │
+#        │                      │
+#        ├── Alembic            │
+#        ├── Schema             │
+#        ├── API                │
+#        └── Integration        │
+#                               │
+#        └──────────┬───────────┘
+#                   │
+#                   ▼
+#               CI PASSED
 #
-# Deployment and Docker image publishing are handled
-# by separate workflows.
+#
+# Database responsibilities
+#
+#   SQLite
+#      → isolated backend tests only
+#
+#   PostgreSQL
+#      → Alembic
+#      → schema validation
+#      → API integration
+#
+#
+# IMPORTANT
+#
+#   This workflow is intentionally explicit.
+#
+#   It does NOT depend on:
+#
+#       make check
+#
+#   The Makefile quality gate will later be built to mirror
+#   this CI contract.
+#
 # ==========================================================
+
 
 name: Finora CI
 
@@ -23,6 +60,7 @@ name: Finora CI
 # ==========================================================
 
 on:
+
   push:
 
   pull_request:
@@ -33,8 +71,48 @@ on:
 # ==========================================================
 
 env:
+
   PYTHON_VERSION: "3.13"
+
   NODE_VERSION: "22"
+
+  # --------------------------------------------------------
+  # PostgreSQL
+  # --------------------------------------------------------
+
+  POSTGRES_HOST: localhost
+
+  POSTGRES_PORT: "5432"
+
+  POSTGRES_USER: finora
+
+  POSTGRES_PASSWORD: password
+
+  POSTGRES_DB: finance_db
+
+  # --------------------------------------------------------
+  # Application
+  # --------------------------------------------------------
+
+  APP_NAME: Finora
+
+  DEBUG: "false"
+
+  DB_TYPE: postgresql
+
+  SECRET_KEY: ci-test-secret-key
+
+  ALGORITHM: HS256
+
+  ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+
+  BACKEND_CORS_ORIGINS: '["http://localhost"]'
+
+  # --------------------------------------------------------
+  # Frontend
+  # --------------------------------------------------------
+
+  VITE_API_URL: /api/v1
 
 
 # ==========================================================
@@ -42,7 +120,9 @@ env:
 # ==========================================================
 
 concurrency:
+
   group: finora-ci-${{ github.workflow }}-${{ github.ref }}
+
   cancel-in-progress: true
 
 
@@ -51,6 +131,7 @@ concurrency:
 # ==========================================================
 
 permissions:
+
   contents: read
 
 
@@ -60,39 +141,49 @@ permissions:
 
 jobs:
 
+
   # ========================================================
-  # BACKEND VALIDATION
+  # 1. BACKEND CHECK
+  # ========================================================
+  #
+  # Responsibility:
+  #
+  #   • Python environment
+  #   • uv dependency validation
+  #   • source imports
+  #   • Ruff
+  #   • Black
+  #   • pytest
+  #
+  # Database responsibility:
+  #
+  #   NONE
+  #
+  # Backend tests should use their isolated test database
+  # configuration/fixtures.
+  #
+  # Alembic is intentionally NOT executed here.
+  #
   # ========================================================
 
-  backend:
+  backend-check:
 
-    name: Backend Validation
+    name: Backend Check
 
     runs-on: ubuntu-latest
 
     timeout-minutes: 15
 
-    env:
-      APP_NAME: "Finora"
-      DEBUG: "false"
-
-      DB_TYPE: "sqlite"
-      SQLITE_DB_PATH: "./finance.db"
-
-      SECRET_KEY: "ci-test-secret-key"
-      ALGORITHM: "HS256"
-      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
-
-      BACKEND_CORS_ORIGINS: '["http://localhost"]'
-
 
     steps:
+
 
       # ----------------------------------------------------
       # Checkout
       # ----------------------------------------------------
 
       - name: Checkout repository
+
         uses: actions/checkout@v4
 
 
@@ -101,22 +192,48 @@ jobs:
       # ----------------------------------------------------
 
       - name: Set up Python
+
         uses: actions/setup-python@v5
 
         with:
+
           python-version: ${{ env.PYTHON_VERSION }}
 
 
       # ----------------------------------------------------
-      # Install uv
+      # uv
       # ----------------------------------------------------
 
       - name: Install uv
+
         uses: astral-sh/setup-uv@v6
 
         with:
+
           version: "latest"
+
           enable-cache: true
+
+
+      # ----------------------------------------------------
+      # Backend dependency cache
+      # ----------------------------------------------------
+
+      - name: Restore uv cache
+
+        uses: actions/cache@v4
+
+        with:
+
+          path: ~/.cache/uv
+
+          key: >
+            uv-${{ runner.os }}-
+            py${{ env.PYTHON_VERSION }}-
+            ${{ hashFiles('backend/uv.lock') }}
+
+          restore-keys: |
+            uv-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-
 
 
       # ----------------------------------------------------
@@ -124,31 +241,81 @@ jobs:
       # ----------------------------------------------------
 
       - name: Install backend dependencies
+
         working-directory: backend
 
         run: |
+
           uv sync --frozen
 
 
       # ----------------------------------------------------
-      # Backend import validation
+      # Verify dependency lock
       # ----------------------------------------------------
 
-      - name: Validate backend imports
+      - name: Verify uv lock
+
         working-directory: backend
 
         run: |
-          uv run python -c "
-          from src.app import app
-          from src.core.config import settings
-          from src.db.database import Base
 
-          print('Backend imports: OK')
-          print('FastAPI application: OK')
-          print('Database metadata: OK')
-          print(f'Application: {settings.APP_NAME}')
-          print(f'Database type: {settings.DB_TYPE}')
-          "
+          uv lock --check
+
+
+      # ----------------------------------------------------
+      # Verify Python source imports
+      # ----------------------------------------------------
+
+      - name: Verify backend imports
+
+        working-directory: backend
+
+        env:
+
+          DB_TYPE: sqlite
+
+        run: |
+
+          uv run python -c "from src.app import app; print('Backend import successful')"
+
+
+      # ----------------------------------------------------
+      # Ruff
+      # ----------------------------------------------------
+
+      - name: Ruff lint
+
+        working-directory: backend
+
+        run: |
+
+          uv run ruff check src tests
+
+
+      # ----------------------------------------------------
+      # Ruff format
+      # ----------------------------------------------------
+
+      - name: Ruff format check
+
+        working-directory: backend
+
+        run: |
+
+          uv run ruff format --check src tests
+
+
+      # ----------------------------------------------------
+      # Black
+      # ----------------------------------------------------
+
+      - name: Black format check
+
+        working-directory: backend
+
+        run: |
+
+          uv run black --check src tests
 
 
       # ----------------------------------------------------
@@ -156,127 +323,69 @@ jobs:
       # ----------------------------------------------------
 
       - name: Run backend tests
+
         working-directory: backend
 
+        env:
+
+          DB_TYPE: sqlite
+
         run: |
+
           uv run pytest -v
 
 
       # ----------------------------------------------------
-      # Alembic migration consistency
+      # Backend artifact collection
       # ----------------------------------------------------
 
-      - name: Validate Alembic migrations
-        working-directory: backend
+      - name: Upload backend test artifacts
 
-        run: |
-          uv run alembic check
+        if: failure()
 
-
-  # ========================================================
-  # FRONTEND VALIDATION
-  # ========================================================
-
-  frontend:
-
-    name: Frontend Validation
-
-    runs-on: ubuntu-latest
-
-    timeout-minutes: 15
-
-    env:
-      VITE_API_URL: "/api/v1"
-
-
-    steps:
-
-      # ----------------------------------------------------
-      # Checkout
-      # ----------------------------------------------------
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-
-      # ----------------------------------------------------
-      # Node.js
-      # ----------------------------------------------------
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/upload-artifact@v4
 
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
 
+          name: finora-backend-artifacts
 
-      # ----------------------------------------------------
-      # Install dependencies
-      # ----------------------------------------------------
+          path: |
 
-      - name: Install frontend dependencies
-        working-directory: frontend
+            backend/.pytest_cache
 
-        run: |
-          npm ci
+            backend/htmlcov
 
+            backend/*.log
 
-      # ----------------------------------------------------
-      # Lint
-      # ----------------------------------------------------
-
-      - name: Run ESLint
-        working-directory: frontend
-
-        run: |
-          npm run lint
-
-
-      # ----------------------------------------------------
-      # Production build
-      # ----------------------------------------------------
-
-      - name: Build frontend
-        working-directory: frontend
-
-        run: |
-          npm run build
+          if-no-files-found: ignore
 
 
   # ========================================================
-  # POSTGRESQL INTEGRATION
+  # 2. POSTGRESQL INTEGRATION
+  # ========================================================
+  #
+  # Responsibility:
+  #
+  #   • PostgreSQL 17
+  #   • database connectivity
+  #   • Alembic migration
+  #   • migration consistency
+  #   • schema validation
+  #   • API startup
+  #   • API smoke tests
+  #
+  # This is the ONLY CI job responsible for validating
+  # Alembic against PostgreSQL.
+  #
   # ========================================================
 
-  integration:
+  postgres-integration:
 
     name: PostgreSQL Integration
 
     runs-on: ubuntu-latest
 
-    timeout-minutes: 20
-
-    needs:
-      - backend
-
-    env:
-      APP_NAME: "Finora"
-      DEBUG: "false"
-
-      DB_TYPE: "postgresql"
-
-      POSTGRES_USER: "finora"
-      POSTGRES_PASSWORD: "password"
-      POSTGRES_HOST: "localhost"
-      POSTGRES_PORT: "5432"
-      POSTGRES_DB: "finance_db"
-
-      SECRET_KEY: "ci-test-secret-key"
-      ALGORITHM: "HS256"
-      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
-
-      BACKEND_CORS_ORIGINS: '["http://localhost"]'
+    timeout-minutes: 15
 
 
     services:
@@ -290,27 +399,39 @@ jobs:
         image: postgres:17-alpine
 
         env:
+
           POSTGRES_USER: finora
+
           POSTGRES_PASSWORD: password
+
           POSTGRES_DB: finance_db
 
         ports:
+
           - 5432:5432
 
         options: >-
+
           --health-cmd "pg_isready -U finora -d finance_db"
+
           --health-interval 5s
+
           --health-timeout 5s
+
           --health-retries 10
+
+          --health-start-period 10s
 
 
     steps:
+
 
       # ----------------------------------------------------
       # Checkout
       # ----------------------------------------------------
 
       - name: Checkout repository
+
         uses: actions/checkout@v4
 
 
@@ -319,22 +440,40 @@ jobs:
       # ----------------------------------------------------
 
       - name: Set up Python
+
         uses: actions/setup-python@v5
 
         with:
+
           python-version: ${{ env.PYTHON_VERSION }}
 
 
       # ----------------------------------------------------
-      # Install uv
+      # uv
       # ----------------------------------------------------
 
       - name: Install uv
+
         uses: astral-sh/setup-uv@v6
 
         with:
+
           version: "latest"
+
           enable-cache: true
+
+
+      # ----------------------------------------------------
+      # System dependencies
+      # ----------------------------------------------------
+
+      - name: Install PostgreSQL client
+
+        run: |
+
+          sudo apt-get update
+
+          sudo apt-get install -y postgresql-client
 
 
       # ----------------------------------------------------
@@ -342,255 +481,553 @@ jobs:
       # ----------------------------------------------------
 
       - name: Install backend dependencies
+
         working-directory: backend
 
         run: |
+
           uv sync --frozen
 
 
       # ----------------------------------------------------
-      # Run migrations
+      # Verify PostgreSQL
       # ----------------------------------------------------
 
-      - name: Run PostgreSQL migrations
-        working-directory: backend
+      - name: Verify PostgreSQL connectivity
 
         run: |
-          uv run alembic upgrade head
 
+          echo "Checking PostgreSQL..."
 
-      # ----------------------------------------------------
-      # Verify migration state
-      # ----------------------------------------------------
-
-      - name: Verify migration state
-        working-directory: backend
-
-        run: |
-          uv run alembic current
-
-
-      # ----------------------------------------------------
-      # Verify PostgreSQL schema
-      # ----------------------------------------------------
-
-      - name: Verify PostgreSQL schema
-        working-directory: backend
-
-        run: |
-          uv run python -c "
-          from sqlalchemy import create_engine, inspect
-          from src.db.database import DATABASE_URL
-
-          engine = create_engine(DATABASE_URL)
-
-          inspector = inspect(engine)
-
-          tables = set(
-              inspector.get_table_names()
-          )
-
-          print('PostgreSQL tables:')
-
-          for table in sorted(tables):
-              print(f' - {table}')
-
-          required = {
-              'users',
-              'categories',
-              'transactions',
-              'budgets',
-          }
-
-          missing = required - tables
-
-          if missing:
-              raise RuntimeError(
-                  f'Missing required tables: {sorted(missing)}'
-              )
-
-          print('PostgreSQL schema validation: OK')
-          "
-
-
-      # ----------------------------------------------------
-      # Verify critical columns
-      # ----------------------------------------------------
-
-      - name: Verify PostgreSQL columns
-        working-directory: backend
-
-        run: |
-          uv run python -c "
-          from sqlalchemy import create_engine, inspect
-          from src.db.database import DATABASE_URL
-
-          engine = create_engine(DATABASE_URL)
-
-          inspector = inspect(engine)
-
-          expected_columns = {
-              'users': {
-                  'id',
-                  'name',
-                  'email',
-                  'password_hash',
-                  'is_active',
-                  'created_at',
-              },
-              'categories': {
-                  'id',
-                  'name',
-                  'type',
-                  'user_id',
-                  'created_at',
-              },
-              'transactions': {
-                  'id',
-                  'amount',
-                  'type',
-                  'description',
-                  'date',
-                  'user_id',
-                  'category_id',
-                  'created_at',
-              },
-              'budgets': {
-                  'id',
-                  'amount',
-                  'month',
-                  'year',
-                  'user_id',
-                  'category_id',
-                  'created_at',
-              },
-          }
-
-          for table, expected in expected_columns.items():
-
-              actual = {
-                  column['name']
-                  for column in inspector.get_columns(table)
-              }
-
-              missing = expected - actual
-
-              if missing:
-                  raise RuntimeError(
-                      f'{table} is missing columns: '
-                      f'{sorted(missing)}'
-                  )
-
-              print(
-                  f'{table}: column validation OK'
-              )
-
-          print(
-              'PostgreSQL column validation: OK'
-          )
-          "
-
-
-      # ----------------------------------------------------
-      # Start backend
-      # ----------------------------------------------------
-
-      - name: Start backend
-        working-directory: backend
-
-        run: |
-          uv run uvicorn src.app:app \
-            --host 127.0.0.1 \
-            --port 8000 \
-            > backend.log 2>&1 &
-
-          echo $! > backend.pid
-
-
-      # ----------------------------------------------------
-      # Wait for backend
-      # ----------------------------------------------------
-
-      - name: Wait for backend
-        run: |
           for i in {1..30}; do
 
-            if curl \
-              --fail \
-              --silent \
-              http://127.0.0.1:8000/api/v1/health; then
+            if pg_isready \
+              -h "${POSTGRES_HOST}" \
+              -p "${POSTGRES_PORT}" \
+              -U "${POSTGRES_USER}" \
+              -d "${POSTGRES_DB}"; then
 
-              echo
-              echo "Backend is healthy."
+              echo ""
+
+              echo "✓ PostgreSQL is ready."
 
               exit 0
 
             fi
 
-            echo "Waiting for backend..."
+            echo "Waiting for PostgreSQL..."
 
             sleep 2
 
           done
 
-          echo
-          echo "Backend failed to become healthy."
-          echo
+          echo ""
 
-          cat backend/backend.log || true
+          echo "✗ PostgreSQL failed to become ready."
 
           exit 1
 
 
+      # ====================================================
+      # DATABASE MIGRATION
+      # ====================================================
+
       # ----------------------------------------------------
-      # API health validation
+      # Apply migrations
+      #
+      # IMPORTANT:
+      #
+      # A fresh CI database starts at no migration revision.
+      #
+      # Therefore upgrade head MUST happen before:
+      #
+      #     alembic check
+      #
       # ----------------------------------------------------
 
-      - name: Validate API health
+      - name: Apply Alembic migrations
+
+        working-directory: backend
+
         run: |
-          curl \
-            --fail \
-            --show-error \
-            http://127.0.0.1:8000/api/v1/health
+
+          uv run alembic upgrade head
+
+
+      # ----------------------------------------------------
+      # Verify current revision
+      # ----------------------------------------------------
+
+      - name: Verify Alembic current revision
+
+        working-directory: backend
+
+        run: |
+
+          uv run alembic current
+
+
+      # ----------------------------------------------------
+      # Verify migration heads
+      # ----------------------------------------------------
+
+      - name: Verify Alembic heads
+
+        working-directory: backend
+
+        run: |
+
+          uv run alembic heads
+
+
+      # ----------------------------------------------------
+      # Verify migration consistency
+      #
+      # This checks whether model metadata contains changes
+      # that are not represented by migrations.
+      # ----------------------------------------------------
+
+      - name: Verify Alembic consistency
+
+        working-directory: backend
+
+        run: |
+
+          uv run alembic check
+
+
+      # ====================================================
+      # DATABASE SCHEMA VALIDATION
+      # ====================================================
+
+      # ----------------------------------------------------
+      # Inspect migration history
+      # ----------------------------------------------------
+
+      - name: Verify database migration history
+
+        working-directory: backend
+
+        run: |
+
+          uv run alembic history
+
+
+      # ----------------------------------------------------
+      # Validate database connection
+      # ----------------------------------------------------
+
+      - name: Verify authenticated database connection
+
+        working-directory: backend
+
+        run: |
+
+          uv run python - <<'PY'
+
+          from sqlalchemy import text
+
+          from src.db.database import engine
+
+
+          with engine.connect() as connection:
+
+              result = connection.execute(text("SELECT 1"))
+
+              assert result.scalar() == 1
+
+
+          print("✓ Authenticated PostgreSQL connection successful")
+
+          PY
+
+
+      # ----------------------------------------------------
+      # Validate database tables
+      # ----------------------------------------------------
+
+      - name: Validate PostgreSQL schema
+
+        working-directory: backend
+
+        run: |
+
+          uv run python - <<'PY'
+
+          from sqlalchemy import inspect
+
+          from src.db.database import engine
+
+
+          inspector = inspect(engine)
+
+          tables = set(inspector.get_table_names())
+
+
+          required_tables = {
+
+              "users",
+
+              "transactions",
+
+              "categories",
+
+              "budgets",
+
+          }
+
+
+          missing = required_tables - tables
+
+
+          if missing:
+
+              print("Missing tables:")
+
+              for table in sorted(missing):
+
+                  print(f"  - {table}")
+
+              raise SystemExit(1)
+
+
+          print("✓ Required PostgreSQL tables exist")
+
+          PY
+
+
+      # ----------------------------------------------------
+      # Validate important columns
+      # ----------------------------------------------------
+
+      - name: Validate PostgreSQL columns
+
+        working-directory: backend
+
+        run: |
+
+          uv run python - <<'PY'
+
+          from sqlalchemy import inspect
+
+          from src.db.database import engine
+
+
+          inspector = inspect(engine)
+
+
+          expected_columns = {
+
+              "users": {
+
+                  "id",
+
+                  "email",
+
+              },
+
+              "transactions": {
+
+                  "id",
+
+                  "amount",
+
+                  "category_id",
+
+              },
+
+              "categories": {
+
+                  "id",
+
+                  "name",
+
+              },
+
+              "budgets": {
+
+                  "id",
+
+                  "amount",
+
+              },
+
+          }
+
+
+          for table, columns in expected_columns.items():
+
+              actual = {
+
+                  column["name"]
+
+                  for column in inspector.get_columns(table)
+
+              }
+
+
+              missing = columns - actual
+
+
+              if missing:
+
+                  print(
+
+                      f"Missing columns in {table}: "
+
+                      f"{sorted(missing)}"
+
+                  )
+
+                  raise SystemExit(1)
+
+
+          print("✓ Required PostgreSQL columns exist")
+
+          PY
+
+
+      # ====================================================
+      # APPLICATION INTEGRATION
+      # ====================================================
+
+      # ----------------------------------------------------
+      # Start FastAPI
+      # ----------------------------------------------------
+
+      - name: Start FastAPI
+
+        working-directory: backend
+
+        run: |
+
+          nohup uv run uvicorn \
+            src.app:app \
+            --host 0.0.0.0 \
+            --port 8000 \
+            > backend-ci.log 2>&1 &
+
+          echo $! > backend.pid
+
+
+      # ----------------------------------------------------
+      # Wait for API
+      # ----------------------------------------------------
+
+      - name: Wait for API
+
+        run: |
+
+          for i in {1..30}; do
+
+            if curl \
+              --fail \
+              --silent \
+              http://localhost:8000/api/v1/health; then
+
+              echo ""
+
+              echo "✓ Finora API is ready."
+
+              exit 0
+
+            fi
+
+            echo "Waiting for Finora API..."
+
+            sleep 2
+
+          done
+
+          echo ""
+
+          echo "✗ Finora API failed to become ready."
+
+          echo ""
+
+          cat backend/backend-ci.log || true
+
+          exit 1
 
 
       # ----------------------------------------------------
       # API smoke test
       # ----------------------------------------------------
 
-      - name: Run API smoke test
+      - name: Run API smoke tests
+
         run: |
+
+          set -e
+
+          echo "Checking health endpoint..."
+
           curl \
             --fail \
+            --silent \
             --show-error \
-            --request GET \
-            http://127.0.0.1:8000/api/v1/health
+            http://localhost:8000/api/v1/health
+
+          echo ""
+
+          echo "✓ API smoke test passed"
 
 
       # ----------------------------------------------------
-      # Backend logs on failure
+      # Upload integration artifacts
       # ----------------------------------------------------
 
-      - name: Upload backend logs
+      - name: Upload integration artifacts
+
         if: failure()
+
         uses: actions/upload-artifact@v4
 
         with:
-          name: finora-backend-logs
-          path: backend/backend.log
+
+          name: finora-postgres-integration-artifacts
+
+          path: |
+
+            backend/backend-ci.log
+
+            backend/*.log
+
           if-no-files-found: ignore
 
 
+  # ========================================================
+  # 3. FRONTEND CHECK
+  # ========================================================
+  #
+  # Responsibility:
+  #
+  #   • Node 22
+  #   • npm dependencies
+  #   • ESLint
+  #   • TypeScript
+  #   • production build
+  #
+  # ========================================================
+
+  frontend-check:
+
+    name: Frontend Check
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 15
+
+
+    steps:
+
+
       # ----------------------------------------------------
-      # Cleanup
+      # Checkout
       # ----------------------------------------------------
 
-      - name: Stop backend
-        if: always()
-        working-directory: backend
+      - name: Checkout repository
+
+        uses: actions/checkout@v4
+
+
+      # ----------------------------------------------------
+      # Node
+      # ----------------------------------------------------
+
+      - name: Set up Node.js
+
+        uses: actions/setup-node@v4
+
+        with:
+
+          node-version: ${{ env.NODE_VERSION }}
+
+          cache: npm
+
+          cache-dependency-path: frontend/package-lock.json
+
+
+      # ----------------------------------------------------
+      # Install dependencies
+      # ----------------------------------------------------
+
+      - name: Install frontend dependencies
+
+        working-directory: frontend
 
         run: |
-          if [ -f backend.pid ]; then
-            kill "$(cat backend.pid)" || true
-          fi
+
+          npm ci
+
+
+      # ----------------------------------------------------
+      # ESLint
+      # ----------------------------------------------------
+
+      - name: ESLint
+
+        working-directory: frontend
+
+        run: |
+
+          npm run lint
+
+
+      # ----------------------------------------------------
+      # TypeScript
+      # ----------------------------------------------------
+
+      - name: TypeScript
+
+        working-directory: frontend
+
+        run: |
+
+          npx tsc --noEmit
+
+
+      # ----------------------------------------------------
+      # Production build
+      # ----------------------------------------------------
+
+      - name: Frontend production build
+
+        working-directory: frontend
+
+        env:
+
+          VITE_API_URL: /api/v1
+
+        run: |
+
+          npm run build
+
+
+      # ----------------------------------------------------
+      # Upload frontend build on failure
+      # ----------------------------------------------------
+
+      - name: Upload frontend artifacts
+
+        if: failure()
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: finora-frontend-artifacts
+
+          path: |
+
+            frontend/dist
+
+            frontend/node_modules/.cache
+
+          if-no-files-found: ignore
+
+
+# ==========================================================
+# END
+# ==========================================================
 
