@@ -197,7 +197,7 @@ services:
 
     volumes:
       - ./backend:/backend
-
+      - /backend/.venv
       - backend_logs:/backend/logs
 
     # ------------------------------------------------------
