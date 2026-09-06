@@ -385,22 +385,16 @@ services:
     # ------------------------------------------------------
     # Web Health Check
     # ------------------------------------------------------
-
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://localhost/web-health || exit 1",
+          "wget --no-verbose --tries=1 --spider http://127.0.0.1/web-health || exit 1",
         ]
-
       interval: 10s
-
       timeout: 5s
-
       retries: 5
-
       start_period: 10s
-
     # ------------------------------------------------------
     # Internal Network
     # ------------------------------------------------------
