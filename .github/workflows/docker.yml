@@ -8,6 +8,7 @@
 
 name: Docker Validation
 
+
 # ============================================================
 # TRIGGERS
 # ============================================================
@@ -17,7 +18,7 @@ on:
     branches:
       - main
       - master
-      - feature/**
+      - 'feature/**'
 
     paths:
       - "backend/**"
@@ -44,6 +45,7 @@ on:
 
   workflow_dispatch:
 
+
 # ============================================================
 # PERMISSIONS
 # ============================================================
@@ -51,14 +53,15 @@ on:
 permissions:
   contents: read
 
+
 # ============================================================
 # CONCURRENCY
 # ============================================================
 
 concurrency:
   group: docker-validation-${{ github.workflow }}-${{ github.ref }}
-
   cancel-in-progress: true
+
 
 # ============================================================
 # JOB
@@ -66,13 +69,15 @@ concurrency:
 
 jobs:
   validate-docker:
+
     name: Validate Docker Stack
 
     runs-on: ubuntu-latest
 
-    # --------------------------------------------------------
-    # Environment
-    # --------------------------------------------------------
+
+    # ========================================================
+    # ENVIRONMENT
+    # ========================================================
 
     env:
       COMPOSE_PROJECT_NAME: finora-ci
@@ -80,81 +85,140 @@ jobs:
       COMPOSE_FILE: compose.yml
 
       BACKEND_SERVICE: backend
-
       FRONTEND_SERVICE: frontend
-
       DATABASE_SERVICE: postgres
 
       BACKEND_PORT: 8000
-
       FRONTEND_PORT: 80
 
       HEALTH_PATH: /api/v1/health
 
+      CI_ENV_FILE: backend/.env
+
+
     steps:
+
       # ======================================================
       # CHECKOUT
       # ======================================================
 
       - name: Checkout repository
-
         uses: actions/checkout@v4
+
 
       # ======================================================
       # DOCKER VERSION
       # ======================================================
 
       - name: Check Docker
-
         run: |
-
           docker --version
           docker compose version
 
+
       # ======================================================
-      # VALIDATE SCRIPT
+      # CREATE TEMPORARY CI ENVIRONMENT
+      # ======================================================
+
+      - name: Create temporary CI environment
+        run: |
+          echo "Creating temporary CI environment..."
+
+          mkdir -p backend
+
+          cat > "${CI_ENV_FILE}" <<'EOF'
+          # ============================================================
+          # Finora CI Docker Validation Environment
+          #
+          # Generated automatically by GitHub Actions.
+          # DO NOT COMMIT THIS FILE.
+          # ============================================================
+
+          # ------------------------------------------------------------
+          # Application
+          # ------------------------------------------------------------
+
+          ENVIRONMENT=testing
+          APP_ENV=testing
+
+          # ------------------------------------------------------------
+          # Security
+          # ------------------------------------------------------------
+
+          SECRET_KEY=finora-ci-validation-secret
+          JWT_SECRET_KEY=finora-ci-validation-jwt-secret
+
+          # ------------------------------------------------------------
+          # PostgreSQL
+          # ------------------------------------------------------------
+
+          POSTGRES_USER=finora
+          POSTGRES_PASSWORD=finora
+          POSTGRES_DB=finora
+
+          # ------------------------------------------------------------
+          # Database
+          # ------------------------------------------------------------
+
+          DATABASE_URL=postgresql+psycopg://finora:finora@postgres:5432/finora
+
+          # ------------------------------------------------------------
+          # CORS
+          # ------------------------------------------------------------
+
+          CORS_ORIGINS=["http://localhost:80","http://localhost:5173"]
+
+          # ------------------------------------------------------------
+          # Frontend
+          # ------------------------------------------------------------
+
+          VITE_API_URL=http://localhost:8000/api/v1
+          EOF
+
+          test -f "${CI_ENV_FILE}"
+
+          echo "Temporary CI environment created."
+
+
+      # ======================================================
+      # VALIDATE DOCKER SCRIPT
       # ======================================================
 
       - name: Validate Docker script
-
         run: |
-
           test -f scripts/docker.sh
 
           chmod +x scripts/docker.sh
 
           bash -n scripts/docker.sh
 
+
       # ======================================================
       # DOCKER COMPOSE VALIDATION
       # ======================================================
 
       - name: Validate Compose configuration
-
         run: |
-
           docker compose \
             -f "${COMPOSE_FILE}" \
             config --quiet
+
 
       # ======================================================
       # BUILD + RUN + MIGRATE + HEALTH CHECK
       # ======================================================
 
       - name: Validate complete Docker stack
-
         run: |
-
           ./scripts/docker.sh
+
 
       # ======================================================
       # FAILURE DIAGNOSTICS
       # ======================================================
 
       - name: Collect Docker diagnostics
-
         if: failure()
-
         run: |
 
           echo "=============================================="
@@ -184,15 +248,16 @@ jobs:
             --tail=200 \
             || true
 
+
       # ======================================================
       # FINAL CLEANUP
       # ======================================================
 
       - name: Docker cleanup
-
         if: always()
-
         run: |
+
+          echo "Cleaning Docker stack..."
 
           docker compose \
             -f "${COMPOSE_FILE}" \
@@ -201,7 +266,18 @@ jobs:
             --remove-orphans \
             || true
 
+
+          echo "Removing temporary CI environment..."
+
+          rm -f "${CI_ENV_FILE}" || true
+
+
+          echo "Cleaning unused Docker resources..."
+
           docker system prune \
             -af \
             --volumes \
             || true
+
+
+          echo "Docker cleanup completed."
