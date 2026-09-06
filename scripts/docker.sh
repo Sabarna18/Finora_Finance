@@ -36,6 +36,7 @@ WEB_SERVICE="${WEB_SERVICE:-web}"
 
 WEB_PORT="${WEB_PORT:-80}"
 
+WEB_HEALTH_PATH="${WEB_HEALTH_PATH:-/web-health}"
 HEALTH_PATH="${HEALTH_PATH:-/api/v1/health}"
 
 STARTUP_TIMEOUT="${STARTUP_TIMEOUT:-120}"
@@ -241,6 +242,183 @@ require_command() {
         error "Required command not found: $1"
         exit 1
     fi
+}
+
+
+# ============================================================
+# WEB DIAGNOSTICS
+#
+# These diagnostics are intentionally detailed because the
+# web container is the boundary between:
+#
+#   GitHub runner
+#        ↓
+#   Docker port 80
+#        ↓
+#   Nginx
+#        ↓
+#   React / Backend
+#
+# Docker's native HEALTHCHECK runs INSIDE the web container.
+# The GitHub runner's curl test runs OUTSIDE the container.
+#
+# We test both independently.
+# ============================================================
+
+diagnose_web_health() {
+
+    printf '\n'
+    echo "============================================================"
+    echo " WEB CONTAINER HEALTH DIAGNOSTICS"
+    echo "============================================================"
+
+    # --------------------------------------------------------
+    # Container state
+    # --------------------------------------------------------
+
+    echo
+    echo "[1/7] Container state"
+
+    docker inspect \
+        "${PROJECT_NAME}-${WEB_SERVICE}" \
+        --format '
+Container: {{.Name}}
+Status: {{.State.Status}}
+Running: {{.State.Running}}
+StartedAt: {{.State.StartedAt}}
+FinishedAt: {{.State.FinishedAt}}
+ExitCode: {{.State.ExitCode}}
+Error: {{.State.Error}}
+Health: {{if .State.Health}}{{.State.Health.Status}}{{else}}NO HEALTHCHECK{{end}}
+' \
+        2>&1 || true
+
+
+    # --------------------------------------------------------
+    # Healthcheck configuration
+    # --------------------------------------------------------
+
+    echo
+    echo "[2/7] Configured Docker healthcheck"
+
+    docker inspect \
+        "${PROJECT_NAME}-${WEB_SERVICE}" \
+        --format '
+Test: {{json .Config.Healthcheck.Test}}
+Interval: {{.Config.Healthcheck.Interval}}
+Timeout: {{.Config.Healthcheck.Timeout}}
+StartPeriod: {{.Config.Healthcheck.StartPeriod}}
+Retries: {{.Config.Healthcheck.Retries}}
+' \
+        2>&1 || true
+
+
+    # --------------------------------------------------------
+    # Healthcheck execution history
+    # --------------------------------------------------------
+
+    echo
+    echo "[3/7] Docker healthcheck execution history"
+
+    docker inspect \
+        "${PROJECT_NAME}-${WEB_SERVICE}" \
+        --format '
+{{range .State.Health.Log}}
+Start:    {{.Start}}
+End:      {{.End}}
+ExitCode: {{.ExitCode}}
+Output:
+{{.Output}}
+------------------------------------------------------------
+{{end}}
+' \
+        2>&1 || true
+
+
+    # --------------------------------------------------------
+    # Current Docker health status
+    # --------------------------------------------------------
+
+    echo
+    echo "[4/7] Current Docker health status"
+
+    docker inspect \
+        "${PROJECT_NAME}-${WEB_SERVICE}" \
+        --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}NO HEALTHCHECK{{end}}' \
+        2>&1 || true
+
+
+    # --------------------------------------------------------
+    # Nginx configuration validation
+    # --------------------------------------------------------
+
+    echo
+    echo "[5/7] Nginx configuration validation"
+
+    compose exec \
+        -T \
+        "${WEB_SERVICE}" \
+        nginx -t \
+        2>&1 || true
+
+
+    # --------------------------------------------------------
+    # Health endpoint from INSIDE web container
+    # --------------------------------------------------------
+
+    echo
+    echo "[6/7] Testing ${WEB_HEALTH_PATH} from inside web container"
+
+    compose exec \
+        -T \
+        "${WEB_SERVICE}" \
+        sh -c "
+            echo '--- wget version ---'
+            wget --version 2>&1 | head -5 || true
+
+            echo
+            echo '--- HTTP request ---'
+
+            wget \
+                --no-verbose \
+                --tries=1 \
+                --timeout=10 \
+                -O - \
+                'http://127.0.0.1${WEB_HEALTH_PATH}'
+        " \
+        2>&1 || true
+
+
+    # --------------------------------------------------------
+    # Host → Docker → Nginx
+    # --------------------------------------------------------
+
+    echo
+    echo "[7/7] Testing web endpoint from GitHub runner"
+
+    echo
+    echo "--- HTTP headers ---"
+
+    curl \
+        --verbose \
+        --max-time 10 \
+        "http://127.0.0.1:${WEB_PORT}${WEB_HEALTH_PATH}" \
+        2>&1 || true
+
+    echo
+    echo "--- Root endpoint ---"
+
+    curl \
+        --verbose \
+        --max-time 10 \
+        "http://127.0.0.1:${WEB_PORT}/" \
+        2>&1 || true
+
+    echo
+    echo "============================================================"
+    echo " END WEB CONTAINER HEALTH DIAGNOSTICS"
+    echo "============================================================"
+    echo
 }
 
 
@@ -503,6 +681,15 @@ success "Database migrations completed successfully."
 
 # ============================================================
 # 12. WEB HEALTH
+#
+# Docker native healthcheck:
+#
+#   web container
+#        ↓
+#   wget 127.0.0.1/web-health
+#
+# We deliberately expose the complete Docker healthcheck
+# history if this fails.
 # ============================================================
 
 log "Checking web container health..."
@@ -523,13 +710,20 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
         break
     fi
 
-    if (( attempt == HEALTH_RETRIES )); then
-        error "Web container did not become healthy."
+    if [[ "${web_health}" == "unhealthy" ]]; then
 
-        compose logs \
-            --tail=100 \
-            "${WEB_SERVICE}" \
-            || true
+        error "Web container became unhealthy."
+
+        diagnose_web_health
+
+        exit 1
+    fi
+
+    if (( attempt == HEALTH_RETRIES )); then
+
+        error "Web container did not become healthy within the expected time."
+
+        diagnose_web_health
 
         exit 1
     fi
@@ -551,7 +745,7 @@ done
 
 log "Checking web HTTP endpoint..."
 
-web_url="http://localhost:${WEB_PORT}/"
+web_url="http://127.0.0.1:${WEB_PORT}/"
 
 for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
 
@@ -568,7 +762,11 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
     fi
 
     if (( attempt == HEALTH_RETRIES )); then
+
         error "Web HTTP smoke test failed."
+
+        diagnose_web_health
+
         exit 1
     fi
 
@@ -578,7 +776,49 @@ done
 
 
 # ============================================================
-# 14. FINAL SERVICE STATUS
+# 14. WEB HEALTH ENDPOINT SMOKE TEST
+#
+# This is separate from Docker's internal healthcheck.
+#
+# It validates:
+#
+#   GitHub runner
+#        ↓
+#   localhost:80
+#        ↓
+#   Docker port mapping
+#        ↓
+#   Nginx
+#        ↓
+#   /web-health
+# ============================================================
+
+log "Checking web health endpoint from host..."
+
+web_health_url="http://127.0.0.1:${WEB_PORT}${WEB_HEALTH_PATH}"
+
+if curl \
+    --fail \
+    --silent \
+    --show-error \
+    --max-time 10 \
+    "${web_health_url}" \
+    >/dev/null; then
+
+    success "Web health endpoint smoke test passed."
+
+else
+
+    error "Web health endpoint smoke test failed."
+
+    diagnose_web_health
+
+    exit 1
+fi
+
+
+# ============================================================
+# 15. FINAL SERVICE STATUS
 # ============================================================
 
 printf '\n'
