@@ -77,7 +77,7 @@ jobs:
     env:
       COMPOSE_PROJECT_NAME: finora-ci
 
-      COMPOSE_FILE: compose.yaml
+      COMPOSE_FILE: compose.yml
 
       BACKEND_SERVICE: backend
 
