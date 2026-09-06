@@ -10,11 +10,16 @@
 #   A temporary CI environment file is generated automatically
 #   so Docker validation does not depend on local .env files.
 #
+# Docker services:
+#   - postgres
+#   - backend
+#   - web
+#
 # Usage:
 #   ./scripts/docker.sh
 #
 # Optional:
-#   COMPOSE_FILE=compose.yaml ./scripts/docker.sh
+#   COMPOSE_FILE=compose.yml ./scripts/docker.sh
 # ============================================================
 
 set -Eeuo pipefail
@@ -25,14 +30,15 @@ set -Eeuo pipefail
 # ============================================================
 
 PROJECT_NAME="${COMPOSE_PROJECT_NAME:-finora-ci}"
-COMPOSE_FILE="${COMPOSE_FILE:-compose.yaml}"
+
+COMPOSE_FILE="${COMPOSE_FILE:-compose.yml}"
 
 BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"
-FRONTEND_SERVICE="${FRONTEND_SERVICE:-frontend}"
+WEB_SERVICE="${WEB_SERVICE:-web}"
 DATABASE_SERVICE="${DATABASE_SERVICE:-postgres}"
 
 BACKEND_PORT="${BACKEND_PORT:-8000}"
-FRONTEND_PORT="${FRONTEND_PORT:-80}"
+WEB_PORT="${WEB_PORT:-80}"
 
 HEALTH_PATH="${HEALTH_PATH:-/api/v1/health}"
 
@@ -97,7 +103,7 @@ compose() {
 
 
 # ============================================================
-# TEMPORARY ENVIRONMENT
+# TEMPORARY CI ENVIRONMENT
 # ============================================================
 
 create_ci_env() {
@@ -113,28 +119,48 @@ create_ci_env() {
 # DO NOT COMMIT THIS FILE.
 # ============================================================
 
+# ------------------------------------------------------------
 # Application
+# ------------------------------------------------------------
+
 ENVIRONMENT=testing
 APP_ENV=testing
 
+# ------------------------------------------------------------
 # Security
-SECRET_KEY=ci-validation-secret-key
-JWT_SECRET_KEY=ci-validation-jwt-secret
+# ------------------------------------------------------------
 
-# Database
+SECRET_KEY=finora-ci-validation-secret-key
+JWT_SECRET_KEY=finora-ci-validation-jwt-secret
+
+# ------------------------------------------------------------
+# PostgreSQL
+# ------------------------------------------------------------
+
 POSTGRES_USER=finora
 POSTGRES_PASSWORD=finora
 POSTGRES_DB=finora
 
-# Database URL
+# ------------------------------------------------------------
+# Database
+# ------------------------------------------------------------
+
 DATABASE_URL=postgresql+psycopg://finora:finora@postgres:5432/finora
 
+# ------------------------------------------------------------
 # CORS
+# ------------------------------------------------------------
+
 CORS_ORIGINS=["http://localhost:80","http://localhost:5173"]
 
+# ------------------------------------------------------------
 # Frontend
+# ------------------------------------------------------------
+
 VITE_API_URL=http://localhost:8000/api/v1
 EOF
+
+    test -f "${CI_ENV_FILE}"
 
     success "Temporary CI environment created: ${CI_ENV_FILE}"
 }
@@ -162,13 +188,18 @@ cleanup() {
         --remove-orphans \
         || true
 
-    # Remove temporary CI environment.
+    # --------------------------------------------------------
+    # Remove temporary CI environment
+    # --------------------------------------------------------
+
     if [[ -f "${CI_ENV_FILE}" ]]; then
+
         log "Removing temporary CI environment..."
 
         rm -f "${CI_ENV_FILE}"
 
         success "Temporary CI environment removed."
+
     fi
 
     printf '\n'
@@ -291,7 +322,7 @@ services="$(
 required_services=(
     "${DATABASE_SERVICE}"
     "${BACKEND_SERVICE}"
-    "${FRONTEND_SERVICE}"
+    "${WEB_SERVICE}"
 )
 
 for service in "${required_services[@]}"; do
@@ -429,6 +460,7 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
 
         success "Backend health check passed."
         break
+
     fi
 
     if (( attempt == HEALTH_RETRIES )); then
@@ -442,26 +474,26 @@ done
 
 
 # ============================================================
-# 12. FRONTEND CHECK
+# 12. WEB CHECK
 # ============================================================
 
-log "Checking frontend container..."
+log "Checking web container..."
 
-frontend_url="http://localhost:${FRONTEND_PORT}/"
+web_url="http://localhost:${WEB_PORT}/"
 
 if curl \
     --fail \
     --silent \
     --show-error \
     --max-time 10 \
-    "${frontend_url}" \
+    "${web_url}" \
     >/dev/null; then
 
-    success "Frontend HTTP check passed."
+    success "Web HTTP check passed."
 
 else
 
-    error "Frontend HTTP check failed."
+    error "Web HTTP check failed."
     exit 1
 
 fi

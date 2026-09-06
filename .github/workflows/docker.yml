@@ -2,12 +2,11 @@
 # Finora — Docker Validation
 #
 # Purpose:
-#   Validate and build the complete Docker stack before
-#   Docker images are published.
+#   Validate, build, start, migrate and smoke-test the complete
+#   Docker Compose stack before Docker images are published.
 # ============================================================
 
 name: Docker Validation
-
 
 # ============================================================
 # TRIGGERS
@@ -18,7 +17,7 @@ on:
     branches:
       - main
       - master
-      - 'feature/**'
+      - "feature/**"
 
     paths:
       - "backend/**"
@@ -45,14 +44,12 @@ on:
 
   workflow_dispatch:
 
-
 # ============================================================
 # PERMISSIONS
 # ============================================================
 
 permissions:
   contents: read
-
 
 # ============================================================
 # CONCURRENCY
@@ -62,18 +59,15 @@ concurrency:
   group: docker-validation-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-
 # ============================================================
 # JOB
 # ============================================================
 
 jobs:
   validate-docker:
-
     name: Validate Docker Stack
 
     runs-on: ubuntu-latest
-
 
     # ========================================================
     # ENVIRONMENT
@@ -84,27 +78,24 @@ jobs:
 
       COMPOSE_FILE: compose.yml
 
-      BACKEND_SERVICE: backend
-      FRONTEND_SERVICE: frontend
       DATABASE_SERVICE: postgres
+      BACKEND_SERVICE: backend
+      WEB_SERVICE: web
 
       BACKEND_PORT: 8000
-      FRONTEND_PORT: 80
+      WEB_PORT: 80
 
       HEALTH_PATH: /api/v1/health
 
       CI_ENV_FILE: backend/.env
 
-
     steps:
-
       # ======================================================
       # CHECKOUT
       # ======================================================
 
       - name: Checkout repository
         uses: actions/checkout@v4
-
 
       # ======================================================
       # DOCKER VERSION
@@ -115,16 +106,22 @@ jobs:
           docker --version
           docker compose version
 
-
       # ======================================================
       # CREATE TEMPORARY CI ENVIRONMENT
+      #
+      # Required because compose.yml references:
+      #
+      #   backend/.env
+      #
+      # The file is generated only for this CI run and is
+      # deleted during final cleanup.
       # ======================================================
 
       - name: Create temporary CI environment
         run: |
           echo "Creating temporary CI environment..."
 
-          mkdir -p backend
+          mkdir -p "$(dirname "${CI_ENV_FILE}")"
 
           cat > "${CI_ENV_FILE}" <<'EOF'
           # ============================================================
@@ -179,7 +176,6 @@ jobs:
 
           echo "Temporary CI environment created."
 
-
       # ======================================================
       # VALIDATE DOCKER SCRIPT
       # ======================================================
@@ -192,9 +188,8 @@ jobs:
 
           bash -n scripts/docker.sh
 
-
       # ======================================================
-      # DOCKER COMPOSE VALIDATION
+      # VALIDATE COMPOSE CONFIGURATION
       # ======================================================
 
       - name: Validate Compose configuration
@@ -203,15 +198,49 @@ jobs:
             -f "${COMPOSE_FILE}" \
             config --quiet
 
+      # ======================================================
+      # VERIFY REQUIRED SERVICES
+      # ======================================================
+
+      - name: Verify Docker services
+        run: |
+          echo "Configured Docker services:"
+
+          docker compose \
+            -f "${COMPOSE_FILE}" \
+            config --services
+
+          echo
+
+          services="$(
+            docker compose \
+              -f "${COMPOSE_FILE}" \
+              config --services
+          )"
+
+          for service in \
+            "${DATABASE_SERVICE}" \
+            "${BACKEND_SERVICE}" \
+            "${WEB_SERVICE}"
+          do
+            if ! grep -qx "${service}" <<< "${services}"; then
+              echo "::error::Required Compose service is missing: ${service}"
+              exit 1
+            fi
+          done
+
+          echo
+          echo "All required Docker services are present."
 
       # ======================================================
       # BUILD + RUN + MIGRATE + HEALTH CHECK
+      #
+      # scripts/docker.sh owns the actual Docker validation.
       # ======================================================
 
       - name: Validate complete Docker stack
         run: |
           ./scripts/docker.sh
-
 
       # ======================================================
       # FAILURE DIAGNOSTICS
@@ -228,6 +257,7 @@ jobs:
           docker ps -a || true
 
 
+          echo
           echo "=============================================="
           echo "Compose status"
           echo "=============================================="
@@ -237,6 +267,7 @@ jobs:
             ps || true
 
 
+          echo
           echo "=============================================="
           echo "Compose logs"
           echo "=============================================="
@@ -248,7 +279,6 @@ jobs:
             --tail=200 \
             || true
 
-
       # ======================================================
       # FINAL CLEANUP
       # ======================================================
@@ -257,7 +287,9 @@ jobs:
         if: always()
         run: |
 
-          echo "Cleaning Docker stack..."
+          echo "=============================================="
+          echo "Docker cleanup"
+          echo "=============================================="
 
           docker compose \
             -f "${COMPOSE_FILE}" \
@@ -267,17 +299,11 @@ jobs:
             || true
 
 
+          echo
           echo "Removing temporary CI environment..."
 
           rm -f "${CI_ENV_FILE}" || true
 
 
-          echo "Cleaning unused Docker resources..."
-
-          docker system prune \
-            -af \
-            --volumes \
-            || true
-
-
+          echo
           echo "Docker cleanup completed."
