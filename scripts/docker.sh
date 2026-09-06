@@ -248,85 +248,120 @@ require_command() {
 # ============================================================
 # WEB DIAGNOSTICS
 #
-# These diagnostics are intentionally detailed because the
-# web container is the boundary between:
+# IMPORTANT:
 #
-#   GitHub runner
-#        ↓
-#   Docker port 80
-#        ↓
-#   Nginx
-#        ↓
-#   React / Backend
+# Do NOT construct a container name from:
 #
-# Docker's native HEALTHCHECK runs INSIDE the web container.
-# The GitHub runner's curl test runs OUTSIDE the container.
+#   PROJECT_NAME + WEB_SERVICE
 #
-# We test both independently.
+# Compose may use an explicit `container_name`.
+#
+# Instead, resolve the actual container ID through Compose:
+#
+#   compose ps -q "${WEB_SERVICE}"
+#
+# This works with:
+#
+#   service name:  web
+#   container:    finora-web
+#
+# and avoids project/container-name assumptions.
 # ============================================================
 
 diagnose_web_health() {
+
+    local web_container_id
 
     printf '\n'
     echo "============================================================"
     echo " WEB CONTAINER HEALTH DIAGNOSTICS"
     echo "============================================================"
 
+
+    # --------------------------------------------------------
+    # Resolve actual web container
+    # --------------------------------------------------------
+
+    echo
+    echo "[1/9] Resolving web container..."
+
+    web_container_id="$(
+        compose ps \
+            -q \
+            "${WEB_SERVICE}" \
+            2>/dev/null || true
+    )"
+
+    if [[ -z "${web_container_id}" ]]; then
+
+        error "Unable to resolve container for Compose service: ${WEB_SERVICE}"
+
+        echo
+        echo "Compose container status:"
+        compose ps -a || true
+
+        return 0
+    fi
+
+    echo "Compose service : ${WEB_SERVICE}"
+    echo "Container ID    : ${web_container_id}"
+
+
     # --------------------------------------------------------
     # Container state
     # --------------------------------------------------------
 
     echo
-    echo "[1/7] Container state"
+    echo "[2/9] Container state"
 
     docker inspect \
-        "${PROJECT_NAME}-${WEB_SERVICE}" \
+        "${web_container_id}" \
         --format '
-Container: {{.Name}}
-Status: {{.State.Status}}
-Running: {{.State.Running}}
-StartedAt: {{.State.StartedAt}}
-FinishedAt: {{.State.FinishedAt}}
-ExitCode: {{.State.ExitCode}}
-Error: {{.State.Error}}
-Health: {{if .State.Health}}{{.State.Health.Status}}{{else}}NO HEALTHCHECK{{end}}
+Name:        {{.Name}}
+Status:      {{.State.Status}}
+Running:     {{.State.Running}}
+StartedAt:   {{.State.StartedAt}}
+FinishedAt:  {{.State.FinishedAt}}
+ExitCode:    {{.State.ExitCode}}
+Error:       {{.State.Error}}
+Health:      {{if .State.Health}}{{.State.Health.Status}}{{else}}NO HEALTHCHECK{{end}}
 ' \
         2>&1 || true
 
 
     # --------------------------------------------------------
-    # Healthcheck configuration
+    # Docker healthcheck configuration
     # --------------------------------------------------------
 
     echo
-    echo "[2/7] Configured Docker healthcheck"
+    echo "[3/9] Docker healthcheck configuration"
 
     docker inspect \
-        "${PROJECT_NAME}-${WEB_SERVICE}" \
+        "${web_container_id}" \
         --format '
-Test: {{json .Config.Healthcheck.Test}}
-Interval: {{.Config.Healthcheck.Interval}}
-Timeout: {{.Config.Healthcheck.Timeout}}
+Test:        {{json .Config.Healthcheck.Test}}
+Interval:    {{.Config.Healthcheck.Interval}}
+Timeout:     {{.Config.Healthcheck.Timeout}}
 StartPeriod: {{.Config.Healthcheck.StartPeriod}}
-Retries: {{.Config.Healthcheck.Retries}}
+Retries:     {{.Config.Healthcheck.Retries}}
 ' \
         2>&1 || true
 
 
     # --------------------------------------------------------
-    # Healthcheck execution history
+    # Docker healthcheck execution history
     # --------------------------------------------------------
 
     echo
-    echo "[3/7] Docker healthcheck execution history"
+    echo "[4/9] Docker healthcheck execution history"
 
     docker inspect \
-        "${PROJECT_NAME}-${WEB_SERVICE}" \
+        "${web_container_id}" \
         --format '
 {{range .State.Health.Log}}
-Start:    {{.Start}}
-End:      {{.End}}
-ExitCode: {{.ExitCode}}
+Start:       {{.Start}}
+End:         {{.End}}
+ExitCode:    {{.ExitCode}}
 Output:
 {{.Output}}
 ------------------------------------------------------------
@@ -340,10 +375,10 @@ Output:
     # --------------------------------------------------------
 
     echo
-    echo "[4/7] Current Docker health status"
+    echo "[5/9] Current Docker health status"
 
     docker inspect \
-        "${PROJECT_NAME}-${WEB_SERVICE}" \
+        "${web_container_id}" \
         --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}NO HEALTHCHECK{{end}}' \
         2>&1 || true
 
@@ -353,7 +388,7 @@ Output:
     # --------------------------------------------------------
 
     echo
-    echo "[5/7] Nginx configuration validation"
+    echo "[6/9] Nginx configuration validation"
 
     compose exec \
         -T \
@@ -367,16 +402,12 @@ Output:
     # --------------------------------------------------------
 
     echo
-    echo "[6/7] Testing ${WEB_HEALTH_PATH} from inside web container"
+    echo "[7/9] Testing ${WEB_HEALTH_PATH} from inside web container"
 
     compose exec \
         -T \
         "${WEB_SERVICE}" \
         sh -c "
-            echo '--- wget version ---'
-            wget --version 2>&1 | head -5 || true
-
-            echo
             echo '--- HTTP request ---'
 
             wget \
@@ -385,6 +416,13 @@ Output:
                 --timeout=10 \
                 -O - \
                 'http://127.0.0.1${WEB_HEALTH_PATH}'
+
+            exit_code=\$?
+
+            echo
+            echo \"Exit code: \${exit_code}\"
+
+            exit \${exit_code}
         " \
         2>&1 || true
 
@@ -394,10 +432,10 @@ Output:
     # --------------------------------------------------------
 
     echo
-    echo "[7/7] Testing web endpoint from GitHub runner"
+    echo "[8/9] Testing web endpoint from GitHub runner"
 
     echo
-    echo "--- HTTP headers ---"
+    echo "--- HTTP health endpoint ---"
 
     curl \
         --verbose \
@@ -405,14 +443,20 @@ Output:
         "http://127.0.0.1:${WEB_PORT}${WEB_HEALTH_PATH}" \
         2>&1 || true
 
+
+    # --------------------------------------------------------
+    # Host → Docker → Nginx → React
+    # --------------------------------------------------------
+
     echo
-    echo "--- Root endpoint ---"
+    echo "[9/9] Testing React root endpoint from GitHub runner"
 
     curl \
         --verbose \
         --max-time 10 \
         "http://127.0.0.1:${WEB_PORT}/" \
         2>&1 || true
+
 
     echo
     echo "============================================================"
@@ -681,15 +725,6 @@ success "Database migrations completed successfully."
 
 # ============================================================
 # 12. WEB HEALTH
-#
-# Docker native healthcheck:
-#
-#   web container
-#        ↓
-#   wget 127.0.0.1/web-health
-#
-# We deliberately expose the complete Docker healthcheck
-# history if this fails.
 # ============================================================
 
 log "Checking web container health..."
@@ -735,12 +770,6 @@ done
 
 # ============================================================
 # 13. WEB HTTP SMOKE TEST
-#
-# web is the only application service published to the host:
-#
-#   80:80
-#
-# Therefore localhost:80 is valid from the GitHub runner.
 # ============================================================
 
 log "Checking web HTTP endpoint..."
@@ -777,20 +806,6 @@ done
 
 # ============================================================
 # 14. WEB HEALTH ENDPOINT SMOKE TEST
-#
-# This is separate from Docker's internal healthcheck.
-#
-# It validates:
-#
-#   GitHub runner
-#        ↓
-#   localhost:80
-#        ↓
-#   Docker port mapping
-#        ↓
-#   Nginx
-#        ↓
-#   /web-health
 # ============================================================
 
 log "Checking web health endpoint from host..."
