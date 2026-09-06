@@ -7,9 +7,6 @@
 #   Validate, build, start, migrate, smoke-test and clean the
 #   complete Docker Compose stack before images are published.
 #
-#   A temporary CI environment file is generated automatically
-#   so Docker validation does not depend on local .env files.
-#
 # Docker services:
 #   - postgres
 #   - backend
@@ -33,11 +30,10 @@ PROJECT_NAME="${COMPOSE_PROJECT_NAME:-finora-ci}"
 
 COMPOSE_FILE="${COMPOSE_FILE:-compose.yml}"
 
+DATABASE_SERVICE="${DATABASE_SERVICE:-postgres}"
 BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"
 WEB_SERVICE="${WEB_SERVICE:-web}"
-DATABASE_SERVICE="${DATABASE_SERVICE:-postgres}"
 
-BACKEND_PORT="${BACKEND_PORT:-8000}"
 WEB_PORT="${WEB_PORT:-80}"
 
 HEALTH_PATH="${HEALTH_PATH:-/api/v1/health}"
@@ -45,7 +41,6 @@ HEALTH_PATH="${HEALTH_PATH:-/api/v1/health}"
 STARTUP_TIMEOUT="${STARTUP_TIMEOUT:-120}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
 
-# Temporary CI environment file.
 CI_ENV_FILE="${CI_ENV_FILE:-backend/.env}"
 
 export COMPOSE_PROJECT_NAME="${PROJECT_NAME}"
@@ -157,7 +152,7 @@ CORS_ORIGINS=["http://localhost:80","http://localhost:5173"]
 # Frontend
 # ------------------------------------------------------------
 
-VITE_API_URL=http://localhost:8000/api/v1
+VITE_API_URL=/api/v1
 EOF
 
     test -f "${CI_ENV_FILE}"
@@ -188,18 +183,12 @@ cleanup() {
         --remove-orphans \
         || true
 
-    # --------------------------------------------------------
-    # Remove temporary CI environment
-    # --------------------------------------------------------
-
     if [[ -f "${CI_ENV_FILE}" ]]; then
-
         log "Removing temporary CI environment..."
 
         rm -f "${CI_ENV_FILE}"
 
         success "Temporary CI environment removed."
-
     fi
 
     printf '\n'
@@ -371,17 +360,18 @@ elapsed=0
 
 while (( elapsed < STARTUP_TIMEOUT )); do
 
-    running="$(
-        compose ps \
-            --services \
-            --filter status=running
-    )"
-
     all_running=true
 
     for service in "${required_services[@]}"; do
 
-        if ! grep -qx "${service}" <<< "${running}"; then
+        state="$(
+            compose ps \
+                "${service}" \
+                --format '{{.State}}' \
+                2>/dev/null || true
+        )"
+
+        if [[ "${state}" != "running" ]]; then
             all_running=false
             break
         fi
@@ -407,27 +397,98 @@ fi
 
 
 # ============================================================
-# 9. DATABASE CHECK
+# 9. DATABASE HEALTH
 # ============================================================
 
-log "Checking database container..."
+log "Checking PostgreSQL health..."
 
-db_status="$(
-    compose ps \
-        "${DATABASE_SERVICE}" \
-        --format '{{.State}}'
-)"
+db_health=""
 
-if [[ "${db_status}" != "running" ]]; then
-    error "Database container is not running."
-    exit 1
-fi
+for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
 
-success "Database container is running."
+    db_health="$(
+        compose ps \
+            "${DATABASE_SERVICE}" \
+            --format '{{.Health}}' \
+            2>/dev/null || true
+    )"
+
+    if [[ "${db_health}" == "healthy" ]]; then
+        success "PostgreSQL health check passed."
+        break
+    fi
+
+    if (( attempt == HEALTH_RETRIES )); then
+        error "PostgreSQL did not become healthy."
+
+        compose logs \
+            --tail=100 \
+            "${DATABASE_SERVICE}" \
+            || true
+
+        exit 1
+    fi
+
+    sleep 2
+
+done
 
 
 # ============================================================
-# 10. DATABASE MIGRATIONS
+# 10. BACKEND HEALTH
+#
+# Backend port 8000 is intentionally INTERNAL.
+#
+# compose.yml uses:
+#
+#   expose:
+#     - "8000"
+#
+# Therefore localhost:8000 on the GitHub runner cannot be used.
+#
+# Docker's native HEALTHCHECK validates:
+#
+#   http://localhost:8000/api/v1/health
+#
+# from INSIDE the backend container.
+# ============================================================
+
+log "Checking backend health..."
+
+backend_health=""
+
+for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
+
+    backend_health="$(
+        compose ps \
+            "${BACKEND_SERVICE}" \
+            --format '{{.Health}}' \
+            2>/dev/null || true
+    )"
+
+    if [[ "${backend_health}" == "healthy" ]]; then
+        success "Backend health check passed."
+        break
+    fi
+
+    if (( attempt == HEALTH_RETRIES )); then
+        error "Backend did not become healthy."
+
+        compose logs \
+            --tail=100 \
+            "${BACKEND_SERVICE}" \
+            || true
+
+        exit 1
+    fi
+
+    sleep 2
+
+done
+
+
+# ============================================================
+# 11. DATABASE MIGRATIONS
 # ============================================================
 
 log "Running Alembic migrations..."
@@ -441,30 +502,35 @@ success "Database migrations completed successfully."
 
 
 # ============================================================
-# 11. BACKEND HEALTH CHECK
+# 12. WEB HEALTH
 # ============================================================
 
-log "Checking backend health endpoint..."
+log "Checking web container health..."
 
-backend_url="http://localhost:${BACKEND_PORT}${HEALTH_PATH}"
+web_health=""
 
 for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
 
-    if curl \
-        --fail \
-        --silent \
-        --show-error \
-        --max-time 5 \
-        "${backend_url}" \
-        >/dev/null; then
+    web_health="$(
+        compose ps \
+            "${WEB_SERVICE}" \
+            --format '{{.Health}}' \
+            2>/dev/null || true
+    )"
 
-        success "Backend health check passed."
+    if [[ "${web_health}" == "healthy" ]]; then
+        success "Web container health check passed."
         break
-
     fi
 
     if (( attempt == HEALTH_RETRIES )); then
-        error "Backend health check failed."
+        error "Web container did not become healthy."
+
+        compose logs \
+            --tail=100 \
+            "${WEB_SERVICE}" \
+            || true
+
         exit 1
     fi
 
@@ -474,33 +540,45 @@ done
 
 
 # ============================================================
-# 12. WEB CHECK
+# 13. WEB HTTP SMOKE TEST
+#
+# web is the only application service published to the host:
+#
+#   80:80
+#
+# Therefore localhost:80 is valid from the GitHub runner.
 # ============================================================
 
-log "Checking web container..."
+log "Checking web HTTP endpoint..."
 
 web_url="http://localhost:${WEB_PORT}/"
 
-if curl \
-    --fail \
-    --silent \
-    --show-error \
-    --max-time 10 \
-    "${web_url}" \
-    >/dev/null; then
+for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
 
-    success "Web HTTP check passed."
+    if curl \
+        --fail \
+        --silent \
+        --show-error \
+        --max-time 10 \
+        "${web_url}" \
+        >/dev/null; then
 
-else
+        success "Web HTTP smoke test passed."
+        break
+    fi
 
-    error "Web HTTP check failed."
-    exit 1
+    if (( attempt == HEALTH_RETRIES )); then
+        error "Web HTTP smoke test failed."
+        exit 1
+    fi
 
-fi
+    sleep 2
+
+done
 
 
 # ============================================================
-# 13. FINAL SERVICE STATUS
+# 14. FINAL SERVICE STATUS
 # ============================================================
 
 printf '\n'
