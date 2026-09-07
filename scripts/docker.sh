@@ -539,7 +539,7 @@ compose config \
     --format json \
     > /tmp/finora-compose-config.json
 
-python3 /tmp/finora-compose-config.json <<'PY'
+python3 - /tmp/finora-compose-config.json <<'PY'
 from __future__ import annotations
 
 import json
