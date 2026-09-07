@@ -119,6 +119,7 @@ validate-docker:
 name: Validate Docker Stack
 runs-on: ubuntu-latest
 
+```
 env:
   COMPOSE_PROJECT_NAME: finora-ci
   COMPOSE_FILE: compose.yml
@@ -215,7 +216,7 @@ steps:
   # ======================================================
   # 5. VALIDATE CI DATABASE SECRET
   #
-  # The secret value is never printed.
+  # The actual secret value is never printed.
   # ======================================================
 
   - name: Validate CI database secret
@@ -370,3 +371,4 @@ steps:
 
       echo
       echo "Docker cleanup completed."
+```
