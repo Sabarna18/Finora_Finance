@@ -1,2 +1,2 @@
-*.txt
-reports/database/*txt
+# Generated report artifacts
+reports/**/*.txt
