@@ -32,11 +32,9 @@ log() {
 # ==========================================================
 
 validate_environment() {
-
     log "Environment Configuration"
 
     case "${APP_ENV}" in
-
         development)
             echo "Environment : development"
             ;;
@@ -52,9 +50,9 @@ validate_environment() {
             echo "Supported environments:"
             echo "  development"
             echo "  production"
+            echo ""
             exit 1
             ;;
-
     esac
 }
 
@@ -64,7 +62,6 @@ validate_environment() {
 # ==========================================================
 
 validate_database_configuration() {
-
     log "Neon Database Configuration"
 
     required_variables=(
@@ -77,7 +74,6 @@ validate_database_configuration() {
     )
 
     for variable in "${required_variables[@]}"; do
-
         if [[ -z "${!variable:-}" ]]; then
             echo ""
             echo "ERROR: Required database variable is missing:"
@@ -85,11 +81,9 @@ validate_database_configuration() {
             echo ""
             exit 1
         fi
-
     done
 
     if [[ "${POSTGRES_SSLMODE}" != "require" ]]; then
-
         echo ""
         echo "ERROR: Invalid PostgreSQL SSL mode."
         echo "Finora requires Neon SSL/TLS."
@@ -100,7 +94,6 @@ validate_database_configuration() {
         echo "Received:"
         echo "  POSTGRES_SSLMODE=${POSTGRES_SSLMODE}"
         echo ""
-
         exit 1
     fi
 
@@ -117,7 +110,6 @@ validate_database_configuration() {
 # ==========================================================
 
 check_database_connection() {
-
     log "Checking Neon PostgreSQL Connection"
 
     python - <<'PY'
@@ -147,7 +139,6 @@ except Exception as exc:
     print("")
     sys.exit(1)
 
-
 print("✓ Neon PostgreSQL connection successful")
 PY
 }
@@ -158,7 +149,6 @@ PY
 # ==========================================================
 
 run_migrations() {
-
     log "Running Database Migrations"
 
     uv run alembic upgrade head
@@ -173,7 +163,6 @@ run_migrations() {
 # ==========================================================
 
 start_development() {
-
     log "Starting Finora API — Development"
 
     exec uv run uvicorn \
@@ -189,13 +178,12 @@ start_development() {
 # ==========================================================
 
 start_production() {
-
     log "Starting Finora API — Production"
 
     exec uv run uvicorn \
         src.app:app \
         --host 0.0.0.0 \
-        --port 8000
+        --port "${PORT:-8000}"
 }
 
 
@@ -204,7 +192,6 @@ start_production() {
 # ==========================================================
 
 main() {
-
     log "Finora Backend Starting"
 
     validate_environment
@@ -216,7 +203,6 @@ main() {
     run_migrations
 
     case "${APP_ENV}" in
-
         development)
             start_development
             ;;
@@ -224,7 +210,6 @@ main() {
         production)
             start_production
             ;;
-
     esac
 }
 
