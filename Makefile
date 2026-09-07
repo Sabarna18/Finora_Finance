@@ -30,21 +30,22 @@
 #                           ▼
 #                Build / recreate Docker
 #                           │
-#              ┌────────────┴────────────┐
-#              ▼                         ▼
-#          PostgreSQL                 Backend
-#              │                         │
-#              └────────────┬────────────┘
+#                           ▼
+#                       Backend
 #                           │
-#                    Quality Gates
+#                           │ DATABASE_URL
+#                           ▼
+#                    Neon PostgreSQL
 #                           │
-#           ┌───────────────┼───────────────┐
-#           ▼               ▼               ▼
-#        Backend             DB           Frontend
-#           │               │               │
-#           │               │               │
-#           ▼               ▼               ▼
-#       Docker            Docker          Host
+#                           ▼
+#                      Quality Gates
+#                           │
+#             ┌─────────────┼─────────────┐
+#             ▼             ▼             ▼
+#          Backend          DB          Frontend
+#             │             │             │
+#             ▼             ▼             ▼
+#           Docker       Neon Cloud      Host
 #
 #
 # IMPORTANT:
@@ -57,7 +58,9 @@
 #   - containers do not exist
 #   - images do not exist
 #
-# The environment is automatically created.
+# The backend environment is automatically created.
+#
+# The Neon database is NOT created, stopped, or removed.
 #
 # After the quality gate finishes, Docker containers are
 # automatically stopped and removed.
@@ -83,8 +86,6 @@ COMPOSE := docker compose
 COMPOSE_FILE := compose.yml
 
 BACKEND_SERVICE := backend
-
-POSTGRES_SERVICE := postgres
 
 WEB_SERVICE := web
 
@@ -168,9 +169,9 @@ help:
 	@echo "  make backend-check    Backend quality gate"
 	@echo ""
 	@echo "Database:"
-	@echo "  make db               Database quality gate"
-	@echo "  make db-check         Database quality gate"
-	@echo "  make db-upgrade       Apply Alembic migrations"
+	@echo "  make db               Neon database quality gate"
+	@echo "  make db-check         Neon database quality gate"
+	@echo "  make db-upgrade       Apply Alembic migrations to Neon"
 	@echo ""
 	@echo "Frontend:"
 	@echo "  make frontend         Frontend quality gate"
@@ -179,7 +180,7 @@ help:
 	@echo "Quality:"
 	@echo "  make compose-check    Validate Compose configuration"
 	@echo "  make script-check     Validate quality scripts"
-	@echo "  make wait             Wait for required services"
+	@echo "  make wait             Wait for backend service"
 	@echo "  make check            Complete quality gate + cleanup"
 	@echo "  make check-fast       Fast quality gate + cleanup"
 	@echo ""
@@ -200,6 +201,8 @@ up:
 	@echo ""
 
 	$(COMPOSE) -f "$(COMPOSE_FILE)" up -d
+
+	@echo ""
 
 
 down:
@@ -316,35 +319,25 @@ script-check:
 # ============================================================
 # SERVICE READINESS
 # ============================================================
+#
+# Neon PostgreSQL is an external managed service.
+#
+# Therefore:
+#
+#   - Do NOT wait for a postgres container.
+#   - Do NOT run pg_isready.
+#
+# Database connectivity is validated by db-check.sh through
+# the backend container using the application's DATABASE_URL.
+#
+# ============================================================
 
 wait:
 	@echo ""
 	@echo "============================================================"
-	@echo " Waiting for Docker Services"
+	@echo " Waiting for Backend"
 	@echo "============================================================"
 	@echo ""
-
-	@echo "Waiting for PostgreSQL..."
-
-	@for i in $$(seq 1 60); do \
-		if $(COMPOSE) -f "$(COMPOSE_FILE)" exec -T \
-			$(POSTGRES_SERVICE) \
-			pg_isready >/dev/null 2>&1; then \
-			echo "✓ PostgreSQL is ready"; \
-			break; \
-		fi; \
-		if [[ "$$i" -eq 60 ]]; then \
-			echo "✗ PostgreSQL did not become ready"; \
-			echo ""; \
-			$(COMPOSE) -f "$(COMPOSE_FILE)" logs \
-				$(POSTGRES_SERVICE); \
-			exit 1; \
-		fi; \
-		sleep 2; \
-	done
-
-	@echo ""
-	@echo "Waiting for backend..."
 
 	@for i in $$(seq 1 60); do \
 		if $(COMPOSE) -f "$(COMPOSE_FILE)" exec -T \
@@ -365,7 +358,7 @@ wait:
 	done
 
 	@echo ""
-	@echo "✓ Required Docker services are ready"
+	@echo "✓ Backend service is ready"
 	@echo ""
 
 
@@ -422,6 +415,14 @@ backend-check:
 # ============================================================
 # DATABASE QUALITY GATE
 # ============================================================
+#
+# Database = Neon PostgreSQL
+#
+# db-check.sh validates Neon through the backend container.
+#
+# No local PostgreSQL container is required.
+#
+# ============================================================
 
 db: db-check
 
@@ -429,7 +430,7 @@ db: db-check
 db-check:
 	@echo ""
 	@echo "============================================================"
-	@echo "              DATABASE QUALITY GATE"
+	@echo "          NEON DATABASE QUALITY GATE"
 	@echo "============================================================"
 	@echo ""
 
@@ -439,13 +440,13 @@ db-check:
 		exit 1; \
 	fi
 
-	@echo "→ Executing database quality gate..."
+	@echo "→ Executing Neon database quality gate..."
 	@echo ""
 
 	bash "$(DB_CHECK)"
 
 	@echo ""
-	@echo "✓ Database quality gate passed"
+	@echo "✓ Neon database quality gate passed"
 	@echo ""
 
 
@@ -460,12 +461,15 @@ db-check:
 #   make db-check
 #   make check
 #
+# This executes Alembic against Neon PostgreSQL through the
+# backend container.
+#
 # ============================================================
 
 db-upgrade:
 	@echo ""
 	@echo "============================================================"
-	@echo "              DATABASE MIGRATION"
+	@echo "          NEON DATABASE MIGRATION"
 	@echo "============================================================"
 	@echo ""
 
@@ -474,7 +478,7 @@ db-upgrade:
 		alembic upgrade head
 
 	@echo ""
-	@echo "✓ Alembic migrations applied"
+	@echo "✓ Alembic migrations applied to Neon"
 	@echo ""
 
 
@@ -528,14 +532,14 @@ frontend-check:
 #
 #   1. Validate Compose
 #   2. Validate quality scripts
-#   3. Build/recreate Docker environment
-#   4. Wait for services
+#   3. Build/recreate backend environment
+#   4. Wait for backend
 #   5. Backend quality
-#   6. Database quality
+#   6. Neon database quality
 #   7. Frontend quality
 #   8. ALWAYS clean up Docker containers
 #
-# Cleanup occurs whether the quality gate passes or fails.
+# Neon itself is NEVER stopped or removed.
 #
 # ============================================================
 
@@ -550,6 +554,7 @@ check:
 		$(COMPOSE) -f "$(COMPOSE_FILE)" down --remove-orphans || true; \
 		echo ""; \
 		echo "✓ Docker containers stopped and removed"; \
+		echo "✓ Neon PostgreSQL remains untouched"; \
 		echo ""; \
 	}; \
 	trap cleanup EXIT INT TERM; \
@@ -563,7 +568,7 @@ check:
 	echo "Quality architecture:"; \
 	echo ""; \
 	echo "  Backend  → Docker backend container"; \
-	echo "  Database → Docker PostgreSQL"; \
+	echo "  Database → Neon PostgreSQL"; \
 	echo "  Frontend → Host Node toolchain"; \
 	echo "  Web      → Docker Nginx/static container"; \
 	echo ""; \
@@ -593,7 +598,7 @@ check:
 	\
 	echo ""; \
 	echo "============================================================"; \
-	echo " Stage 2 / 3 — DATABASE"; \
+	echo " Stage 2 / 3 — NEON DATABASE"; \
 	echo "============================================================"; \
 	echo ""; \
 	$(MAKE) db-check; \
@@ -611,9 +616,11 @@ check:
 	echo "============================================================"; \
 	echo ""; \
 	echo "✓ Compose configuration"; \
-	echo "✓ Docker services ready"; \
+	echo "✓ Backend service ready"; \
 	echo "✓ Backend quality"; \
-	echo "✓ Database quality"; \
+	echo "✓ Neon PostgreSQL connectivity"; \
+	echo "✓ Neon database integrity"; \
+	echo "✓ Alembic migration state"; \
 	echo "✓ Frontend quality"; \
 	echo ""; \
 	echo "→ Docker cleanup will now run automatically."; \
@@ -626,8 +633,10 @@ check:
 #
 # Same quality gates, but skips Docker image rebuilding.
 #
-# It still recreates the containers and automatically cleans
-# them up after the gate.
+# It still recreates the backend container and automatically
+# cleans it up after the gate.
+#
+# Neon PostgreSQL remains untouched.
 #
 # ============================================================
 
@@ -642,6 +651,7 @@ check-fast:
 		$(COMPOSE) -f "$(COMPOSE_FILE)" down --remove-orphans || true; \
 		echo ""; \
 		echo "✓ Docker containers stopped and removed"; \
+		echo "✓ Neon PostgreSQL remains untouched"; \
 		echo ""; \
 	}; \
 	trap cleanup EXIT INT TERM; \
@@ -667,7 +677,7 @@ check-fast:
 	$(MAKE) backend-check; \
 	\
 	echo ""; \
-	echo "Stage 2 / 3 — DATABASE"; \
+	echo "Stage 2 / 3 — NEON DATABASE"; \
 	$(MAKE) db-check; \
 	\
 	echo ""; \
@@ -699,4 +709,5 @@ clean:
 
 	@echo ""
 	@echo "✓ Docker environment cleaned"
+	@echo "✓ Neon PostgreSQL remains untouched"
 	@echo ""

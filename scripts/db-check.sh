@@ -5,21 +5,20 @@
 # ==========================================================
 #
 # Purpose:
-#   Validate the complete database layer while the Docker
-#   environment is running.
+#   Validate the database layer against the deployed
+#   Neon PostgreSQL database through the backend container.
 #
 # Responsibilities:
 #
 #   1. Docker / Compose validation
-#   2. PostgreSQL container validation
-#   3. PostgreSQL health validation
-#   4. Backend → PostgreSQL connectivity
-#   5. SQL connectivity validation
-#   6. Database identity validation
-#   7. Alembic migration validation
-#   8. PostgreSQL integrity validation
-#   9. Database summary generation
-#  10. Final summarized quality-gate report
+#   2. Backend container validation
+#   3. Backend → Neon PostgreSQL connectivity
+#   4. SQL connectivity validation
+#   5. Database identity validation
+#   6. Alembic migration validation
+#   7. PostgreSQL integrity validation
+#   8. Database summary generation
+#   9. Final summarized quality-gate report
 #
 # This script does NOT:
 #
@@ -54,8 +53,6 @@ cd "${PROJECT_ROOT}"
 # ==========================================================
 
 COMPOSE_FILE="${COMPOSE_FILE:-compose.yml}"
-
-POSTGRES_SERVICE="${POSTGRES_SERVICE:-postgres}"
 BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"
 
 REPORT_DIR="${REPORT_DIR:-reports/database}"
@@ -125,7 +122,6 @@ trap cleanup EXIT
 # ==========================================================
 
 print_header() {
-
     echo
     echo "=========================================================="
     echo "              Finora Database Quality Gate"
@@ -134,13 +130,14 @@ print_header() {
 
     echo "Project root : ${PROJECT_ROOT}"
     echo "Compose file : ${COMPOSE_FILE}"
+    echo "Backend      : ${BACKEND_SERVICE}"
+    echo "Database     : Neon PostgreSQL"
     echo "Report       : ${REPORT_FILE}"
     echo
 }
 
 
 print_section() {
-
     echo
     echo "----------------------------------------------------------"
     echo " $1"
@@ -150,7 +147,6 @@ print_section() {
 
 
 pass_gate() {
-
     local name="$1"
 
     TOTAL_GATES=$((TOTAL_GATES + 1))
@@ -165,7 +161,6 @@ pass_gate() {
 
 
 fail_gate() {
-
     local name="$1"
 
     TOTAL_GATES=$((TOTAL_GATES + 1))
@@ -180,13 +175,11 @@ fail_gate() {
 
 
 warn() {
-
     echo -e "${YELLOW}[WARN]${RESET} $1"
 }
 
 
 info() {
-
     echo -e "${BLUE}[INFO]${RESET} $1"
 }
 
@@ -196,7 +189,6 @@ info() {
 # ==========================================================
 
 require_command() {
-
     local command_name="$1"
 
     if command -v "${command_name}" >/dev/null 2>&1; then
@@ -257,29 +249,30 @@ check_compose_file() {
 
 
 # ==========================================================
-# CONTAINER STATUS
+# BACKEND CONTAINER
 # ==========================================================
 
-check_container_running() {
+check_backend_running() {
 
-    local service="$1"
+    print_section "2. Backend Container"
 
     local container_id
 
     container_id="$(
         docker compose \
             -f "${COMPOSE_FILE}" \
-            ps -q "${service}" \
+            ps -q "${BACKEND_SERVICE}" \
             2>/dev/null
     )"
+
 
     if [[ -z "${container_id}" ]]; then
 
         fail_gate \
-            "${service} container exists"
+            "Backend container exists"
 
         echo
-        echo "The ${service} service is not running."
+        echo "The ${BACKEND_SERVICE} service is not running."
         echo
         echo "Start the environment with:"
         echo
@@ -303,12 +296,12 @@ check_container_running() {
     if [[ "${status}" == "running" ]]; then
 
         pass_gate \
-            "${service} container is running"
+            "Backend container is running"
 
     else
 
         fail_gate \
-            "${service} container is running"
+            "Backend container is running"
 
         echo "Container status: ${status}"
 
@@ -319,114 +312,12 @@ check_container_running() {
 
 
 # ==========================================================
-# POSTGRES HEALTH
-# ==========================================================
-
-check_postgres_health() {
-
-    print_section "2. PostgreSQL Health"
-
-    local container_id
-
-    container_id="$(
-        docker compose \
-            -f "${COMPOSE_FILE}" \
-            ps -q "${POSTGRES_SERVICE}"
-    )"
-
-
-    if [[ -z "${container_id}" ]]; then
-
-        fail_gate \
-            "PostgreSQL container available"
-
-        return 1
-
-    fi
-
-
-    local health
-
-    health="$(
-        docker inspect \
-            --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \
-            "${container_id}"
-    )"
-
-
-    echo "PostgreSQL health status: ${health}"
-
-
-    case "${health}" in
-
-        healthy)
-
-            pass_gate \
-                "PostgreSQL container is healthy"
-
-            ;;
-
-        no-healthcheck)
-
-            fail_gate \
-                "PostgreSQL healthcheck is configured"
-
-            echo
-            echo "PostgreSQL must expose a Docker healthcheck."
-            echo
-
-            return 1
-
-            ;;
-
-        *)
-
-            fail_gate \
-                "PostgreSQL container is healthy"
-
-            return 1
-
-            ;;
-
-    esac
-}
-
-
-# ==========================================================
-# POSTGRES READINESS
-# ==========================================================
-
-check_postgres_readiness() {
-
-    print_section "3. PostgreSQL Readiness"
-
-    if docker compose \
-        -f "${COMPOSE_FILE}" \
-        exec -T "${POSTGRES_SERVICE}" \
-        pg_isready >/dev/null 2>&1; then
-
-        pass_gate \
-            "PostgreSQL accepts connections"
-
-    else
-
-        fail_gate \
-            "PostgreSQL accepts connections"
-
-        return 1
-
-    fi
-}
-
-
-# ==========================================================
-# BACKEND → POSTGRES CONNECTION
+# NEON DATABASE CONNECTION
 # ==========================================================
 
 check_backend_database_connection() {
 
-    print_section "4. Backend → PostgreSQL Connectivity"
-
+    print_section "3. Backend → Neon PostgreSQL"
 
     info "Testing database connectivity from the backend container..."
 
@@ -448,20 +339,20 @@ with engine.connect() as connection:
 
     if result != 1:
         raise RuntimeError(
-            "Database returned an unexpected result."
+            "Neon PostgreSQL returned an unexpected result."
         )
 
-print("Database connection successful.")
+print("Neon PostgreSQL connection successful.")
 PY
     then
 
         pass_gate \
-            "Backend can connect to PostgreSQL"
+            "Backend can connect to Neon PostgreSQL"
 
     else
 
         fail_gate \
-            "Backend can connect to PostgreSQL"
+            "Backend can connect to Neon PostgreSQL"
 
         return 1
 
@@ -475,10 +366,9 @@ PY
 
 check_database_identity() {
 
-    print_section "5. Database Identity"
+    print_section "4. Neon Database Identity"
 
-
-    docker compose \
+    if docker compose \
         -f "${COMPOSE_FILE}" \
         exec -T "${BACKEND_SERVICE}" \
         python - <<'PY'
@@ -501,14 +391,33 @@ with engine.connect() as connection:
         text("SELECT current_setting('server_version')")
     ).scalar_one()
 
+    host = connection.execute(
+        text("""
+            SELECT COALESCE(
+                inet_server_addr()::text,
+                'remote-managed-server'
+            )
+        """)
+    ).scalar_one()
+
     print(f"Database       : {database_name}")
     print(f"User           : {current_user}")
     print(f"PostgreSQL     : {server_version}")
+    print(f"Server         : {host}")
 PY
+    then
 
+        pass_gate \
+            "Neon database identity query succeeds"
 
-    pass_gate \
-        "Database identity query succeeds"
+    else
+
+        fail_gate \
+            "Neon database identity query succeeds"
+
+        return 1
+
+    fi
 }
 
 
@@ -518,8 +427,7 @@ PY
 
 check_alembic() {
 
-    print_section "6. Alembic Migration Validation"
-
+    print_section "5. Alembic Migration Validation"
 
     info "Checking current migration revision..."
 
@@ -529,12 +437,12 @@ check_alembic() {
         alembic current; then
 
         pass_gate \
-            "Alembic can read current database revision"
+            "Alembic can read current Neon database revision"
 
     else
 
         fail_gate \
-            "Alembic can read current database revision"
+            "Alembic can read current Neon database revision"
 
         return 1
 
@@ -590,10 +498,10 @@ check_alembic() {
 
 check_postgres_integrity() {
 
-    print_section "7. PostgreSQL Structural Integrity"
+    print_section "6. Neon PostgreSQL Structural Integrity"
 
 
-    docker compose \
+    if docker compose \
         -f "${COMPOSE_FILE}" \
         exec -T "${BACKEND_SERVICE}" \
         python - <<'PY'
@@ -609,13 +517,11 @@ with engine.connect() as connection:
     # ------------------------------------------------------
 
     invalid_indexes = connection.execute(
-        text(
-            """
+        text("""
             SELECT COUNT(*)
             FROM pg_index
             WHERE NOT indisvalid
-            """
-        )
+        """)
     ).scalar_one()
 
 
@@ -631,13 +537,11 @@ with engine.connect() as connection:
     # ------------------------------------------------------
 
     unvalidated_constraints = connection.execute(
-        text(
-            """
+        text("""
             SELECT COUNT(*)
             FROM pg_constraint
             WHERE NOT convalidated
-            """
-        )
+        """)
     ).scalar_one()
 
 
@@ -651,17 +555,16 @@ with engine.connect() as connection:
 
 
     # ------------------------------------------------------
-    # Tables
+    # Application tables
     # ------------------------------------------------------
 
     table_count = connection.execute(
-        text(
-            """
+        text("""
             SELECT COUNT(*)
             FROM information_schema.tables
             WHERE table_schema = 'public'
-            """
-        )
+              AND table_type = 'BASE TABLE'
+        """)
     ).scalar_one()
 
 
@@ -686,36 +589,17 @@ with engine.connect() as connection:
     )
 
 
-print("PostgreSQL structural integrity checks passed.")
+print("Neon PostgreSQL structural integrity checks passed.")
 PY
-
-
-    pass_gate \
-        "PostgreSQL structural integrity checks pass"
-}
-
-
-# ==========================================================
-# DATABASE SUMMARY
-# ==========================================================
-generate_database_summary() {
-
-    print_section "8. Database Summary"
-
-    info "Generating read-only database summary..."
-
-    if docker compose \
-        -f "${COMPOSE_FILE}" \
-        exec -T "${BACKEND_SERVICE}" \
-        python scripts/generate_db_summary.py; then
+    then
 
         pass_gate \
-            "Database summary generated successfully"
+            "Neon PostgreSQL structural integrity checks pass"
 
     else
 
         fail_gate \
-            "Database summary generated successfully"
+            "Neon PostgreSQL structural integrity checks pass"
 
         return 1
 
@@ -723,6 +607,34 @@ generate_database_summary() {
 }
 
 
+# ==========================================================
+# DATABASE SUMMARY
+# ==========================================================
+
+generate_database_summary() {
+
+    print_section "7. Database Summary"
+
+    info "Generating read-only database summary..."
+
+
+    if docker compose \
+        -f "${COMPOSE_FILE}" \
+        exec -T "${BACKEND_SERVICE}" \
+        python scripts/generate_db_summary.py; then
+
+        pass_gate \
+            "Neon database summary generated successfully"
+
+    else
+
+        fail_gate \
+            "Neon database summary generated successfully"
+
+        return 1
+
+    fi
+}
 
 
 # ==========================================================
@@ -732,7 +644,6 @@ generate_database_summary() {
 print_final_report() {
 
     print_section "DATABASE QUALITY-GATE REPORT"
-
 
     echo
     echo "Gate results:"
@@ -766,15 +677,19 @@ print_final_report() {
     echo
     echo "----------------------------------------------------------"
     echo
+
     echo "Total gates : ${TOTAL_GATES}"
     echo "Passed      : ${PASSED_GATES}"
     echo "Failed      : ${FAILED_GATES}"
+
     echo
     echo "Report:"
     echo "  ${REPORT_FILE}"
+
     echo
     echo "Latest:"
     echo "  ${LATEST_REPORT}"
+
     echo
 
 
@@ -825,31 +740,14 @@ main() {
 
 
     # ------------------------------------------------------
-    # Running containers
+    # Backend
     # ------------------------------------------------------
 
-    print_section "Container Runtime"
-
-
-    check_container_running \
-        "${POSTGRES_SERVICE}"
-
-
-    check_container_running \
-        "${BACKEND_SERVICE}"
+    check_backend_running
 
 
     # ------------------------------------------------------
-    # PostgreSQL
-    # ------------------------------------------------------
-
-    check_postgres_health
-
-    check_postgres_readiness
-
-
-    # ------------------------------------------------------
-    # Backend connection
+    # Neon PostgreSQL
     # ------------------------------------------------------
 
     check_backend_database_connection
@@ -887,4 +785,3 @@ main() {
 
 
 main "$@"
-

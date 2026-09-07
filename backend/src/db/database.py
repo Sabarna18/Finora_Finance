@@ -60,6 +60,7 @@ Base = declarative_base()
 # DATABASE DEPENDENCY
 # ==========================================================
 
+
 def get_db():
     """
     FastAPI database dependency.
