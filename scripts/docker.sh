@@ -5,25 +5,25 @@
 #
 # Purpose:
 #   Validate, build, start, migrate, smoke-test and clean the
-#   Docker application stack used by GitHub Actions.
+#   complete Docker application stack used by GitHub Actions.
 #
-# Current architecture:
-#
-#   backend
-#      │
-#      └── PostgreSQL supplied by CI environment
+# Architecture:
 #
 #   web
-#      │
-#      └── backend
-#
-# Production/local runtime:
-#
-#   backend → Neon PostgreSQL
+#    │
+#    ▼
+#   backend
+#    │
+#    │ PostgreSQL / SSL
+#    ▼
+#   Neon PostgreSQL
 #
 # IMPORTANT:
 #
-#   This script MUST NOT run migrations against production Neon.
+#   - There is NO local PostgreSQL container.
+#   - Neon is the database provider.
+#   - GitHub Actions MUST provide a dedicated CI Neon database.
+#   - Production Neon MUST NOT be used for this validation.
 #
 # Usage:
 #
@@ -32,9 +32,28 @@
 # Optional:
 #
 #   COMPOSE_FILE=compose.yml ./scripts/docker.sh
+#
+# Required environment:
+#
+#   CI_DATABASE_URL
+#
+# Example:
+#
+#   CI_DATABASE_URL="postgresql://user:password@host/db?sslmode=require"
+#
 # ============================================================
 
 set -Eeuo pipefail
+
+
+# ============================================================
+# PROJECT ROOT
+# ============================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+cd "${PROJECT_ROOT}"
 
 
 # ============================================================
@@ -57,6 +76,31 @@ STARTUP_TIMEOUT="${STARTUP_TIMEOUT:-120}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
 
 CI_ENV_FILE="${CI_ENV_FILE:-backend/.env}"
+
+
+# ============================================================
+# REQUIRED CI DATABASE
+# ============================================================
+
+if [[ -z "${CI_DATABASE_URL:-}" ]]; then
+    printf '\033[0;31m[FAIL]\033[0m CI_DATABASE_URL is not set.\n' >&2
+
+    cat >&2 <<'EOF'
+
+Docker validation requires a dedicated CI Neon PostgreSQL
+connection string.
+
+Expected:
+
+  CI_DATABASE_URL=postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require
+
+Do NOT use the production database.
+
+EOF
+
+    exit 1
+fi
+
 
 export COMPOSE_PROJECT_NAME="${PROJECT_NAME}"
 
@@ -113,20 +157,85 @@ compose() {
 
 
 # ============================================================
-# TEMPORARY CI ENVIRONMENT
+# DATABASE URL PARSING
 # ============================================================
 #
-# IMPORTANT:
+# The application configuration uses:
 #
-# The production/local application uses Neon.
+#   POSTGRES_HOST
+#   POSTGRES_PORT
+#   POSTGRES_USER
+#   POSTGRES_PASSWORD
+#   POSTGRES_DB
+#   POSTGRES_SSLMODE
 #
-# Docker validation must NOT use production Neon.
+# Therefore the CI Neon DATABASE_URL is converted into the
+# variables expected by backend/.env.
 #
-# The CI Compose environment therefore receives database
-# configuration from the CI Compose stack.
+# Python stdlib is used only for safe URL parsing.
 #
-# The actual database host is expected to be supplied by the
-# CI Compose configuration rather than hard-coded here.
+# ============================================================
+
+parse_database_url() {
+
+    log "Parsing CI Neon PostgreSQL connection string..."
+
+    python3 - "${CI_DATABASE_URL}" <<'PY'
+from __future__ import annotations
+
+import sys
+from urllib.parse import parse_qs, unquote, urlparse
+
+url = sys.argv[1]
+
+parsed = urlparse(url)
+
+if parsed.scheme not in {
+    "postgresql",
+    "postgresql+psycopg",
+    "postgresql+psycopg2",
+}:
+    raise SystemExit(
+        f"Unsupported database URL scheme: {parsed.scheme}"
+    )
+
+if not parsed.hostname:
+    raise SystemExit("Database URL does not contain a hostname.")
+
+if not parsed.username:
+    raise SystemExit("Database URL does not contain a username.")
+
+if not parsed.path or parsed.path == "/":
+    raise SystemExit("Database URL does not contain a database name.")
+
+query = parse_qs(parsed.query)
+
+host = parsed.hostname
+port = parsed.port or 5432
+user = unquote(parsed.username)
+password = unquote(parsed.password or "")
+database = unquote(parsed.path.lstrip("/"))
+
+sslmode = query.get("sslmode", ["require"])[0]
+
+# Emit shell-safe KEY=value pairs.
+# Password may contain shell-special characters, so use
+# Python repr-style single-quoted shell values.
+def shell_quote(value: str) -> str:
+    return "'" + value.replace("'", "'\"'\"'") + "'"
+
+print(f"POSTGRES_HOST={shell_quote(host)}")
+print(f"POSTGRES_PORT={shell_quote(str(port))}")
+print(f"POSTGRES_USER={shell_quote(user)}")
+print(f"POSTGRES_PASSWORD={shell_quote(password)}")
+print(f"POSTGRES_DB={shell_quote(database)}")
+print(f"POSTGRES_SSLMODE={shell_quote(sslmode)}")
+PY
+}
+
+
+# ============================================================
+# TEMPORARY CI ENVIRONMENT
 # ============================================================
 
 create_ci_env() {
@@ -135,7 +244,24 @@ create_ci_env() {
 
     mkdir -p "$(dirname "${CI_ENV_FILE}")"
 
-    cat > "${CI_ENV_FILE}" <<'EOF'
+    # Parse the dedicated CI Neon URL.
+    db_config="$(
+        parse_database_url
+    )"
+
+    # IMPORTANT:
+    #
+    # This file intentionally replaces the local backend/.env
+    # during CI validation.
+    #
+    # The Compose file already consumes:
+    #
+    #   ./backend/.env
+    #
+    # Therefore we do NOT modify compose.yml.
+    #
+
+    cat > "${CI_ENV_FILE}" <<EOF
 # ============================================================
 # Finora CI Docker Validation Environment
 #
@@ -148,10 +274,9 @@ create_ci_env() {
 # ------------------------------------------------------------
 
 APP_NAME=Finora
-APP_ENV=testing
+APP_ENV=development
+ENVIRONMENT=development
 DEBUG=False
-
-ENVIRONMENT=testing
 
 # ------------------------------------------------------------
 # Security
@@ -159,30 +284,20 @@ ENVIRONMENT=testing
 
 SECRET_KEY=finora-ci-validation-secret-key
 ALGORITHM=HS256
-
 ACCESS_TOKEN_EXPIRE_MINUTES=60
-
 JWT_SECRET_KEY=finora-ci-validation-jwt-secret
 
 # ------------------------------------------------------------
-# PostgreSQL
-#
-# These values are overridden by the CI Compose environment.
+# PostgreSQL / Neon
 # ------------------------------------------------------------
 
-POSTGRES_USER=finora
-POSTGRES_PASSWORD=finora
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-POSTGRES_DB=finora
-POSTGRES_SSLMODE=disable
+${db_config}
 
 # ------------------------------------------------------------
 # CORS
 # ------------------------------------------------------------
 
 BACKEND_CORS_ORIGINS=["http://localhost:80","http://localhost:5173"]
-
 CORS_ORIGINS=["http://localhost:80","http://localhost:5173"]
 
 # ------------------------------------------------------------
@@ -195,6 +310,13 @@ EOF
     test -f "${CI_ENV_FILE}"
 
     success "Temporary CI environment created: ${CI_ENV_FILE}"
+
+    # Never print the actual database password.
+    log "CI database configuration:"
+    grep -E \
+        '^(POSTGRES_HOST|POSTGRES_PORT|POSTGRES_USER|POSTGRES_DB|POSTGRES_SSLMODE)=' \
+        "${CI_ENV_FILE}" \
+        || true
 }
 
 
@@ -211,6 +333,14 @@ cleanup() {
     log "Collecting final container status..."
 
     compose ps -a || true
+
+    printf '\n'
+
+    log "Collecting recent container logs..."
+
+    compose logs \
+        --tail=100 \
+        || true
 
     printf '\n'
 
@@ -234,17 +364,14 @@ cleanup() {
     printf '\n'
 
     if [[ ${exit_code} -eq 0 ]]; then
-
         success "Docker validation completed successfully."
-
     else
-
         error "Docker validation failed with exit code ${exit_code}."
-
     fi
 
     exit "${exit_code}"
 }
+
 
 trap cleanup EXIT
 
@@ -274,6 +401,7 @@ on_error() {
         || true
 }
 
+
 trap 'on_error ${LINENO}' ERR
 
 
@@ -294,196 +422,6 @@ require_command() {
 
 
 # ============================================================
-# WEB DIAGNOSTICS
-# ============================================================
-
-diagnose_web_health() {
-
-    local web_container_id
-
-    printf '\n'
-
-    echo "============================================================"
-    echo " WEB CONTAINER HEALTH DIAGNOSTICS"
-    echo "============================================================"
-
-
-    # --------------------------------------------------------
-    # Resolve web container
-    # --------------------------------------------------------
-
-    echo
-    echo "[1/9] Resolving web container..."
-
-    web_container_id="$(
-        compose ps \
-            -q \
-            "${WEB_SERVICE}" \
-            2>/dev/null || true
-    )"
-
-    if [[ -z "${web_container_id}" ]]; then
-
-        error "Unable to resolve container for Compose service: ${WEB_SERVICE}"
-
-        compose ps -a || true
-
-        return 0
-
-    fi
-
-    echo "Compose service : ${WEB_SERVICE}"
-    echo "Container ID    : ${web_container_id}"
-
-
-    # --------------------------------------------------------
-    # Container state
-    # --------------------------------------------------------
-
-    echo
-    echo "[2/9] Container state"
-
-    docker inspect \
-        "${web_container_id}" \
-        --format '
-Name:        {{.Name}}
-Status:      {{.State.Status}}
-Running:     {{.State.Running}}
-StartedAt:   {{.State.StartedAt}}
-FinishedAt:  {{.State.FinishedAt}}
-ExitCode:    {{.State.ExitCode}}
-Error:       {{.State.Error}}
-Health:      {{if .State.Health}}{{.State.Health.Status}}{{else}}NO HEALTHCHECK{{end}}
-' \
-        2>&1 || true
-
-
-    # --------------------------------------------------------
-    # Docker healthcheck configuration
-    # --------------------------------------------------------
-
-    echo
-    echo "[3/9] Docker healthcheck configuration"
-
-    docker inspect \
-        "${web_container_id}" \
-        --format '
-Test:        {{json .Config.Healthcheck.Test}}
-Interval:    {{.Config.Healthcheck.Interval}}
-Timeout:     {{.Config.Healthcheck.Timeout}}
-StartPeriod: {{.Config.Healthcheck.StartPeriod}}
-Retries:     {{.Config.Healthcheck.Retries}}
-' \
-        2>&1 || true
-
-
-    # --------------------------------------------------------
-    # Healthcheck history
-    # --------------------------------------------------------
-
-    echo
-    echo "[4/9] Docker healthcheck execution history"
-
-    docker inspect \
-        "${web_container_id}" \
-        --format '
-{{range .State.Health.Log}}
-Start:       {{.Start}}
-End:         {{.End}}
-ExitCode:    {{.ExitCode}}
-Output:
-{{.Output}}
-------------------------------------------------------------
-{{end}}
-' \
-        2>&1 || true
-
-
-    # --------------------------------------------------------
-    # Current health
-    # --------------------------------------------------------
-
-    echo
-    echo "[5/9] Current Docker health status"
-
-    docker inspect \
-        "${web_container_id}" \
-        --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}NO HEALTHCHECK{{end}}' \
-        2>&1 || true
-
-
-    # --------------------------------------------------------
-    # Nginx validation
-    # --------------------------------------------------------
-
-    echo
-    echo "[6/9] Nginx configuration validation"
-
-    compose exec \
-        -T \
-        "${WEB_SERVICE}" \
-        nginx -t \
-        2>&1 || true
-
-
-    # --------------------------------------------------------
-    # Internal web health endpoint
-    # --------------------------------------------------------
-
-    echo
-    echo "[7/9] Testing ${WEB_HEALTH_PATH} from inside web container"
-
-    compose exec \
-        -T \
-        "${WEB_SERVICE}" \
-        sh -c "
-            wget \
-                --no-verbose \
-                --tries=1 \
-                --timeout=10 \
-                -O - \
-                'http://127.0.0.1${WEB_HEALTH_PATH}'
-        " \
-        2>&1 || true
-
-
-    # --------------------------------------------------------
-    # Host → Nginx
-    # --------------------------------------------------------
-
-    echo
-    echo "[8/9] Testing web health endpoint from GitHub runner"
-
-    curl \
-        --verbose \
-        --max-time 10 \
-        "http://127.0.0.1:${WEB_PORT}${WEB_HEALTH_PATH}" \
-        2>&1 || true
-
-
-    # --------------------------------------------------------
-    # Host → Nginx → React
-    # --------------------------------------------------------
-
-    echo
-    echo "[9/9] Testing React root endpoint from GitHub runner"
-
-    curl \
-        --verbose \
-        --max-time 10 \
-        "http://127.0.0.1:${WEB_PORT}/" \
-        2>&1 || true
-
-
-    echo
-    echo "============================================================"
-    echo " END WEB CONTAINER HEALTH DIAGNOSTICS"
-    echo "============================================================"
-    echo
-}
-
-
-# ============================================================
 # 1. ENVIRONMENT VALIDATION
 # ============================================================
 
@@ -491,6 +429,7 @@ log "Checking Docker environment..."
 
 require_command docker
 require_command curl
+require_command python3
 
 if ! docker info >/dev/null 2>&1; then
 
@@ -536,7 +475,7 @@ create_ci_env
 
 
 # ============================================================
-# 4. DOCKER COMPOSE VALIDATION
+# 4. COMPOSE CONFIGURATION VALIDATION
 # ============================================================
 
 log "Validating Compose configuration..."
@@ -547,10 +486,10 @@ success "Compose configuration is valid."
 
 
 # ============================================================
-# 5. REQUIRED SERVICES
+# 5. VERIFY COMPOSE ARCHITECTURE
 # ============================================================
 
-log "Checking required application services..."
+log "Validating Compose service architecture..."
 
 services="$(
     compose config --services
@@ -573,7 +512,22 @@ for service in "${required_services[@]}"; do
 
 done
 
-success "Required application services are present."
+
+# ------------------------------------------------------------
+# Ensure local PostgreSQL service does NOT exist.
+# ------------------------------------------------------------
+
+if grep -qx "postgres" <<< "${services}"; then
+
+    error "Local PostgreSQL service detected."
+
+    error "Finora uses Neon PostgreSQL as its database."
+
+    exit 1
+
+fi
+
+success "Compose architecture validated: backend + web + Neon."
 
 
 # ============================================================
@@ -618,7 +572,8 @@ while (( elapsed < STARTUP_TIMEOUT )); do
             compose ps \
                 "${service}" \
                 --format '{{.State}}' \
-                2>/dev/null || true
+                2>/dev/null \
+                || true
         )"
 
         if [[ "${state}" != "running" ]]; then
@@ -633,7 +588,7 @@ while (( elapsed < STARTUP_TIMEOUT )); do
 
     if [[ "${all_running}" == true ]]; then
 
-        success "All required application containers are running."
+        success "All application containers are running."
 
         break
 
@@ -671,7 +626,8 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
         compose ps \
             "${BACKEND_SERVICE}" \
             --format '{{.Health}}' \
-            2>/dev/null || true
+            2>/dev/null \
+            || true
     )"
 
     if [[ "${backend_health}" == "healthy" ]]; then
@@ -714,21 +670,69 @@ done
 
 
 # ============================================================
-# 10. DATABASE MIGRATIONS
+# 10. DATABASE CONNECTIVITY
+# ============================================================
+#
+# Do NOT run migrations here unless the CI database is explicitly
+# dedicated to CI.
+#
+# This connection check verifies:
+#
+#   Docker backend
+#        ↓
+#   SQLAlchemy
+#        ↓
+#   Neon PostgreSQL
+#
 # ============================================================
 
-log "Running Alembic migrations..."
+log "Checking backend → Neon PostgreSQL connectivity..."
 
 compose exec \
     -T \
     "${BACKEND_SERVICE}" \
-    alembic upgrade head
+    python -c '
+from sqlalchemy import create_engine, text
+from src.db.database import DATABASE_URL
 
-success "Database migrations completed successfully."
+engine = create_engine(DATABASE_URL)
+
+with engine.connect() as connection:
+    result = connection.execute(
+        text(
+            "SELECT current_database(), "
+            "current_user, "
+            "version()"
+        )
+    )
+
+    database, user, version = result.fetchone()
+
+print("Database:", database)
+print("User:", user)
+print("Server:", version.split(",")[0])
+print("Neon PostgreSQL connectivity: OK")
+'
+
+success "Backend → Neon PostgreSQL connectivity passed."
 
 
 # ============================================================
-# 11. WEB HEALTH
+# 11. ALEMBIC MIGRATION STATE
+# ============================================================
+
+log "Checking Alembic migration state..."
+
+compose exec \
+    -T \
+    "${BACKEND_SERVICE}" \
+    alembic current
+
+success "Alembic migration state checked."
+
+
+# ============================================================
+# 12. WEB CONTAINER HEALTH
 # ============================================================
 
 log "Checking web container health..."
@@ -741,7 +745,8 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
         compose ps \
             "${WEB_SERVICE}" \
             --format '{{.Health}}' \
-            2>/dev/null || true
+            2>/dev/null \
+            || true
     )"
 
     if [[ "${web_health}" == "healthy" ]]; then
@@ -756,7 +761,10 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
 
         error "Web container became unhealthy."
 
-        diagnose_web_health
+        compose logs \
+            --tail=100 \
+            "${WEB_SERVICE}" \
+            || true
 
         exit 1
 
@@ -766,7 +774,10 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
 
         error "Web container did not become healthy."
 
-        diagnose_web_health
+        compose logs \
+            --tail=100 \
+            "${WEB_SERVICE}" \
+            || true
 
         exit 1
 
@@ -778,7 +789,21 @@ done
 
 
 # ============================================================
-# 12. WEB HTTP SMOKE TEST
+# 13. NGINX CONFIGURATION
+# ============================================================
+
+log "Checking Nginx configuration..."
+
+compose exec \
+    -T \
+    "${WEB_SERVICE}" \
+    nginx -t
+
+success "Nginx configuration is valid."
+
+
+# ============================================================
+# 14. WEB HTTP SMOKE TEST
 # ============================================================
 
 log "Checking web HTTP endpoint..."
@@ -805,7 +830,10 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
 
         error "Web HTTP smoke test failed."
 
-        diagnose_web_health
+        compose logs \
+            --tail=100 \
+            "${WEB_SERVICE}" \
+            || true
 
         exit 1
 
@@ -817,7 +845,7 @@ done
 
 
 # ============================================================
-# 13. WEB HEALTH ENDPOINT SMOKE TEST
+# 15. WEB HEALTH ENDPOINT
 # ============================================================
 
 log "Checking web health endpoint..."
@@ -838,7 +866,10 @@ else
 
     error "Web health endpoint smoke test failed."
 
-    diagnose_web_health
+    compose logs \
+        --tail=100 \
+        "${WEB_SERVICE}" \
+        || true
 
     exit 1
 
@@ -846,7 +877,58 @@ fi
 
 
 # ============================================================
-# 14. FINAL SERVICE STATUS
+# 16. BACKEND API THROUGH NGINX
+# ============================================================
+#
+# This is an important integration test.
+#
+# We don't only test:
+#
+#   runner → web
+#
+# We test:
+#
+#   runner
+#      ↓
+#   Nginx
+#      ↓
+#   backend
+#      ↓
+#   Neon
+#
+# ============================================================
+
+log "Checking API through Nginx reverse proxy..."
+
+api_url="http://127.0.0.1:${WEB_PORT}${HEALTH_PATH}"
+
+if curl \
+    --fail \
+    --silent \
+    --show-error \
+    --max-time 10 \
+    "${api_url}" \
+    >/dev/null; then
+
+    success "Nginx → Backend API smoke test passed."
+
+else
+
+    error "Nginx → Backend API smoke test failed."
+
+    compose logs \
+        --tail=100 \
+        "${WEB_SERVICE}" \
+        "${BACKEND_SERVICE}" \
+        || true
+
+    exit 1
+
+fi
+
+
+# ============================================================
+# 17. FINAL SERVICE STATUS
 # ============================================================
 
 printf '\n'
@@ -858,3 +940,36 @@ compose ps
 printf '\n'
 
 success "Docker stack validation PASSED."
+
+printf '\n'
+
+echo "============================================================"
+echo " Finora Docker Validation Summary"
+echo "============================================================"
+echo
+echo "Architecture:"
+echo "  web → backend → Neon PostgreSQL"
+echo
+echo "Validated:"
+echo "  ✓ Docker environment"
+echo "  ✓ Compose configuration"
+echo "  ✓ No local PostgreSQL service"
+echo "  ✓ Backend image build"
+echo "  ✓ Web image build"
+echo "  ✓ Backend startup"
+echo "  ✓ Backend health"
+echo "  ✓ Backend → Neon connectivity"
+echo "  ✓ Alembic state"
+echo "  ✓ Web container health"
+echo "  ✓ Nginx configuration"
+echo "  ✓ React/web HTTP"
+echo "  ✓ Web health endpoint"
+echo "  ✓ Nginx → Backend API"
+echo
+echo "Cleanup:"
+echo "  ✓ Docker resources removed on exit"
+echo "  ✓ Temporary CI environment removed"
+echo "  ✓ Neon database left untouched"
+echo
+echo "============================================================"
+

@@ -8,24 +8,22 @@
 #
 # Architecture:
 #
-#   Local / Production:
-#
-#       backend ───────► Neon PostgreSQL
-#          │
-#          ▼
-#         web
-#
 #   GitHub Actions:
 #
-#       backend ───────► temporary PostgreSQL
-#          │
-#          ▼
-#         web
+#       web
+#        │
+#        ▼
+#      backend ───────► dedicated CI Neon PostgreSQL
 #
 # IMPORTANT:
 #
-#   GitHub Actions MUST NOT connect to production Neon.
-#   CI PostgreSQL exists only for this validation run.
+#   - compose.yml contains ONLY backend + web.
+#   - No PostgreSQL container is created by this workflow.
+#   - CI uses a dedicated Neon database supplied through the
+#     FINORA_CI_DATABASE_URL GitHub secret.
+#   - The CI database MUST NOT be the production database.
+#   - scripts/docker.sh owns temporary CI environment creation,
+#     Docker startup, migration and smoke testing.
 #
 # ============================================================
 
@@ -80,7 +78,6 @@ permissions:
 
 concurrency:
   group: docker-validation-${{ github.workflow }}-${{ github.ref }}
-
   cancel-in-progress: true
 
 # ============================================================
@@ -90,7 +87,6 @@ concurrency:
 jobs:
   validate-docker:
     name: Validate Docker Stack
-
     runs-on: ubuntu-latest
 
     # ========================================================
@@ -100,7 +96,9 @@ jobs:
     env:
       COMPOSE_PROJECT_NAME: finora-ci
 
-      # Base application Compose file.
+      # IMPORTANT:
+      # scripts/docker.sh uses the normal production compose
+      # architecture. It creates backend/.env temporarily.
       COMPOSE_FILE: compose.yml
 
       BACKEND_SERVICE: backend
@@ -116,17 +114,12 @@ jobs:
 
       CI_ENV_FILE: backend/.env
 
-      # Temporary CI Compose files.
-      CI_COMPOSE_OVERRIDE: compose.ci.yml
-      CI_COMPOSE_MERGED: compose.ci.generated.yml
-
     steps:
       # ======================================================
       # CHECKOUT
       # ======================================================
 
       - name: Checkout repository
-
         uses: actions/checkout@v4
 
       # ======================================================
@@ -134,7 +127,6 @@ jobs:
       # ======================================================
 
       - name: Check Docker
-
         run: |
           echo "============================================================"
           echo "Docker Environment"
@@ -148,7 +140,6 @@ jobs:
       # ======================================================
 
       - name: Validate Docker script
-
         run: |
           echo "============================================================"
           echo "Docker Script Validation"
@@ -164,339 +155,107 @@ jobs:
           echo "Docker validation script syntax is valid."
 
       # ======================================================
-      # CREATE TEMPORARY CI ENVIRONMENT
+      # VERIFY BASE COMPOSE
       #
-      # IMPORTANT:
-      #
-      # This environment intentionally points to the temporary
-      # PostgreSQL service created below.
-      #
-      # It MUST NOT contain Neon credentials.
+      # compose.yml is the canonical application Compose file.
+      # It MUST contain only backend + web.
+      # PostgreSQL is external and supplied by Neon.
       # ======================================================
 
-      - name: Create temporary CI environment
-
+      - name: Validate base Compose configuration
         run: |
           echo "============================================================"
-          echo "Creating CI Environment"
+          echo "Base Compose Configuration"
           echo "============================================================"
 
-          mkdir -p "$(dirname "${CI_ENV_FILE}")"
-
-          cat > "${CI_ENV_FILE}" <<'EOF'
-          # ============================================================
-          # Finora CI Docker Validation Environment
-          #
-          # Generated automatically by GitHub Actions.
-          #
-          # DO NOT COMMIT THIS FILE.
-          #
-          # ============================================================
-
-          # ------------------------------------------------------------
-          # Application
-          # ------------------------------------------------------------
-
-          APP_NAME=Finora
-          APP_ENV=testing
-          DEBUG=False
-
-          ENVIRONMENT=testing
-
-          # ------------------------------------------------------------
-          # Security
-          # ------------------------------------------------------------
-
-          SECRET_KEY=finora-ci-validation-secret-key
-          ALGORITHM=HS256
-          ACCESS_TOKEN_EXPIRE_MINUTES=60
-
-          JWT_SECRET_KEY=finora-ci-validation-jwt-secret
-
-          # ------------------------------------------------------------
-          # CI PostgreSQL
-          # ------------------------------------------------------------
-
-          POSTGRES_USER=finora
-          POSTGRES_PASSWORD=finora
-          POSTGRES_HOST=postgres
-          POSTGRES_PORT=5432
-          POSTGRES_DB=finora
-
-          # CI PostgreSQL is local to the Docker validation network.
-          POSTGRES_SSLMODE=disable
-
-          # ------------------------------------------------------------
-          # CORS
-          # ------------------------------------------------------------
-
-          BACKEND_CORS_ORIGINS=["http://localhost:80","http://localhost:5173"]
-
-          CORS_ORIGINS=["http://localhost:80","http://localhost:5173"]
-
-          # ------------------------------------------------------------
-          # Frontend
-          # ------------------------------------------------------------
-
-          VITE_API_URL=/api/v1
-          EOF
-
-          test -f "${CI_ENV_FILE}"
-
-          echo
-          echo "Temporary CI environment created."
-
-      # ======================================================
-      # CREATE CI COMPOSE OVERRIDE
-      #
-      # The normal compose.yml intentionally contains NO
-      # PostgreSQL service because Neon is the canonical DB.
-      #
-      # This temporary override adds PostgreSQL ONLY for CI.
-      # ======================================================
-
-      - name: Create CI Compose override
-
-        run: |
-          echo "============================================================"
-          echo "Creating CI Compose Override"
-          echo "============================================================"
-
-          cat > "${CI_COMPOSE_OVERRIDE}" <<'EOF'
-          # ============================================================
-          # Finora CI Compose Override
-          #
-          # Temporary PostgreSQL database for GitHub Actions.
-          #
-          # This file is generated by the Docker Validation workflow.
-          #
-          # ============================================================
-
-          services:
-
-            # ==========================================================
-            # Temporary PostgreSQL
-            # ==========================================================
-
-            postgres:
-
-              image: postgres:17-alpine
-
-              container_name: finora-ci-postgres
-
-              environment:
-
-                POSTGRES_USER: finora
-                POSTGRES_PASSWORD: finora
-                POSTGRES_DB: finora
-
-              healthcheck:
-
-                test:
-                  [
-                    "CMD-SHELL",
-                    "pg_isready -U finora -d finora"
-                  ]
-
-                interval: 5s
-                timeout: 5s
-                retries: 10
-                start_period: 10s
-
-
-            # ==========================================================
-            # Backend CI Database Override
-            # ==========================================================
-
-            backend:
-
-              environment:
-
-                APP_ENV: testing
-                DEBUG: "false"
-
-                POSTGRES_USER: finora
-                POSTGRES_PASSWORD: finora
-                POSTGRES_HOST: postgres
-                POSTGRES_PORT: "5432"
-                POSTGRES_DB: finora
-                POSTGRES_SSLMODE: disable
-
-              depends_on:
-
-                postgres:
-
-                  condition: service_healthy
-
-
-            # ==========================================================
-            # Web
-            # ==========================================================
-
-            web:
-
-              depends_on:
-
-                backend:
-
-                  condition: service_healthy
-          EOF
-
-          test -f "${CI_COMPOSE_OVERRIDE}"
-
-          echo
-          echo "CI Compose override created."
-
-      # ======================================================
-      # GENERATE MERGED COMPOSE CONFIGURATION
-      #
-      # This produces a temporary Compose file containing:
-      #
-      #   base compose.yml
-      #        +
-      #   CI PostgreSQL override
-      #
-      # The validation script then operates against this
-      # merged configuration.
-      # ======================================================
-
-      - name: Generate merged CI Compose configuration
-
-        run: |
-          echo "============================================================"
-          echo "Generating Merged CI Compose Configuration"
-          echo "============================================================"
-
-          docker compose \
-            -f "${COMPOSE_FILE}" \
-            -f "${CI_COMPOSE_OVERRIDE}" \
-            config > "${CI_COMPOSE_MERGED}"
-
-          test -s "${CI_COMPOSE_MERGED}"
-
-          echo
-          echo "Merged Compose configuration generated."
+          docker compose -f "${COMPOSE_FILE}" config --quiet
 
           echo
           echo "Configured services:"
-
-          docker compose \
-            -f "${CI_COMPOSE_MERGED}" \
-            config --services
-
-      # ======================================================
-      # VALIDATE MERGED COMPOSE CONFIGURATION
-      # ======================================================
-
-      - name: Validate Compose configuration
-
-        run: |
-          echo "============================================================"
-          echo "Compose Configuration Validation"
-          echo "============================================================"
-
-          docker compose \
-            -f "${CI_COMPOSE_MERGED}" \
-            config --quiet
+          docker compose -f "${COMPOSE_FILE}" config --services
 
           echo
-          echo "Compose configuration is valid."
-
-      # ======================================================
-      # VERIFY REQUIRED SERVICES
-      #
-      # CI requires:
-      #
-      #   postgres
-      #   backend
-      #   web
-      #
-      # The PostgreSQL service exists ONLY in the temporary
-      # CI Compose configuration.
-      # ======================================================
-
-      - name: Verify Docker services
-
-        run: |
-          echo "============================================================"
-          echo "Docker Service Validation"
-          echo "============================================================"
-
-          echo "Configured Docker services:"
-
-          docker compose \
-            -f "${CI_COMPOSE_MERGED}" \
-            config --services
-
-          echo
+          echo "Validating service architecture..."
 
           services="$(
             docker compose \
-              -f "${CI_COMPOSE_MERGED}" \
+              -f "${COMPOSE_FILE}" \
               config --services
           )"
 
-          required_services=(
-            postgres
-            backend
-            web
-          )
-
-          for service in "${required_services[@]}"; do
-
+          for service in backend web; do
             if ! grep -qx "${service}" <<< "${services}"; then
-
               echo "::error::Required Compose service is missing: ${service}"
-
               exit 1
-
             fi
-
           done
 
-          echo
-          echo "All required Docker services are present."
-
-      # ======================================================
-      # VERIFY CI DATABASE IS NOT NEON
-      #
-      # This is a deliberate safety gate.
-      # ======================================================
-
-      - name: Verify CI database isolation
-
-        run: |
-          echo "============================================================"
-          echo "CI Database Isolation Check"
-          echo "============================================================"
-
-          if grep -Eiq \
-            'neon\.tech|neon\.database|neondb_owner' \
-            "${CI_ENV_FILE}"; then
-
-            echo "::error::CI environment contains Neon production configuration."
-
+          if grep -qx "postgres" <<< "${services}"; then
+            echo "::error::compose.yml must not define a PostgreSQL service."
+            echo "::error::Neon PostgreSQL is the external database."
             exit 1
-
           fi
 
           echo
-          echo "CI database is isolated from Neon production."
+          echo "Base Compose architecture is valid."
 
       # ======================================================
-      # BUILD + RUN + MIGRATE + HEALTH CHECK
+      # VERIFY DATABASE SECRET
       #
-      # scripts/docker.sh owns the actual Docker validation.
+      # The secret is intentionally exposed only to the step
+      # running scripts/docker.sh.
       #
-      # It receives the merged CI Compose configuration through
-      # COMPOSE_FILE.
+      # scripts/docker.sh parses CI_DATABASE_URL and creates
+      # the temporary backend/.env required by compose.yml.
+      # ======================================================
+
+      - name: Validate CI database configuration
+        env:
+          CI_DATABASE_URL: ${{ secrets.FINORA_CI_DATABASE_URL }}
+        run: |
+          echo "============================================================"
+          echo "CI Database Configuration"
+          echo "============================================================"
+
+          if [[ -z "${CI_DATABASE_URL}" ]]; then
+            echo "::error::FINORA_CI_DATABASE_URL GitHub secret is not configured."
+            exit 1
+          fi
+
+          # Safety gate: CI must use the dedicated CI database.
+          # Do not allow an obvious production Neon URL to pass.
+          if grep -Eiq 'neondb_owner|production|prod' <<< "${CI_DATABASE_URL}"; then
+            echo "::error::CI_DATABASE_URL appears to reference a production database."
+            exit 1
+          fi
+
+          echo
+          echo "CI database secret is present."
+          echo "Database credentials are not printed."
+
+      # ======================================================
+      # COMPLETE DOCKER VALIDATION
+      #
+      # scripts/docker.sh owns:
+      #   1. temporary backend/.env creation
+      #   2. Compose config validation
+      #   3. backend + web build
+      #   4. container startup
+      #   5. backend health check
+      #   6. backend → CI Neon connectivity
+      #   7. Alembic migration validation
+      #   8. web health check
+      #   9. nginx/API smoke tests
+      #  10. Docker cleanup
+      #
+      # IMPORTANT:
+      # The workflow does NOT create a postgres service or an
+      # override Compose file.
       # ======================================================
 
       - name: Validate complete Docker stack
-
         env:
-          COMPOSE_FILE: compose.ci.generated.yml
-
+          CI_DATABASE_URL: ${{ secrets.FINORA_CI_DATABASE_URL }}
         run: |
           echo "============================================================"
           echo "Complete Docker Stack Validation"
@@ -511,9 +270,7 @@ jobs:
       # ======================================================
 
       - name: Collect Docker diagnostics
-
         if: failure()
-
         run: |
           echo "============================================================"
           echo "Docker Containers"
@@ -521,16 +278,23 @@ jobs:
 
           docker ps -a || true
 
-
           echo
           echo "============================================================"
           echo "Compose Status"
           echo "============================================================"
 
           docker compose \
-            -f "${CI_COMPOSE_MERGED}" \
+            -f "${COMPOSE_FILE}" \
             ps -a || true
 
+          echo
+          echo "============================================================"
+          echo "Compose Services"
+          echo "============================================================"
+
+          docker compose \
+            -f "${COMPOSE_FILE}" \
+            config --services || true
 
           echo
           echo "============================================================"
@@ -538,12 +302,11 @@ jobs:
           echo "============================================================"
 
           docker compose \
-            -f "${CI_COMPOSE_MERGED}" \
+            -f "${COMPOSE_FILE}" \
             logs \
             --no-color \
             --tail=200 \
             || true
-
 
           echo
           echo "============================================================"
@@ -551,27 +314,12 @@ jobs:
           echo "============================================================"
 
           docker compose \
-            -f "${CI_COMPOSE_MERGED}" \
+            -f "${COMPOSE_FILE}" \
             logs \
             --no-color \
             --tail=200 \
             backend \
             || true
-
-
-          echo
-          echo "============================================================"
-          echo "PostgreSQL Logs"
-          echo "============================================================"
-
-          docker compose \
-            -f "${CI_COMPOSE_MERGED}" \
-            logs \
-            --no-color \
-            --tail=200 \
-            postgres \
-            || true
-
 
           echo
           echo "============================================================"
@@ -579,7 +327,7 @@ jobs:
           echo "============================================================"
 
           docker compose \
-            -f "${CI_COMPOSE_MERGED}" \
+            -f "${COMPOSE_FILE}" \
             logs \
             --no-color \
             --tail=200 \
@@ -589,46 +337,26 @@ jobs:
       # ======================================================
       # FINAL CLEANUP
       #
-      # Runs regardless of success or failure.
+      # scripts/docker.sh already performs cleanup. This final
+      # safety cleanup guarantees Docker resources are removed
+      # even if the script fails unexpectedly.
       # ======================================================
 
       - name: Docker cleanup
-
         if: always()
-
         run: |
           echo "============================================================"
           echo "Docker Cleanup"
           echo "============================================================"
 
-          if [[ -f "${CI_COMPOSE_MERGED}" ]]; then
-
-            docker compose \
-              -f "${CI_COMPOSE_MERGED}" \
-              down \
-              --volumes \
-              --remove-orphans \
-              || true
-
-          fi
-
-
-          echo
-          echo "Removing temporary Compose files..."
-
-          rm -f \
-            "${CI_COMPOSE_OVERRIDE}" \
-            "${CI_COMPOSE_MERGED}" \
+          docker compose \
+            -f "${COMPOSE_FILE}" \
+            down \
+            --volumes \
+            --remove-orphans \
             || true
 
-
-          echo
-          echo "Removing temporary CI environment..."
-
-          rm -f \
-            "${CI_ENV_FILE}" \
-            || true
-
+          rm -f "${CI_ENV_FILE}" || true
 
           echo
           echo "Docker cleanup completed."
