@@ -20,21 +20,21 @@ name: Docker Validation
 
 # GitHub Actions
 
-# │
+# |
 
-# ▼
+# v
 
 # web
 
-# │
+# |
 
-# ▼
+# v
 
 # backend
 
-# │
+# |
 
-# ▼
+# v
 
 # CI PostgreSQL
 
@@ -46,9 +46,9 @@ name: Docker Validation
 
 # FINORA_CI_DATABASE_URL
 
-# │
+# |
 
-# ▼
+# v
 
 # temporary backend/.env
 
@@ -119,7 +119,6 @@ validate-docker:
 name: Validate Docker Stack
 runs-on: ubuntu-latest
 
-```
 env:
   COMPOSE_PROJECT_NAME: finora-ci
   COMPOSE_FILE: compose.yml
@@ -193,11 +192,7 @@ steps:
   #
   # IMPORTANT:
   #
-  # We intentionally DO NOT run:
-  #
-  #   docker compose config
-  #
-  # here.
+  # Do NOT run docker compose config here.
   #
   # compose.yml references backend/.env.
   # scripts/docker.sh creates backend/.env first.
@@ -220,7 +215,7 @@ steps:
   # ======================================================
   # 5. VALIDATE CI DATABASE SECRET
   #
-  # The actual secret is never printed.
+  # The secret value is never printed.
   # ======================================================
 
   - name: Validate CI database secret
@@ -375,4 +370,3 @@ steps:
 
       echo
       echo "Docker cleanup completed."
-```
