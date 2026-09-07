@@ -13,9 +13,9 @@ from sqlalchemy import (
     MetaData,
     Table,
     create_engine,
+    func,
     select,
     text,
-    func,
 )
 from sqlalchemy.engine import Connection, Engine
 

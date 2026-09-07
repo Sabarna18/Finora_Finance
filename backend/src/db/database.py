@@ -9,7 +9,6 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 from src.core.config import settings
 
-
 # ==========================================================
 # DATABASE URL
 # ==========================================================

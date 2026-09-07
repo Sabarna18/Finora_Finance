@@ -5,17 +5,32 @@
 #
 # Purpose:
 #   Validate, build, start, migrate, smoke-test and clean the
-#   complete Docker Compose stack before images are published.
+#   Docker application stack used by GitHub Actions.
 #
-# Docker services:
-#   - postgres
-#   - backend
-#   - web
+# Current architecture:
+#
+#   backend
+#      │
+#      └── PostgreSQL supplied by CI environment
+#
+#   web
+#      │
+#      └── backend
+#
+# Production/local runtime:
+#
+#   backend → Neon PostgreSQL
+#
+# IMPORTANT:
+#
+#   This script MUST NOT run migrations against production Neon.
 #
 # Usage:
+#
 #   ./scripts/docker.sh
 #
 # Optional:
+#
 #   COMPOSE_FILE=compose.yml ./scripts/docker.sh
 # ============================================================
 
@@ -30,7 +45,6 @@ PROJECT_NAME="${COMPOSE_PROJECT_NAME:-finora-ci}"
 
 COMPOSE_FILE="${COMPOSE_FILE:-compose.yml}"
 
-DATABASE_SERVICE="${DATABASE_SERVICE:-postgres}"
 BACKEND_SERVICE="${BACKEND_SERVICE:-backend}"
 WEB_SERVICE="${WEB_SERVICE:-web}"
 
@@ -101,8 +115,22 @@ compose() {
 # ============================================================
 # TEMPORARY CI ENVIRONMENT
 # ============================================================
+#
+# IMPORTANT:
+#
+# The production/local application uses Neon.
+#
+# Docker validation must NOT use production Neon.
+#
+# The CI Compose environment therefore receives database
+# configuration from the CI Compose stack.
+#
+# The actual database host is expected to be supplied by the
+# CI Compose configuration rather than hard-coded here.
+# ============================================================
 
 create_ci_env() {
+
     log "Creating temporary CI environment..."
 
     mkdir -p "$(dirname "${CI_ENV_FILE}")"
@@ -119,33 +147,41 @@ create_ci_env() {
 # Application
 # ------------------------------------------------------------
 
-ENVIRONMENT=testing
+APP_NAME=Finora
 APP_ENV=testing
+DEBUG=False
+
+ENVIRONMENT=testing
 
 # ------------------------------------------------------------
 # Security
 # ------------------------------------------------------------
 
 SECRET_KEY=finora-ci-validation-secret-key
+ALGORITHM=HS256
+
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+
 JWT_SECRET_KEY=finora-ci-validation-jwt-secret
 
 # ------------------------------------------------------------
 # PostgreSQL
+#
+# These values are overridden by the CI Compose environment.
 # ------------------------------------------------------------
 
 POSTGRES_USER=finora
 POSTGRES_PASSWORD=finora
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
 POSTGRES_DB=finora
-
-# ------------------------------------------------------------
-# Database
-# ------------------------------------------------------------
-
-DATABASE_URL=postgresql+psycopg://finora:finora@postgres:5432/finora
+POSTGRES_SSLMODE=disable
 
 # ------------------------------------------------------------
 # CORS
 # ------------------------------------------------------------
+
+BACKEND_CORS_ORIGINS=["http://localhost:80","http://localhost:5173"]
 
 CORS_ORIGINS=["http://localhost:80","http://localhost:5173"]
 
@@ -167,13 +203,14 @@ EOF
 # ============================================================
 
 cleanup() {
+
     local exit_code=$?
 
     printf '\n'
 
     log "Collecting final container status..."
 
-    compose ps || true
+    compose ps -a || true
 
     printf '\n'
 
@@ -185,19 +222,25 @@ cleanup() {
         || true
 
     if [[ -f "${CI_ENV_FILE}" ]]; then
+
         log "Removing temporary CI environment..."
 
         rm -f "${CI_ENV_FILE}"
 
         success "Temporary CI environment removed."
+
     fi
 
     printf '\n'
 
     if [[ ${exit_code} -eq 0 ]]; then
+
         success "Docker validation completed successfully."
+
     else
+
         error "Docker validation failed with exit code ${exit_code}."
+
     fi
 
     exit "${exit_code}"
@@ -211,6 +254,7 @@ trap cleanup EXIT
 # ============================================================
 
 on_error() {
+
     local line="$1"
 
     error "Failure detected at line ${line}."
@@ -219,7 +263,7 @@ on_error() {
 
     warning "Container status:"
 
-    compose ps || true
+    compose ps -a || true
 
     printf '\n'
 
@@ -238,34 +282,19 @@ trap 'on_error ${LINENO}' ERR
 # ============================================================
 
 require_command() {
+
     if ! command -v "$1" >/dev/null 2>&1; then
+
         error "Required command not found: $1"
+
         exit 1
+
     fi
 }
 
 
 # ============================================================
 # WEB DIAGNOSTICS
-#
-# IMPORTANT:
-#
-# Do NOT construct a container name from:
-#
-#   PROJECT_NAME + WEB_SERVICE
-#
-# Compose may use an explicit `container_name`.
-#
-# Instead, resolve the actual container ID through Compose:
-#
-#   compose ps -q "${WEB_SERVICE}"
-#
-# This works with:
-#
-#   service name:  web
-#   container:    finora-web
-#
-# and avoids project/container-name assumptions.
 # ============================================================
 
 diagnose_web_health() {
@@ -273,13 +302,14 @@ diagnose_web_health() {
     local web_container_id
 
     printf '\n'
+
     echo "============================================================"
     echo " WEB CONTAINER HEALTH DIAGNOSTICS"
     echo "============================================================"
 
 
     # --------------------------------------------------------
-    # Resolve actual web container
+    # Resolve web container
     # --------------------------------------------------------
 
     echo
@@ -296,11 +326,10 @@ diagnose_web_health() {
 
         error "Unable to resolve container for Compose service: ${WEB_SERVICE}"
 
-        echo
-        echo "Compose container status:"
         compose ps -a || true
 
         return 0
+
     fi
 
     echo "Compose service : ${WEB_SERVICE}"
@@ -349,7 +378,7 @@ Retries:     {{.Config.Healthcheck.Retries}}
 
 
     # --------------------------------------------------------
-    # Docker healthcheck execution history
+    # Healthcheck history
     # --------------------------------------------------------
 
     echo
@@ -371,7 +400,7 @@ Output:
 
 
     # --------------------------------------------------------
-    # Current Docker health status
+    # Current health
     # --------------------------------------------------------
 
     echo
@@ -384,7 +413,7 @@ Output:
 
 
     # --------------------------------------------------------
-    # Nginx configuration validation
+    # Nginx validation
     # --------------------------------------------------------
 
     echo
@@ -398,7 +427,7 @@ Output:
 
 
     # --------------------------------------------------------
-    # Health endpoint from INSIDE web container
+    # Internal web health endpoint
     # --------------------------------------------------------
 
     echo
@@ -408,34 +437,22 @@ Output:
         -T \
         "${WEB_SERVICE}" \
         sh -c "
-            echo '--- HTTP request ---'
-
             wget \
                 --no-verbose \
                 --tries=1 \
                 --timeout=10 \
                 -O - \
                 'http://127.0.0.1${WEB_HEALTH_PATH}'
-
-            exit_code=\$?
-
-            echo
-            echo \"Exit code: \${exit_code}\"
-
-            exit \${exit_code}
         " \
         2>&1 || true
 
 
     # --------------------------------------------------------
-    # Host → Docker → Nginx
+    # Host → Nginx
     # --------------------------------------------------------
 
     echo
-    echo "[8/9] Testing web endpoint from GitHub runner"
-
-    echo
-    echo "--- HTTP health endpoint ---"
+    echo "[8/9] Testing web health endpoint from GitHub runner"
 
     curl \
         --verbose \
@@ -445,7 +462,7 @@ Output:
 
 
     # --------------------------------------------------------
-    # Host → Docker → Nginx → React
+    # Host → Nginx → React
     # --------------------------------------------------------
 
     echo
@@ -476,13 +493,19 @@ require_command docker
 require_command curl
 
 if ! docker info >/dev/null 2>&1; then
+
     error "Docker daemon is not available."
+
     exit 1
+
 fi
 
 if ! docker compose version >/dev/null 2>&1; then
+
     error "Docker Compose is not available."
+
     exit 1
+
 fi
 
 success "Docker environment is available."
@@ -495,8 +518,11 @@ success "Docker environment is available."
 log "Checking Compose file..."
 
 if [[ ! -f "${COMPOSE_FILE}" ]]; then
+
     error "Compose file not found: ${COMPOSE_FILE}"
+
     exit 1
+
 fi
 
 success "Compose file found: ${COMPOSE_FILE}"
@@ -524,14 +550,13 @@ success "Compose configuration is valid."
 # 5. REQUIRED SERVICES
 # ============================================================
 
-log "Checking required services..."
+log "Checking required application services..."
 
 services="$(
     compose config --services
 )"
 
 required_services=(
-    "${DATABASE_SERVICE}"
     "${BACKEND_SERVICE}"
     "${WEB_SERVICE}"
 )
@@ -539,17 +564,20 @@ required_services=(
 for service in "${required_services[@]}"; do
 
     if ! grep -qx "${service}" <<< "${services}"; then
+
         error "Required Compose service is missing: ${service}"
+
         exit 1
+
     fi
 
 done
 
-success "Required Docker services are present."
+success "Required application services are present."
 
 
 # ============================================================
-# 6. BUILD ENTIRE STACK
+# 6. BUILD COMPLETE STACK
 # ============================================================
 
 log "Building complete Docker stack..."
@@ -561,7 +589,7 @@ success "Complete Docker stack built successfully."
 
 
 # ============================================================
-# 7. START ENTIRE STACK
+# 7. START COMPLETE STACK
 # ============================================================
 
 log "Starting complete Docker stack..."
@@ -573,10 +601,10 @@ success "Docker stack started."
 
 
 # ============================================================
-# 8. WAIT FOR CONTAINERS
+# 8. WAIT FOR APPLICATION CONTAINERS
 # ============================================================
 
-log "Waiting for containers to initialize..."
+log "Waiting for application containers..."
 
 elapsed=0
 
@@ -594,15 +622,21 @@ while (( elapsed < STARTUP_TIMEOUT )); do
         )"
 
         if [[ "${state}" != "running" ]]; then
+
             all_running=false
+
             break
+
         fi
 
     done
 
     if [[ "${all_running}" == true ]]; then
-        success "All required containers are running."
+
+        success "All required application containers are running."
+
         break
+
     fi
 
     sleep 2
@@ -613,66 +647,18 @@ done
 
 
 if (( elapsed >= STARTUP_TIMEOUT )); then
-    error "Containers did not become ready within ${STARTUP_TIMEOUT}s."
+
+    error "Application containers did not start within ${STARTUP_TIMEOUT}s."
+
+    compose ps -a
+
     exit 1
+
 fi
 
 
 # ============================================================
-# 9. DATABASE HEALTH
-# ============================================================
-
-log "Checking PostgreSQL health..."
-
-db_health=""
-
-for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
-
-    db_health="$(
-        compose ps \
-            "${DATABASE_SERVICE}" \
-            --format '{{.Health}}' \
-            2>/dev/null || true
-    )"
-
-    if [[ "${db_health}" == "healthy" ]]; then
-        success "PostgreSQL health check passed."
-        break
-    fi
-
-    if (( attempt == HEALTH_RETRIES )); then
-        error "PostgreSQL did not become healthy."
-
-        compose logs \
-            --tail=100 \
-            "${DATABASE_SERVICE}" \
-            || true
-
-        exit 1
-    fi
-
-    sleep 2
-
-done
-
-
-# ============================================================
-# 10. BACKEND HEALTH
-#
-# Backend port 8000 is intentionally INTERNAL.
-#
-# compose.yml uses:
-#
-#   expose:
-#     - "8000"
-#
-# Therefore localhost:8000 on the GitHub runner cannot be used.
-#
-# Docker's native HEALTHCHECK validates:
-#
-#   http://localhost:8000/api/v1/health
-#
-# from INSIDE the backend container.
+# 9. BACKEND HEALTH
 # ============================================================
 
 log "Checking backend health..."
@@ -689,11 +675,28 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
     )"
 
     if [[ "${backend_health}" == "healthy" ]]; then
+
         success "Backend health check passed."
+
         break
+
+    fi
+
+    if [[ "${backend_health}" == "unhealthy" ]]; then
+
+        error "Backend container became unhealthy."
+
+        compose logs \
+            --tail=100 \
+            "${BACKEND_SERVICE}" \
+            || true
+
+        exit 1
+
     fi
 
     if (( attempt == HEALTH_RETRIES )); then
+
         error "Backend did not become healthy."
 
         compose logs \
@@ -702,6 +705,7 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
             || true
 
         exit 1
+
     fi
 
     sleep 2
@@ -710,7 +714,7 @@ done
 
 
 # ============================================================
-# 11. DATABASE MIGRATIONS
+# 10. DATABASE MIGRATIONS
 # ============================================================
 
 log "Running Alembic migrations..."
@@ -724,7 +728,7 @@ success "Database migrations completed successfully."
 
 
 # ============================================================
-# 12. WEB HEALTH
+# 11. WEB HEALTH
 # ============================================================
 
 log "Checking web container health..."
@@ -741,8 +745,11 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
     )"
 
     if [[ "${web_health}" == "healthy" ]]; then
+
         success "Web container health check passed."
+
         break
+
     fi
 
     if [[ "${web_health}" == "unhealthy" ]]; then
@@ -752,15 +759,17 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
         diagnose_web_health
 
         exit 1
+
     fi
 
     if (( attempt == HEALTH_RETRIES )); then
 
-        error "Web container did not become healthy within the expected time."
+        error "Web container did not become healthy."
 
         diagnose_web_health
 
         exit 1
+
     fi
 
     sleep 2
@@ -769,7 +778,7 @@ done
 
 
 # ============================================================
-# 13. WEB HTTP SMOKE TEST
+# 12. WEB HTTP SMOKE TEST
 # ============================================================
 
 log "Checking web HTTP endpoint..."
@@ -787,7 +796,9 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
         >/dev/null; then
 
         success "Web HTTP smoke test passed."
+
         break
+
     fi
 
     if (( attempt == HEALTH_RETRIES )); then
@@ -797,6 +808,7 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
         diagnose_web_health
 
         exit 1
+
     fi
 
     sleep 2
@@ -805,10 +817,10 @@ done
 
 
 # ============================================================
-# 14. WEB HEALTH ENDPOINT SMOKE TEST
+# 13. WEB HEALTH ENDPOINT SMOKE TEST
 # ============================================================
 
-log "Checking web health endpoint from host..."
+log "Checking web health endpoint..."
 
 web_health_url="http://127.0.0.1:${WEB_PORT}${WEB_HEALTH_PATH}"
 
@@ -829,11 +841,12 @@ else
     diagnose_web_health
 
     exit 1
+
 fi
 
 
 # ============================================================
-# 15. FINAL SERVICE STATUS
+# 14. FINAL SERVICE STATUS
 # ============================================================
 
 printf '\n'

@@ -11,7 +11,6 @@ from logging.config import fileConfig
 
 from alembic import context
 
-
 # ==========================================================
 # ALEMBIC CONFIGURATION
 # ==========================================================
@@ -31,14 +30,12 @@ if config.config_file_name is not None:
 # APPLICATION DATABASE
 # ==========================================================
 
+from src.db import models  # noqa: F401,E402
 from src.db.database import (  # noqa: E402
-    Base,
     DATABASE_URL,
+    Base,
     engine,
 )
-
-from src.db import models  # noqa: F401,E402
-
 
 # ==========================================================
 # TARGET METADATA
