@@ -1,374 +1,237 @@
 name: Docker Validation
 
 # ============================================================
-
 # Finora — Docker Validation
-
 #
-
 # Purpose:
-
-# Validate the complete Docker application stack before
-
-# Docker images are published.
-
+#   Validate the complete Docker application stack before
+#   Docker images are published.
 #
-
 # Architecture:
-
 #
-
-# GitHub Actions
-
-# |
-
-# v
-
-# web
-
-# |
-
-# v
-
-# backend
-
-# |
-
-# v
-
-# CI PostgreSQL
-
+#   GitHub Actions
+#        |
+#        v
+#      web
+#        |
+#        v
+#     backend
+#        |
+#        v
+#   CI PostgreSQL
 #
-
 # Database:
-
 #
-
-# FINORA_CI_DATABASE_URL
-
-# |
-
-# v
-
-# temporary backend/.env
-
+#   FINORA_CI_DATABASE_URL
+#        |
+#        v
+#   temporary backend/.env
 #
-
 # IMPORTANT:
-
 #
-
-# - compose.yml contains only backend + web.
-
-# - No PostgreSQL service is defined in Compose.
-
-# - Docker validation uses a dedicated CI database.
-
-# - Production Neon MUST NOT be used by CI.
-
-# - scripts/docker.sh owns environment creation.
-
-# - scripts/docker.sh owns Compose validation.
-
-# - scripts/docker.sh owns Docker cleanup.
-
+#   - compose.yml contains only backend + web.
+#   - No PostgreSQL service is defined in Compose.
+#   - Docker validation uses a dedicated CI database.
+#   - Production Neon MUST NOT be used by CI.
+#   - scripts/docker.sh owns environment creation.
+#   - scripts/docker.sh owns Compose validation.
+#   - scripts/docker.sh owns Docker cleanup.
 #
-
 # ============================================================
 
 on:
-push:
-branches:
-- main
-- master
-- "feature/**"
-paths:
-- "backend/**"
-- "frontend/**"
-- "infrastructure/**"
-- "compose.yaml"
-- "compose.yml"
-- "docker-compose.yml"
-- "scripts/docker.sh"
-- ".dockerignore"
-- ".github/workflows/docker.yml"
+  push:
+    branches:
+      - main
+      - master
+      - "feature/**"
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "infrastructure/**"
+      - "compose.yaml"
+      - "compose.yml"
+      - "docker-compose.yml"
+      - "scripts/docker.sh"
+      - ".dockerignore"
+      - ".github/workflows/docker.yml"
 
-pull_request:
-paths:
-- "backend/**"
-- "frontend/**"
-- "infrastructure/**"
-- "compose.yaml"
-- "compose.yml"
-- "docker-compose.yml"
-- "scripts/docker.sh"
-- ".dockerignore"
-- ".github/workflows/docker.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "infrastructure/**"
+      - "compose.yaml"
+      - "compose.yml"
+      - "docker-compose.yml"
+      - "scripts/docker.sh"
+      - ".dockerignore"
+      - ".github/workflows/docker.yml"
 
-workflow_dispatch:
+  workflow_dispatch:
 
 permissions:
-contents: read
+  contents: read
 
 concurrency:
-group: docker-validation-${{ github.workflow }}-${{ github.ref }}
-cancel-in-progress: true
+  group: docker-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-validate-docker:
-name: Validate Docker Stack
-runs-on: ubuntu-latest
+  validate-docker:
+    name: Validate Docker Stack
+    runs-on: ubuntu-latest
 
-```
-env:
-  COMPOSE_PROJECT_NAME: finora-ci
-  COMPOSE_FILE: compose.yml
-
-  BACKEND_SERVICE: backend
-  WEB_SERVICE: web
-
-  WEB_PORT: 80
-
-  HEALTH_PATH: /api/v1/health
-  WEB_HEALTH_PATH: /web-health
-
-  STARTUP_TIMEOUT: 120
-  HEALTH_RETRIES: 30
-
-  CI_ENV_FILE: backend/.env
-
-steps:
-
-  # ======================================================
-  # 1. CHECKOUT
-  # ======================================================
-
-  - name: Checkout repository
-    uses: actions/checkout@v4
-
-
-  # ======================================================
-  # 2. DOCKER ENVIRONMENT
-  # ======================================================
-
-  - name: Check Docker environment
-    run: |
-      echo "============================================================"
-      echo " Docker Environment"
-      echo "============================================================"
-
-      docker --version
-      docker compose version
-
-      echo
-      echo "Docker environment is available."
-
-
-  # ======================================================
-  # 3. VALIDATE DOCKER SCRIPT
-  # ======================================================
-
-  - name: Validate Docker script
-    run: |
-      echo "============================================================"
-      echo " Docker Script Validation"
-      echo "============================================================"
-
-      if [[ ! -f scripts/docker.sh ]]; then
-        echo "::error::scripts/docker.sh not found."
-        exit 1
-      fi
-
-      chmod +x scripts/docker.sh
-
-      bash -n scripts/docker.sh
-
-      echo
-      echo "Docker validation script exists."
-      echo "Docker validation script syntax is valid."
-
-
-  # ======================================================
-  # 4. VERIFY COMPOSE FILE
-  #
-  # IMPORTANT:
-  #
-  # Do NOT run docker compose config here.
-  #
-  # compose.yml references backend/.env.
-  # scripts/docker.sh creates backend/.env first.
-  # ======================================================
-
-  - name: Verify Compose file
-    run: |
-      echo "============================================================"
-      echo " Compose File"
-      echo "============================================================"
-
-      if [[ ! -f "${COMPOSE_FILE}" ]]; then
-        echo "::error::Compose file not found: ${COMPOSE_FILE}"
-        exit 1
-      fi
-
-      echo "Compose file found: ${COMPOSE_FILE}"
-
-
-  # ======================================================
-  # 5. VALIDATE CI DATABASE SECRET
-  #
-  # The actual secret value is never printed.
-  # ======================================================
-
-  - name: Validate CI database secret
     env:
-      CI_DATABASE_URL: ${{ secrets.FINORA_CI_DATABASE_URL }}
-    run: |
-      echo "============================================================"
-      echo " CI Database Configuration"
-      echo "============================================================"
+      COMPOSE_PROJECT_NAME: finora-ci
+      COMPOSE_FILE: compose.yml
 
-      if [[ -z "${CI_DATABASE_URL}" ]]; then
-        echo "::error::FINORA_CI_DATABASE_URL GitHub secret is not configured."
-        exit 1
-      fi
+      BACKEND_SERVICE: backend
+      WEB_SERVICE: web
 
-      echo "CI database secret is configured."
-      echo "Database credentials will not be printed."
+      WEB_PORT: 80
 
+      HEALTH_PATH: /api/v1/health
+      WEB_HEALTH_PATH: /web-health
 
-  # ======================================================
-  # 6. COMPLETE DOCKER VALIDATION
-  #
-  # scripts/docker.sh owns:
-  #
-  #   - temporary backend/.env creation
-  #   - Compose configuration validation
-  #   - architecture validation
-  #   - Docker image builds
-  #   - container startup
-  #   - backend health
-  #   - database connectivity
-  #   - Alembic state
-  #   - web health
-  #   - Nginx validation
-  #   - HTTP smoke tests
-  #   - Docker cleanup
-  # ======================================================
+      STARTUP_TIMEOUT: 120
+      HEALTH_RETRIES: 30
 
-  - name: Validate complete Docker stack
-    env:
-      CI_DATABASE_URL: ${{ secrets.FINORA_CI_DATABASE_URL }}
-    run: |
-      echo "============================================================"
-      echo " Finora Docker Validation"
-      echo "============================================================"
+      CI_ENV_FILE: backend/.env
 
-      chmod +x scripts/docker.sh
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      ./scripts/docker.sh
+      - name: Check Docker environment
+        run: |
+          echo "============================================================"
+          echo " Docker Environment"
+          echo "============================================================"
 
+          docker --version
+          docker compose version
 
-  # ======================================================
-  # 7. FAILURE DIAGNOSTICS
-  #
-  # Secondary safety net if scripts/docker.sh fails before
-  # collecting its own diagnostics.
-  # ======================================================
+          echo
+          echo "Docker environment is available."
 
-  - name: Collect Docker diagnostics
-    if: failure()
-    run: |
-      echo "============================================================"
-      echo " Docker Diagnostics"
-      echo "============================================================"
+      - name: Validate Docker script
+        run: |
+          echo "============================================================"
+          echo " Docker Script Validation"
+          echo "============================================================"
 
-      echo
-      echo "------------------------------------------------------------"
-      echo " Docker Containers"
-      echo "------------------------------------------------------------"
+          if [[ ! -f scripts/docker.sh ]]; then
+            echo "::error::scripts/docker.sh not found."
+            exit 1
+          fi
 
-      docker ps -a || true
+          chmod +x scripts/docker.sh
+          bash -n scripts/docker.sh
 
-      echo
-      echo "------------------------------------------------------------"
-      echo " Compose Status"
-      echo "------------------------------------------------------------"
+          echo
+          echo "Docker validation script exists."
+          echo "Docker validation script syntax is valid."
 
-      docker compose \
-        -f "${COMPOSE_FILE}" \
-        ps -a || true
+      - name: Verify Compose file
+        run: |
+          echo "============================================================"
+          echo " Compose File"
+          echo "============================================================"
 
-      echo
-      echo "------------------------------------------------------------"
-      echo " Compose Services"
-      echo "------------------------------------------------------------"
+          if [[ ! -f "${COMPOSE_FILE}" ]]; then
+            echo "::error::Compose file not found: ${COMPOSE_FILE}"
+            exit 1
+          fi
 
-      docker compose \
-        -f "${COMPOSE_FILE}" \
-        config --services || true
+          echo "Compose file found: ${COMPOSE_FILE}"
 
-      echo
-      echo "------------------------------------------------------------"
-      echo " Compose Logs"
-      echo "------------------------------------------------------------"
+      - name: Validate CI database secret
+        env:
+          CI_DATABASE_URL: ${{ secrets.FINORA_CI_DATABASE_URL }}
+        run: |
+          echo "============================================================"
+          echo " CI Database Configuration"
+          echo "============================================================"
 
-      docker compose \
-        -f "${COMPOSE_FILE}" \
-        logs \
-        --no-color \
-        --tail=200 \
-        || true
+          if [[ -z "${CI_DATABASE_URL}" ]]; then
+            echo "::error::FINORA_CI_DATABASE_URL GitHub secret is not configured."
+            exit 1
+          fi
 
-      echo
-      echo "------------------------------------------------------------"
-      echo " Backend Logs"
-      echo "------------------------------------------------------------"
+          echo "CI database secret is configured."
+          echo "Database credentials will not be printed."
 
-      docker compose \
-        -f "${COMPOSE_FILE}" \
-        logs \
-        --no-color \
-        --tail=200 \
-        backend \
-        || true
+      - name: Validate complete Docker stack
+        env:
+          CI_DATABASE_URL: ${{ secrets.FINORA_CI_DATABASE_URL }}
+        run: |
+          echo "============================================================"
+          echo " Finora Docker Validation"
+          echo "============================================================"
 
-      echo
-      echo "------------------------------------------------------------"
-      echo " Web Logs"
-      echo "------------------------------------------------------------"
+          chmod +x scripts/docker.sh
+          ./scripts/docker.sh
 
-      docker compose \
-        -f "${COMPOSE_FILE}" \
-        logs \
-        --no-color \
-        --tail=200 \
-        web \
-        || true
+      - name: Collect Docker diagnostics
+        if: failure()
+        run: |
+          echo "============================================================"
+          echo " Docker Diagnostics"
+          echo "============================================================"
 
+          echo
+          echo "------------------------------------------------------------"
+          echo " Docker Containers"
+          echo "------------------------------------------------------------"
 
-  # ======================================================
-  # 8. FINAL CLEANUP
-  #
-  # scripts/docker.sh already performs cleanup.
-  # This is an additional GitHub Actions safety net.
-  # ======================================================
+          docker ps -a || true
 
-  - name: Docker cleanup
-    if: always()
-    run: |
-      echo "============================================================"
-      echo " Docker Cleanup"
-      echo "============================================================"
+          echo
+          echo "------------------------------------------------------------"
+          echo " Compose Status"
+          echo "------------------------------------------------------------"
 
-      docker compose \
-        -f "${COMPOSE_FILE}" \
-        down \
-        --volumes \
-        --remove-orphans \
-        || true
+          docker compose             -f "${COMPOSE_FILE}"             ps -a || true
 
-      rm -f "${CI_ENV_FILE}" || true
+          echo
+          echo "------------------------------------------------------------"
+          echo " Compose Services"
+          echo "------------------------------------------------------------"
 
-      echo
-      echo "Docker cleanup completed."
-```
+          docker compose             -f "${COMPOSE_FILE}"             config --services || true
+
+          echo
+          echo "------------------------------------------------------------"
+          echo " Compose Logs"
+          echo "------------------------------------------------------------"
+
+          docker compose             -f "${COMPOSE_FILE}"             logs             --no-color             --tail=200             || true
+
+          echo
+          echo "------------------------------------------------------------"
+          echo " Backend Logs"
+          echo "------------------------------------------------------------"
+
+          docker compose             -f "${COMPOSE_FILE}"             logs             --no-color             --tail=200             backend             || true
+
+          echo
+          echo "------------------------------------------------------------"
+          echo " Web Logs"
+          echo "------------------------------------------------------------"
+
+          docker compose             -f "${COMPOSE_FILE}"             logs             --no-color             --tail=200             web             || true
+
+      - name: Docker cleanup
+        if: always()
+        run: |
+          echo "============================================================"
+          echo " Docker Cleanup"
+          echo "============================================================"
+
+          docker compose             -f "${COMPOSE_FILE}"             down             --volumes             --remove-orphans             || true
+
+          rm -f "${CI_ENV_FILE}" || true
+
+          echo
+          echo "Docker cleanup completed."
