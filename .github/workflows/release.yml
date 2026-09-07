@@ -1,0 +1,207 @@
+# ============================================================
+# Finora — Release
+#
+# Release trigger:
+#
+#   git tag v1.0.0
+#   git push origin v1.0.0
+#
+# Release flow:
+#
+#   Version tag
+#       ↓
+#   Docker validation
+#       ↓
+#   Full Compose stack
+#       ↓
+#   PostgreSQL health
+#       ↓
+#   Backend health
+#       ↓
+#   Alembic migrations
+#       ↓
+#   Web health
+#       ↓
+#   HTTP smoke tests
+#       ↓
+#   Cleanup
+#       ↓
+#   Publish validated images to GHCR
+#
+# ============================================================
+
+name: Release
+
+
+# ============================================================
+# TRIGGERS
+# ============================================================
+
+on:
+
+  push:
+    tags:
+      - "v*.*.*"
+
+
+# ============================================================
+# PERMISSIONS
+# ============================================================
+
+permissions:
+  contents: read
+  packages: write
+
+
+# ============================================================
+# RELEASE JOB
+# ============================================================
+
+jobs:
+
+  release:
+
+    name: Validate and Publish Docker Images
+
+    runs-on: ubuntu-latest
+
+
+    # --------------------------------------------------------
+    # Environment
+    # --------------------------------------------------------
+
+    env:
+      COMPOSE_PROJECT_NAME: finora-ci
+
+
+    steps:
+
+      # ======================================================
+      # 1. CHECKOUT
+      # ======================================================
+
+      - name: Checkout repository
+
+        uses: actions/checkout@v5
+
+
+      # ======================================================
+      # 2. SET UP DOCKER
+      # ======================================================
+
+      - name: Set up Docker Buildx
+
+        uses: docker/setup-buildx-action@v3
+
+
+      # ======================================================
+      # 3. DOCKER ENVIRONMENT
+      # ======================================================
+
+      - name: Verify Docker environment
+
+        run: |
+          docker --version
+          docker compose version
+
+
+      # ======================================================
+      # 4. MAKE SCRIPTS EXECUTABLE
+      # ======================================================
+
+      - name: Make release scripts executable
+
+        run: |
+          chmod +x scripts/docker.sh
+          chmod +x scripts/release.sh
+
+
+      # ======================================================
+      # 5. FULL DOCKER VALIDATION
+      #
+      # This is the release gate.
+      #
+      # scripts/docker.sh:
+      #
+      #   - creates CI environment
+      #   - validates compose
+      #   - builds complete stack
+      #   - starts PostgreSQL
+      #   - checks PostgreSQL health
+      #   - starts backend
+      #   - checks backend health
+      #   - runs Alembic migrations
+      #   - checks web health
+      #   - runs web smoke tests
+      #   - cleans containers/volumes/network
+      #
+      # The Docker images remain available locally after
+      # `docker compose down`.
+      # ======================================================
+
+      - name: Validate Docker stack
+
+        run: |
+          ./scripts/docker.sh
+
+
+      # ======================================================
+      # 6. PUBLISH VALIDATED IMAGES
+      #
+      # This step only runs if the complete Docker validation
+      # above succeeds.
+      #
+      # release.sh DOES NOT rebuild.
+      #
+      # It publishes:
+      #
+      #   finora-ci-backend → GHCR
+      #   finora-ci-web     → GHCR
+      #
+      # ======================================================
+
+      - name: Publish validated images to GHCR
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_ACTOR: ${{ github.actor }}
+
+        run: |
+          ./scripts/release.sh "${GITHUB_REF_NAME}"
+
+
+      # ======================================================
+      # 7. RELEASE SUMMARY
+      # ======================================================
+
+      - name: Release summary
+
+        run: |
+
+          echo "============================================================"
+          echo " Finora Release"
+          echo "============================================================"
+
+          echo
+          echo "Git tag:"
+          echo "  ${GITHUB_REF_NAME}"
+
+          echo
+          echo "Repository:"
+          echo "  ${GITHUB_REPOSITORY}"
+
+          echo
+          echo "GHCR:"
+          echo "  ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/finora-backend:${GITHUB_REF_NAME#v}"
+          echo "  ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/finora-backend:latest"
+          echo
+          echo "  ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/finora-web:${GITHUB_REF_NAME#v}"
+          echo "  ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/finora-web:latest"
+
+          echo
+          echo "============================================================"
+          echo " Release successful"
+          echo "============================================================"
+
