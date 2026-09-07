@@ -148,7 +148,7 @@ EOF
 # ============================================================
 
 parse_database_url() {
-    log "Parsing CI PostgreSQL connection string..."
+    printf '%b\n' "${BLUE}[DOCKER]${NC} Parsing CI PostgreSQL connection string..." >&2
 
     python3 - "${CI_DATABASE_URL}" <<'PY'
 from __future__ import annotations
