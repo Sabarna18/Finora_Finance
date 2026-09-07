@@ -1,6 +1,7 @@
 # ==========================================================
 # Finora Backend
 # FastAPI + Uvicorn + Alembic
+# Environment-neutral Docker image
 # ==========================================================
 
 FROM python:3.13-slim
@@ -12,7 +13,8 @@ FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/backend
+    PYTHONPATH=/backend \
+    PATH="/backend/.venv/bin:$PATH"
 
 
 # ==========================================================
@@ -26,9 +28,7 @@ WORKDIR /backend
 # System dependencies
 # ==========================================================
 
-# curl is useful for container-level health checks
-# and basic runtime diagnostics.
-
+# curl is used by container health checks.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
@@ -48,24 +48,22 @@ COPY --from=ghcr.io/astral-sh/uv:latest \
 # Dependency files
 # ==========================================================
 
-# Copy these first so Docker can cache dependency
-# installation when application source changes.
-
+# Copy dependency metadata first so Docker can cache
+# dependency installation independently of source changes.
 COPY pyproject.toml uv.lock ./
 
 
 # ==========================================================
-# Install Python dependencies
+# Install runtime dependencies
 # ==========================================================
 
-# --frozen ensures uv.lock is used exactly as committed.
-# --no-dev excludes development/test dependencies.
-
+# --frozen guarantees that the committed uv.lock is used.
+# --no-dev keeps test/development dependencies out of
+# the production runtime image.
 RUN uv sync \
     --frozen \
     --no-dev
 
-ENV PATH="/backend/.venv/bin:$PATH"
 
 # ==========================================================
 # Application source
@@ -78,8 +76,7 @@ COPY . .
 # Entrypoint
 # ==========================================================
 
-RUN chmod +x \
-    /backend/docker-entrypoint.sh
+RUN chmod +x /backend/docker-entrypoint.sh
 
 
 # ==========================================================
@@ -93,6 +90,4 @@ EXPOSE 8000
 # Container startup
 # ==========================================================
 
-ENTRYPOINT [ "/backend/docker-entrypoint.sh" ]
-   
-
+ENTRYPOINT ["/backend/docker-entrypoint.sh"]

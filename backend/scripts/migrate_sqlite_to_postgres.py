@@ -117,10 +117,9 @@ def validate_source(
     log("Validating SQLite source database...")
 
     for table_name in TABLE_ORDER:
-
         table = sqlite_tables[table_name]
 
-        log(f"  {table_name}: " f"{len(table.columns)} columns")
+        log(f"  {table_name}: {len(table.columns)} columns")
 
     log("✓ SQLite source validated")
 
@@ -137,9 +136,8 @@ def print_target_counts(
     log("Current PostgreSQL record counts:")
 
     for table_name in TABLE_ORDER:
-
         count = connection.execute(
-            text(f"SELECT COUNT(*) " f"FROM {table_name}")
+            text(f"SELECT COUNT(*) FROM {table_name}")
         ).scalar_one()
 
         log(f"  {table_name}: {count}")
@@ -167,7 +165,6 @@ def migrate_users(
     rows = sqlite_connection.execute(select(source)).mappings().all()
 
     for row in rows:
-
         old_id = row["id"]
         email = row["email"]
 
@@ -180,7 +177,6 @@ def migrate_users(
         ).scalar_one_or_none()
 
         if existing is not None:
-
             user_id_map[old_id] = existing
 
             log(
@@ -197,7 +193,6 @@ def migrate_users(
         values = {}
 
         for column in target.columns:
-
             name = column.name
 
             if name == "id":
@@ -214,7 +209,7 @@ def migrate_users(
 
         user_id_map[old_id] = new_id
 
-        log(f"  Migrated user: {email} " f"(SQLite {old_id} → PostgreSQL {new_id})")
+        log(f"  Migrated user: {email} (SQLite {old_id} → PostgreSQL {new_id})")
 
     log(f"✓ Users migrated: {len(user_id_map)}")
 
@@ -244,19 +239,17 @@ def migrate_categories(
     rows = sqlite_connection.execute(select(source)).mappings().all()
 
     for row in rows:
-
         old_id = row["id"]
         old_user_id = row["user_id"]
 
         if old_user_id not in user_id_map:
             raise RuntimeError(
-                f"Category {old_id} references " f"unknown user {old_user_id}"
+                f"Category {old_id} references unknown user {old_user_id}"
             )
 
         values = {}
 
         for column in target.columns:
-
             name = column.name
 
             if name == "id":
@@ -276,9 +269,9 @@ def migrate_categories(
 
         category_id_map[old_id] = new_id
 
-        log(f"  Category {row['name']}: " f"{old_id} → {new_id}")
+        log(f"  Category {row['name']}: {old_id} → {new_id}")
 
-    log(f"✓ Categories migrated: " f"{len(category_id_map)}")
+    log(f"✓ Categories migrated: {len(category_id_map)}")
 
     return category_id_map
 
@@ -307,38 +300,31 @@ def migrate_transactions(
     migrated = 0
 
     for row in rows:
-
         values = {}
 
         for column in target.columns:
-
             name = column.name
 
             if name == "id":
                 continue
 
             if name == "user_id":
-
                 old_user_id = row["user_id"]
 
                 if old_user_id not in user_id_map:
                     raise RuntimeError(
-                        f"Transaction {row['id']} "
-                        f"references unknown user "
-                        f"{old_user_id}"
+                        f"Transaction {row['id']} references unknown user {old_user_id}"
                     )
 
                 values[name] = user_id_map[old_user_id]
 
             elif name == "category_id":
-
                 old_category_id = row["category_id"]
 
                 if old_category_id is None:
                     values[name] = None
 
                 else:
-
                     if old_category_id not in category_id_map:
                         raise RuntimeError(
                             f"Transaction {row['id']} "
@@ -349,7 +335,6 @@ def migrate_transactions(
                     values[name] = category_id_map[old_category_id]
 
             elif name in row:
-
                 values[name] = row[name]
 
         postgres_connection.execute(target.insert().values(**values))
@@ -383,38 +368,31 @@ def migrate_budgets(
     migrated = 0
 
     for row in rows:
-
         values = {}
 
         for column in target.columns:
-
             name = column.name
 
             if name == "id":
                 continue
 
             if name == "user_id":
-
                 old_user_id = row["user_id"]
 
                 if old_user_id not in user_id_map:
                     raise RuntimeError(
-                        f"Budget {row['id']} "
-                        f"references unknown user "
-                        f"{old_user_id}"
+                        f"Budget {row['id']} references unknown user {old_user_id}"
                     )
 
                 values[name] = user_id_map[old_user_id]
 
             elif name == "category_id":
-
                 old_category_id = row["category_id"]
 
                 if old_category_id is None:
                     values[name] = None
 
                 else:
-
                     if old_category_id not in category_id_map:
                         raise RuntimeError(
                             f"Budget {row['id']} "
@@ -425,7 +403,6 @@ def migrate_budgets(
                     values[name] = category_id_map[old_category_id]
 
             elif name in row:
-
                 values[name] = row[name]
 
         postgres_connection.execute(target.insert().values(**values))
@@ -447,8 +424,8 @@ def reset_sequences(
     log("Synchronizing PostgreSQL sequences...")
 
     for table_name in TABLE_ORDER:
-
-        connection.execute(text(f"""
+        connection.execute(
+            text(f"""
                 SELECT setval(
                     pg_get_serial_sequence(
                         '{table_name}',
@@ -463,7 +440,8 @@ def reset_sequences(
                     ),
                     true
                 )
-                """))
+                """)
+        )
 
     log("✓ PostgreSQL sequences synchronized")
 
@@ -486,7 +464,6 @@ def validate_migration(
     log("Validating migration...")
 
     for table_name in TABLE_ORDER:
-
         # --------------------------------------------------
         # SQLite count
         # --------------------------------------------------
@@ -503,7 +480,7 @@ def validate_migration(
             select(func.count()).select_from(postgres_tables[table_name])
         ).scalar_one()
 
-        log(f"  {table_name}: " f"SQLite={source_count}, " f"PostgreSQL={target_count}")
+        log(f"  {table_name}: SQLite={source_count}, PostgreSQL={target_count}")
 
     log("✓ Migration validation completed")
 
@@ -531,14 +508,15 @@ def migrate(
         sqlite_engine.connect() as sqlite_connection,
         postgres_engine.begin() as postgres_connection,
     ):
-
         # ----------------------------------------------
         # PostgreSQL connectivity
         # ----------------------------------------------
 
-        postgres_connection.execute(text("""
+        postgres_connection.execute(
+            text("""
                 SELECT 1
-                """))
+                """)
+        )
 
         log("✓ PostgreSQL connection successful")
 
@@ -632,7 +610,7 @@ def migrate(
 def main() -> None:
 
     parser = argparse.ArgumentParser(
-        description=("Migrate Finora SQLite data " "into PostgreSQL.")
+        description=("Migrate Finora SQLite data into PostgreSQL.")
     )
 
     parser.add_argument(
@@ -646,7 +624,7 @@ def main() -> None:
 
     log("Starting Finora data migration")
 
-    log(f"SQLite source: " f"{args.sqlite}")
+    log(f"SQLite source: {args.sqlite}")
 
     log(
         f"PostgreSQL target: "
@@ -656,11 +634,9 @@ def main() -> None:
     )
 
     try:
-
         migrate(args.sqlite)
 
     except Exception as exc:
-
         fail("Migration failed.")
 
         fail(f"Reason: {exc}")

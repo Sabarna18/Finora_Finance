@@ -2,6 +2,7 @@
 
 # ==========================================================
 # Finora - Backend Docker Entrypoint
+# Single Neon PostgreSQL database
 # ==========================================================
 
 set -Eeuo pipefail
@@ -11,11 +12,7 @@ set -Eeuo pipefail
 # Configuration
 # ==========================================================
 
-HOST="${POSTGRES_HOST:-postgres}"
-PORT="${POSTGRES_PORT:-5432}"
-
-MAX_RETRIES="${DB_MAX_RETRIES:-30}"
-RETRY_INTERVAL="${DB_RETRY_INTERVAL:-2}"
+APP_ENV="${APP_ENV:-development}"
 
 
 # ==========================================================
@@ -31,66 +28,138 @@ log() {
 
 
 # ==========================================================
-# Wait for PostgreSQL
+# Validate Application Environment
 # ==========================================================
 
-wait_for_database() {
+validate_environment() {
 
-    log "Waiting for PostgreSQL"
+    log "Environment Configuration"
 
-    local attempt=1
+    case "${APP_ENV}" in
 
-    while ! python - <<PY
-import socket
-import sys
+        development)
+            echo "Environment : development"
+            ;;
 
-host = "${HOST}"
-port = int("${PORT}")
+        production)
+            echo "Environment : production"
+            ;;
 
-try:
-    with socket.create_connection(
-        (host, port),
-        timeout=2,
-    ):
-        pass
-
-except OSError:
-    sys.exit(1)
-PY
-    do
-
-        if (( attempt > MAX_RETRIES )); then
-
+        *)
             echo ""
-            echo "ERROR: PostgreSQL did not become available."
-            echo "Host    : ${HOST}"
-            echo "Port    : ${PORT}"
-            echo "Retries : ${MAX_RETRIES}"
-
+            echo "ERROR: Unsupported APP_ENV: ${APP_ENV}"
+            echo ""
+            echo "Supported environments:"
+            echo "  development"
+            echo "  production"
             exit 1
+            ;;
 
-        fi
-
-        echo "PostgreSQL unavailable."
-        echo "Retry ${attempt}/${MAX_RETRIES}..."
-
-        sleep "${RETRY_INTERVAL}"
-
-        ((attempt++))
-
-    done
-
-    echo "✓ PostgreSQL is available"
+    esac
 }
 
 
 # ==========================================================
-# Database migrations
+# Validate Neon Configuration
+# ==========================================================
+
+validate_database_configuration() {
+
+    log "Neon Database Configuration"
+
+    required_variables=(
+        POSTGRES_USER
+        POSTGRES_PASSWORD
+        POSTGRES_HOST
+        POSTGRES_PORT
+        POSTGRES_DB
+        POSTGRES_SSLMODE
+    )
+
+    for variable in "${required_variables[@]}"; do
+
+        if [[ -z "${!variable:-}" ]]; then
+            echo ""
+            echo "ERROR: Required database variable is missing:"
+            echo "  ${variable}"
+            echo ""
+            exit 1
+        fi
+
+    done
+
+    if [[ "${POSTGRES_SSLMODE}" != "require" ]]; then
+
+        echo ""
+        echo "ERROR: Invalid PostgreSQL SSL mode."
+        echo "Finora requires Neon SSL/TLS."
+        echo ""
+        echo "Expected:"
+        echo "  POSTGRES_SSLMODE=require"
+        echo ""
+        echo "Received:"
+        echo "  POSTGRES_SSLMODE=${POSTGRES_SSLMODE}"
+        echo ""
+
+        exit 1
+    fi
+
+    echo "Database    : Neon PostgreSQL"
+    echo "Host        : ${POSTGRES_HOST}"
+    echo "Port        : ${POSTGRES_PORT}"
+    echo "Database    : ${POSTGRES_DB}"
+    echo "SSL mode    : ${POSTGRES_SSLMODE}"
+}
+
+
+# ==========================================================
+# Check Neon Connectivity
+# ==========================================================
+
+check_database_connection() {
+
+    log "Checking Neon PostgreSQL Connection"
+
+    python - <<'PY'
+import os
+import sys
+
+import psycopg2
+
+
+try:
+    connection = psycopg2.connect(
+        host=os.environ["POSTGRES_HOST"],
+        port=int(os.environ["POSTGRES_PORT"]),
+        database=os.environ["POSTGRES_DB"],
+        user=os.environ["POSTGRES_USER"],
+        password=os.environ["POSTGRES_PASSWORD"],
+        sslmode=os.environ["POSTGRES_SSLMODE"],
+        connect_timeout=10,
+    )
+
+    connection.close()
+
+except Exception as exc:
+    print("")
+    print("ERROR: Unable to connect to Neon PostgreSQL.")
+    print(f"Reason: {exc}")
+    print("")
+    sys.exit(1)
+
+
+print("✓ Neon PostgreSQL connection successful")
+PY
+}
+
+
+# ==========================================================
+# Database Migrations
 # ==========================================================
 
 run_migrations() {
 
-    log "Running database migrations"
+    log "Running Database Migrations"
 
     uv run alembic upgrade head
 
@@ -100,18 +169,33 @@ run_migrations() {
 
 
 # ==========================================================
-# Start application
+# Start Development Server
 # ==========================================================
 
-start_application() {
+start_development() {
 
-    log "Starting Finora API"
+    log "Starting Finora API — Development"
+
+    exec uv run uvicorn \
+        src.app:app \
+        --host 0.0.0.0 \
+        --port 8000 \
+        --reload
+}
+
+
+# ==========================================================
+# Start Production Server
+# ==========================================================
+
+start_production() {
+
+    log "Starting Finora API — Production"
 
     exec uv run uvicorn \
         src.app:app \
         --host 0.0.0.0 \
         --port 8000
-
 }
 
 
@@ -119,10 +203,34 @@ start_application() {
 # Main
 # ==========================================================
 
-log "Finora Backend Starting"
+main() {
 
-wait_for_database
+    log "Finora Backend Starting"
 
-run_migrations
+    validate_environment
 
-start_application
+    validate_database_configuration
+
+    check_database_connection
+
+    run_migrations
+
+    case "${APP_ENV}" in
+
+        development)
+            start_development
+            ;;
+
+        production)
+            start_production
+            ;;
+
+    esac
+}
+
+
+# ==========================================================
+# Execute
+# ==========================================================
+
+main "$@"

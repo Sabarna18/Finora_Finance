@@ -1,137 +1,58 @@
 # ==========================================================
 # Finora - Docker Compose
 #
-# Docker-first development and quality-gate environment
+# Local application stack
+#
+# Database:
+#   Neon PostgreSQL (deployed)
 #
 # Architecture:
 #
-#   postgres
-#       │
-#       │ finora_network
-#       ▼
+#   web
+#    │
+#    ▼
 #   backend
-#       │
-#       ├── backend-check.sh
-#       ├── db-check.sh
-#       ├── pytest
-#       └── Alembic
-#       │
-#       ▼
-#      web
+#    │
+#    │ SSL / PostgreSQL
+#    ▼
+#   Neon PostgreSQL
 #
-# Quality gates:
+# IMPORTANT:
 #
-#   make check
-#       ├── backend quality gate  → Docker
-#       ├── database quality gate → Docker
-#       └── frontend quality gate → Host
-#
-# Database mutation:
-#
-#   make db-upgrade
-#       └── Alembic upgrade head → Docker
+# There is NO local PostgreSQL container.
+# Neon is the single canonical Finora database.
 #
 # ==========================================================
 
+
 services:
-  # ========================================================
-  # PostgreSQL
-  # ========================================================
-
-  postgres:
-    image: postgres:17-alpine
-
-    container_name: finora-postgres
-
-    restart: unless-stopped
-
-    # ------------------------------------------------------
-    # PostgreSQL Environment
-    # ------------------------------------------------------
-
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-
-      POSTGRES_DB: ${POSTGRES_DB}
-
-    # ------------------------------------------------------
-    # PostgreSQL Storage
-    # ------------------------------------------------------
-
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-    # ------------------------------------------------------
-    # PostgreSQL Host Port
-    #
-    # Host:
-    #
-    #   localhost:5432
-    #
-    # Docker network:
-    #
-    #   postgres:5432
-    #
-    # IMPORTANT:
-    #
-    # Native PostgreSQL must not already be occupying
-    # host port 5432.
-    # ------------------------------------------------------
-
-    ports:
-      - "5432:5432"
-
-    # ------------------------------------------------------
-    # PostgreSQL Health Check
-    # ------------------------------------------------------
-
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-
-      interval: 5s
-
-      timeout: 5s
-
-      retries: 10
-
-      start_period: 10s
-
-    # ------------------------------------------------------
-    # Internal Network
-    # ------------------------------------------------------
-
-    networks:
-      - finora_network
 
   # ========================================================
   # FastAPI Backend
+  # ========================================================
   #
-  # This container is the execution environment for:
+  # The backend container is responsible for:
   #
   #   • FastAPI
-  #   • pytest
-  #   • Ruff
-  #   • Black
+  #   • Uvicorn
+  #   • SQLAlchemy
   #   • Alembic
-  #   • backend-check.sh
-  #   • db-check.sh
+  #   • Backend quality tools
   #
-  # The entire backend directory is bind-mounted so that:
+  # Database:
   #
-  #   Host backend/
-  #          ↓
-  #   Docker /backend/
+  #   Neon PostgreSQL
   #
-  # Therefore quality-gate fixes made inside Docker are
-  # immediately visible on the host working tree.
+  # Configuration is loaded from:
+  #
+  #   ./backend/.env
+  #
   # ========================================================
 
   backend:
+
     build:
       context: ./backend
-
       dockerfile: Dockerfile
 
     container_name: finora-backend
@@ -139,74 +60,41 @@ services:
     restart: unless-stopped
 
     # ------------------------------------------------------
-    # Base Application Environment
+    # Application Environment
+    # ------------------------------------------------------
     #
-    # backend/.env provides the general application
-    # configuration.
+    # backend/.env contains the Neon configuration.
     #
-    # Docker-specific PostgreSQL values are overridden
-    # below.
+    # Required database variables:
+    #
+    #   POSTGRES_HOST
+    #   POSTGRES_PORT
+    #   POSTGRES_DB
+    #   POSTGRES_USER
+    #   POSTGRES_PASSWORD
+    #   POSTGRES_SSLMODE=require
+    #
     # ------------------------------------------------------
 
     env_file:
       - ./backend/.env
 
     # ------------------------------------------------------
-    # Docker Backend Environment
-    #
-    # IMPORTANT:
-    #
-    # Inside Docker:
-    #
-    #   localhost = backend container
-    #
-    # PostgreSQL therefore MUST be:
-    #
-    #   postgres:5432
-    # ------------------------------------------------------
-
-    environment:
-      DB_TYPE: postgresql
-
-      POSTGRES_HOST: postgres
-
-      POSTGRES_PORT: 5432
-
-      POSTGRES_USER: ${POSTGRES_USER}
-
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-
-      POSTGRES_DB: ${POSTGRES_DB}
-
-    # ------------------------------------------------------
     # Backend Source Mount
+    # ------------------------------------------------------
     #
-    # REQUIRED for Docker-first quality gates.
+    # Keeps local source code synchronized with the
+    # container and supports Docker-first development.
     #
-    # Makes:
+    # The named /backend/.venv volume prevents the host
+    # environment from overwriting the container venv.
     #
-    #   ./backend/scripts/backend-check.sh
-    #
-    # available inside the container as:
-    #
-    #   /backend/scripts/backend-check.sh
-    #
-    # It also makes source-code formatting/fixes performed
-    # by Ruff and Black visible on the host.
     # ------------------------------------------------------
 
     volumes:
       - ./backend:/backend
       - /backend/.venv
       - backend_logs:/backend/logs
-
-    # ------------------------------------------------------
-    # PostgreSQL Dependency
-    # ------------------------------------------------------
-
-    depends_on:
-      postgres:
-        condition: service_healthy
 
     # ------------------------------------------------------
     # Internal Backend Port
@@ -221,14 +109,13 @@ services:
 
     healthcheck:
       test:
-        ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
-
+        [
+          "CMD-SHELL",
+          "curl -f http://localhost:8000/api/v1/health || exit 1"
+        ]
       interval: 10s
-
       timeout: 5s
-
       retries: 5
-
       start_period: 20s
 
     # ------------------------------------------------------
@@ -238,111 +125,6 @@ services:
     networks:
       - finora_network
 
-  # ========================================================
-  # SQLite → PostgreSQL Migration
-  #
-  # One-time migration service.
-  #
-  # NOT started by:
-  #
-  #   docker compose up
-  #
-  # Run explicitly with:
-  #
-  #   docker compose --profile migration run --rm migration
-  #
-  # ========================================================
-
-  migration:
-    profiles:
-      - migration
-
-    build:
-      context: ./backend
-
-      dockerfile: Dockerfile
-
-    container_name: finora-migration
-
-    # ------------------------------------------------------
-    # Base Migration Environment
-    # ------------------------------------------------------
-
-    env_file:
-      - ./backend/.env
-
-    # ------------------------------------------------------
-    # Docker Migration Environment
-    #
-    # PostgreSQL is reached through:
-    #
-    #   postgres:5432
-    # ------------------------------------------------------
-
-    environment:
-      DB_TYPE: postgresql
-
-      POSTGRES_HOST: postgres
-
-      POSTGRES_PORT: 5432
-
-      POSTGRES_USER: ${POSTGRES_USER}
-
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-
-      POSTGRES_DB: ${POSTGRES_DB}
-
-    # ------------------------------------------------------
-    # PostgreSQL Dependency
-    # ------------------------------------------------------
-
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-    # ------------------------------------------------------
-    # Backend Source
-    #
-    # Mounting the backend directory ensures the migration
-    # script exists at:
-    #
-    #   /backend/scripts/migrate_sqlite_to_postgres.py
-    # ------------------------------------------------------
-
-    volumes:
-      - ./backend:/backend
-
-      # ------------------------------------------------------
-      # SQLite Source Database
-      #
-      # Read-only protection is intentionally preserved.
-      #
-      # The migration process cannot modify the original
-      # SQLite database.
-      # ------------------------------------------------------
-
-      - ./backend/finance.db:/backend/finance.db:ro
-
-    # ------------------------------------------------------
-    # Migration Entrypoint
-    #
-    # Do NOT start FastAPI here.
-    # ------------------------------------------------------
-
-    entrypoint: ["python", "/backend/scripts/migrate_sqlite_to_postgres.py"]
-
-    # ------------------------------------------------------
-    # One-shot Service
-    # ------------------------------------------------------
-
-    restart: "no"
-
-    # ------------------------------------------------------
-    # Internal Network
-    # ------------------------------------------------------
-
-    networks:
-      - finora_network
 
   # ========================================================
   # Web
@@ -351,9 +133,9 @@ services:
   # ========================================================
 
   web:
+
     build:
       context: .
-
       dockerfile: infrastructure/web/Dockerfile
 
       # ----------------------------------------------------
@@ -370,6 +152,10 @@ services:
     # ------------------------------------------------------
     # Backend Dependency
     # ------------------------------------------------------
+    #
+    # Nginx starts after the backend health check passes.
+    #
+    # ------------------------------------------------------
 
     depends_on:
       backend:
@@ -385,11 +171,12 @@ services:
     # ------------------------------------------------------
     # Web Health Check
     # ------------------------------------------------------
+
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://127.0.0.1/web-health || exit 1",
+          "wget --no-verbose --tries=1 --spider http://127.0.0.1/web-health || exit 1"
         ]
       interval: 10s
       timeout: 5s
@@ -403,23 +190,30 @@ services:
     networks:
       - finora_network
 
+
 # ==========================================================
 # Persistent Volumes
 # ==========================================================
+#
+# PostgreSQL volume has intentionally been removed.
+#
+# Neon owns the database persistence.
+#
+# ==========================================================
 
 volumes:
-  postgres_data:
-    name: finora_postgres_data
 
   backend_logs:
     name: finora_backend_logs
+
 
 # ==========================================================
 # Docker Network
 # ==========================================================
 
 networks:
+
   finora_network:
     name: finora_network
-
     driver: bridge
+

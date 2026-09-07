@@ -5,10 +5,7 @@
 from functools import lru_cache
 
 from pydantic import Field
-from pydantic_settings import (
-    BaseSettings,
-    SettingsConfigDict,
-)
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -16,6 +13,7 @@ class Settings(BaseSettings):
     Central configuration for Finora.
 
     Configuration precedence:
+
         1. Runtime environment variables
         2. .env file
         3. Python defaults
@@ -26,38 +24,28 @@ class Settings(BaseSettings):
     # ======================================================
 
     APP_NAME: str = "Finora"
+    APP_ENV: str = "development"
     DEBUG: bool = False
 
     # ======================================================
     # Database
     # ======================================================
 
-    DB_TYPE: str = Field(
-        default="sqlite",
-        description="Database type: sqlite or postgresql",
-    )
+    # Finora uses PostgreSQL exclusively.
+    # The PostgreSQL database is hosted by Neon.
 
-    # ------------------------------------------------------
-    # SQLite
-    # ------------------------------------------------------
-
-    SQLITE_DB_PATH: str = "./finance.db"
-
-    # ------------------------------------------------------
-    # PostgreSQL
-    # ------------------------------------------------------
-
-    POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "password"
-    POSTGRES_HOST: str = "localhost"
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_HOST: str
     POSTGRES_PORT: int = 5432
-    POSTGRES_DB: str = "finance_db"
+    POSTGRES_DB: str
+    POSTGRES_SSLMODE: str = "require"
 
     # ======================================================
     # Security
     # ======================================================
 
-    SECRET_KEY: str = "supersecretkey"
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
@@ -65,9 +53,13 @@ class Settings(BaseSettings):
     # CORS
     # ======================================================
 
-    BACKEND_CORS_ORIGINS: list[str] = [
-        "http://localhost",
-    ]
+    BACKEND_CORS_ORIGINS: list[str] = Field(
+        default_factory=lambda: [
+            "http://localhost",
+            "http://localhost:3000",
+            "http://localhost:5173",
+        ]
+    )
 
     # ======================================================
     # Pydantic Settings
@@ -81,8 +73,15 @@ class Settings(BaseSettings):
     )
 
 
+# ==========================================================
+# SETTINGS
+# ==========================================================
+
 @lru_cache
 def get_settings() -> Settings:
+    """
+    Return cached application settings.
+    """
     return Settings()
 
 

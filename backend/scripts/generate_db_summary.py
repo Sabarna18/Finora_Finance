@@ -116,7 +116,6 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from src.db.database import engine
 
-
 # ============================================================
 # DISPLAY CONFIGURATION
 # ============================================================
@@ -166,22 +165,17 @@ def get_database_information(database_engine: Engine) -> dict[str, object]:
     """
 
     with database_engine.connect() as connection:
-
         database_name = connection.execute(
             text("SELECT current_database()")
         ).scalar_one()
 
-        current_user = connection.execute(
-            text("SELECT current_user")
-        ).scalar_one()
+        current_user = connection.execute(text("SELECT current_user")).scalar_one()
 
         server_version = connection.execute(
             text("SELECT current_setting('server_version')")
         ).scalar_one()
 
-        server_time = connection.execute(
-            text("SELECT CURRENT_TIMESTAMP")
-        ).scalar_one()
+        server_time = connection.execute(text("SELECT CURRENT_TIMESTAMP")).scalar_one()
 
     return {
         "name": database_name,
@@ -229,18 +223,13 @@ def print_table_columns(
     print("  Column definitions:")
 
     for column in columns:
-
         name = column["name"]
         column_type = str(column["type"])
         nullable = column["nullable"]
 
         nullable_text = "NULL" if nullable else "NOT NULL"
 
-        print(
-            f"    - {name:<25}"
-            f"{column_type:<22}"
-            f"{nullable_text}"
-        )
+        print(f"    - {name:<25}{column_type:<22}{nullable_text}")
 
 
 # ============================================================
@@ -259,13 +248,11 @@ def print_primary_key(
     constrained_columns = primary_key.get("constrained_columns") or []
 
     if constrained_columns:
-
         columns = ", ".join(constrained_columns)
 
         print(f"  Primary key  : {columns}")
 
     else:
-
         print("  Primary key  : none")
 
 
@@ -285,9 +272,7 @@ def get_indexes(
     indexes: list[dict[str, object]] = []
 
     for table_name in tables:
-
         for index in inspector.get_indexes(table_name):
-
             indexes.append(
                 {
                     "table": table_name,
@@ -308,26 +293,16 @@ def print_indexes(
     print_section("INDEX SUMMARY")
 
     if not indexes:
-
         print("No indexes found.")
         return
 
     for index in indexes:
-
         table_name = index["table"]
         name = index["name"] or "<unnamed>"
         columns = ", ".join(index["columns"])  # type: ignore[arg-type]
-        uniqueness = (
-            "UNIQUE"
-            if index["unique"]
-            else "NON-UNIQUE"
-        )
+        uniqueness = "UNIQUE" if index["unique"] else "NON-UNIQUE"
 
-        print(
-            f"  {table_name}.{name}"
-            f" [{uniqueness}]"
-            f" ({columns})"
-        )
+        print(f"  {table_name}.{name} [{uniqueness}] ({columns})")
 
     print()
     print(f"Total indexes : {len(indexes)}")
@@ -349,23 +324,13 @@ def get_foreign_keys(
     foreign_keys: list[dict[str, object]] = []
 
     for table_name in tables:
-
         for foreign_key in inspector.get_foreign_keys(table_name):
-
             foreign_keys.append(
                 {
                     "table": table_name,
-                    "columns": foreign_key.get(
-                        "constrained_columns"
-                    )
-                    or [],
-                    "referred_table": foreign_key.get(
-                        "referred_table"
-                    ),
-                    "referred_columns": foreign_key.get(
-                        "referred_columns"
-                    )
-                    or [],
+                    "columns": foreign_key.get("constrained_columns") or [],
+                    "referred_table": foreign_key.get("referred_table"),
+                    "referred_columns": foreign_key.get("referred_columns") or [],
                 }
             )
 
@@ -380,31 +345,21 @@ def print_foreign_keys(
     print_section("FOREIGN KEY SUMMARY")
 
     if not foreign_keys:
-
         print("No foreign keys found.")
         return
 
     for foreign_key in foreign_keys:
-
         table_name = foreign_key["table"]
 
-        columns = ", ".join(
-            foreign_key["columns"]  # type: ignore[arg-type]
-        )
+        columns = ", ".join(foreign_key["columns"])  # type: ignore[arg-type]
 
-        referred_table = (
-            foreign_key["referred_table"]
-            or "<unknown>"
-        )
+        referred_table = foreign_key["referred_table"] or "<unknown>"
 
         referred_columns = ", ".join(
             foreign_key["referred_columns"]  # type: ignore[arg-type]
         )
 
-        print(
-            f"  {table_name}.{columns}"
-            f" -> {referred_table}.{referred_columns}"
-        )
+        print(f"  {table_name}.{columns} -> {referred_table}.{referred_columns}")
 
     print()
     print(f"Total foreign keys : {len(foreign_keys)}")
@@ -429,27 +384,15 @@ def get_row_counts(
 
     counts: dict[str, int] = {}
 
-    identifier_preparer = (
-        inspector.engine.dialect.identifier_preparer
-    )
+    identifier_preparer = inspector.engine.dialect.identifier_preparer
 
     with database_engine.connect() as connection:
-
         for table_name in tables:
+            quoted_table = identifier_preparer.quote(table_name)
 
-            quoted_table = identifier_preparer.quote(
-                table_name
-            )
+            result = connection.execute(text(f"SELECT COUNT(*) FROM {quoted_table}"))
 
-            result = connection.execute(
-                text(
-                    f"SELECT COUNT(*) FROM {quoted_table}"
-                )
-            )
-
-            counts[table_name] = int(
-                result.scalar_one()
-            )
+            counts[table_name] = int(result.scalar_one())
 
     return counts
 
@@ -462,16 +405,11 @@ def print_row_counts(
     print_section("ROW COUNTS")
 
     if not row_counts:
-
         print("No tables found.")
         return
 
     for table_name, count in row_counts.items():
-
-        print(
-            f"  {table_name:<32}"
-            f"{count:>10}"
-        )
+        print(f"  {table_name:<32}{count:>10}")
 
 
 # ============================================================
@@ -488,12 +426,10 @@ def print_table_summary(
     print_section("TABLE DETAILS")
 
     if not tables:
-
         print("No tables found.")
         return
 
     for table_name in tables:
-
         print()
         print(f"[{table_name}]")
 
@@ -507,21 +443,13 @@ def print_table_summary(
             table_name,
         )
 
-        indexes = inspector.get_indexes(
-            table_name
-        )
+        indexes = inspector.get_indexes(table_name)
 
-        foreign_keys = inspector.get_foreign_keys(
-            table_name
-        )
+        foreign_keys = inspector.get_foreign_keys(table_name)
 
-        print(
-            f"  Indexes      : {len(indexes)}"
-        )
+        print(f"  Indexes      : {len(indexes)}")
 
-        print(
-            f"  Foreign keys : {len(foreign_keys)}"
-        )
+        print(f"  Foreign keys : {len(foreign_keys)}")
 
 
 # ============================================================
@@ -570,9 +498,7 @@ def generate_database_summary(database_engine: Engine) -> None:
     # Database information
     # --------------------------------------------------------
 
-    database_information = get_database_information(
-        database_engine
-    )
+    database_information = get_database_information(database_engine)
 
     print_section("DATABASE")
 
@@ -611,7 +537,6 @@ def generate_database_summary(database_engine: Engine) -> None:
     print_section("TABLES")
 
     if tables:
-
         print_key_value(
             "Total tables",
             len(tables),
@@ -620,11 +545,9 @@ def generate_database_summary(database_engine: Engine) -> None:
         print()
 
         for table_name in tables:
-
             print(f"  • {table_name}")
 
     else:
-
         print("No tables found.")
 
     # --------------------------------------------------------
@@ -703,11 +626,9 @@ def main() -> int:
     """
 
     try:
-
         generate_database_summary(engine)
 
     except SQLAlchemyError as exc:
-
         print()
         print("=" * TITLE_WIDTH)
         print(" Database summary failed")
@@ -719,7 +640,6 @@ def main() -> int:
         return 1
 
     except Exception as exc:
-
         print()
         print("=" * TITLE_WIDTH)
         print(" Database summary failed")
@@ -735,4 +655,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
