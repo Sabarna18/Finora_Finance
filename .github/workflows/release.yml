@@ -1,3 +1,5 @@
+name: Release
+
 # ============================================================
 # Finora — Release
 #
@@ -10,198 +12,239 @@
 #
 #   Version tag
 #       ↓
-#   Docker validation
+#   Docker environment
 #       ↓
-#   Full Compose stack
+#   Dedicated CI PostgreSQL
 #       ↓
-#   PostgreSQL health
+#   Full Compose validation
 #       ↓
-#   Backend health
+#   Backend + Web images
 #       ↓
-#   Alembic migrations
-#       ↓
-#   Web health
-#       ↓
-#   HTTP smoke tests
+#   Health / smoke tests
 #       ↓
 #   Cleanup
 #       ↓
 #   Publish validated images to GHCR
 #
-# ============================================================
-
-name: Release
-
-
-# ============================================================
-# TRIGGERS
+# Production database:
+#
+#   Neon PostgreSQL is NOT accessed by this workflow.
+#
+# Production deployment:
+#
+#   GHCR backend image
+#       ↓
+#   Render
+#       ↓
+#   Neon PostgreSQL
+#
 # ============================================================
 
 on:
-
   push:
     tags:
       - "v*.*.*"
-
-
-# ============================================================
-# PERMISSIONS
-# ============================================================
 
 permissions:
   contents: read
   packages: write
 
-
-# ============================================================
-# RELEASE JOB
-# ============================================================
+concurrency:
+  group: finora-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-
   release:
-
     name: Validate and Publish Docker Images
-
     runs-on: ubuntu-latest
-
-
-    # --------------------------------------------------------
-    # Environment
-    # --------------------------------------------------------
 
     env:
       COMPOSE_PROJECT_NAME: finora-ci
-
+      COMPOSE_FILE: compose.yml
 
     steps:
-
       # ======================================================
       # 1. CHECKOUT
       # ======================================================
 
       - name: Checkout repository
-
-        uses: actions/checkout@v5
-
+        uses: actions/checkout@v4
 
       # ======================================================
-      # 2. SET UP DOCKER
+      # 2. SET UP DOCKER BUILDX
       # ======================================================
 
       - name: Set up Docker Buildx
-
         uses: docker/setup-buildx-action@v3
-
 
       # ======================================================
       # 3. DOCKER ENVIRONMENT
       # ======================================================
 
       - name: Verify Docker environment
-
         run: |
+          echo "============================================================"
+          echo " Docker Environment"
+          echo "============================================================"
+
           docker --version
           docker compose version
-
 
       # ======================================================
       # 4. MAKE SCRIPTS EXECUTABLE
       # ======================================================
 
       - name: Make release scripts executable
-
         run: |
+          echo "============================================================"
+          echo " Release Scripts"
+          echo "============================================================"
+
           chmod +x scripts/docker.sh
           chmod +x scripts/release.sh
 
+          bash -n scripts/docker.sh
+          bash -n scripts/release.sh
+
+          echo
+          echo "Release scripts are valid."
 
       # ======================================================
-      # 5. FULL DOCKER VALIDATION
+      # 5. VALIDATE CI DATABASE SECRET
+      #
+      # scripts/docker.sh requires CI_DATABASE_URL.
+      #
+      # This MUST be a dedicated CI PostgreSQL database.
+      #
+      # DO NOT use the production Neon database.
+      # ======================================================
+
+      - name: Validate CI database secret
+        env:
+          CI_DATABASE_URL: ${{ secrets.FINORA_CI_DATABASE_URL }}
+        run: |
+          echo "============================================================"
+          echo " CI Database Configuration"
+          echo "============================================================"
+
+          if [[ -z "${CI_DATABASE_URL}" ]]; then
+            echo "::error::FINORA_CI_DATABASE_URL GitHub secret is not configured."
+            exit 1
+          fi
+
+          echo "CI database secret is configured."
+          echo "Database credentials will not be printed."
+
+      # ======================================================
+      # 6. FULL DOCKER VALIDATION
       #
       # This is the release gate.
       #
       # scripts/docker.sh:
       #
-      #   - creates CI environment
-      #   - validates compose
-      #   - builds complete stack
-      #   - starts PostgreSQL
-      #   - checks PostgreSQL health
-      #   - starts backend
+      #   - creates temporary CI environment
+      #   - validates Compose
+      #   - validates backend database configuration
+      #   - builds backend + web images
+      #   - starts the application stack
       #   - checks backend health
-      #   - runs Alembic migrations
+      #   - checks CI PostgreSQL connectivity
+      #   - checks Alembic migration state
       #   - checks web health
-      #   - runs web smoke tests
-      #   - cleans containers/volumes/network
+      #   - validates Nginx
+      #   - runs HTTP smoke tests
+      #   - removes containers / volumes / temporary env
       #
       # The Docker images remain available locally after
-      # `docker compose down`.
+      # "docker compose down", so release.sh can publish them.
+      #
+      # IMPORTANT:
+      #
+      #   CI_DATABASE_URL is intentionally passed only to this
+      #   validation process. It is not stored in the Docker image.
       # ======================================================
 
       - name: Validate Docker stack
-
+        env:
+          CI_DATABASE_URL: ${{ secrets.FINORA_CI_DATABASE_URL }}
         run: |
+          echo "============================================================"
+          echo " Finora Docker Release Gate"
+          echo "============================================================"
+
           ./scripts/docker.sh
 
-
       # ======================================================
-      # 6. PUBLISH VALIDATED IMAGES
+      # 7. PUBLISH VALIDATED IMAGES TO GHCR
       #
-      # This step only runs if the complete Docker validation
-      # above succeeds.
+      # This runs only after the complete Docker validation
+      # succeeds.
       #
-      # release.sh DOES NOT rebuild.
+      # release.sh DOES NOT rebuild images.
       #
       # It publishes:
       #
-      #   finora-ci-backend → GHCR
-      #   finora-ci-web     → GHCR
+      #   finora-ci-backend
+      #       → finora-backend:<version>
+      #       → finora-backend:latest
       #
+      #   finora-ci-web
+      #       → finora-web:<version>
+      #       → finora-web:latest
+      #
+      # The version comes from the Git tag:
+      #
+      #   v1.0.0 → 1.0.0
       # ======================================================
 
       - name: Publish validated images to GHCR
-
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           GITHUB_ACTOR: ${{ github.actor }}
-
         run: |
+          echo "============================================================"
+          echo " Publishing Validated Images"
+          echo "============================================================"
+
           ./scripts/release.sh "${GITHUB_REF_NAME}"
 
-
       # ======================================================
-      # 7. RELEASE SUMMARY
+      # 8. RELEASE SUMMARY
       # ======================================================
 
       - name: Release summary
-
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
 
+          echo
           echo "============================================================"
           echo " Finora Release"
           echo "============================================================"
-
           echo
           echo "Git tag:"
           echo "  ${GITHUB_REF_NAME}"
-
           echo
           echo "Repository:"
           echo "  ${GITHUB_REPOSITORY}"
-
           echo
           echo "GHCR:"
-          echo "  ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/finora-backend:${GITHUB_REF_NAME#v}"
-          echo "  ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/finora-backend:latest"
+          echo "  ghcr.io/${OWNER}/finora-backend:${VERSION}"
+          echo "  ghcr.io/${OWNER}/finora-backend:latest"
           echo
-          echo "  ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/finora-web:${GITHUB_REF_NAME#v}"
-          echo "  ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/finora-web:latest"
-
+          echo "  ghcr.io/${OWNER}/finora-web:${VERSION}"
+          echo "  ghcr.io/${OWNER}/finora-web:latest"
+          echo
+          echo "Render backend:"
+          echo "  Deploy the versioned backend image:"
+          echo "  ghcr.io/${OWNER}/finora-backend:${VERSION}"
+          echo
+          echo "Neon:"
+          echo "  Production Neon is configured at Render runtime."
+          echo "  No Neon credentials are included in the image."
           echo
           echo "============================================================"
           echo " Release successful"
           echo "============================================================"
-

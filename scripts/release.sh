@@ -5,32 +5,30 @@
 #
 # Purpose:
 #   Publish the Docker images that have already passed the
-#   complete Docker stack validation.
+#   complete Docker validation workflow.
 #
 # Release flow:
 #
 #   git tag v1.0.0
 #          ↓
-#   scripts/docker.sh
+#   Docker Validation
 #          ↓
-#   validated local images
+#   Docker images
 #          ↓
-#   scripts/release.sh
+#   Docker Release
 #          ↓
 #   GHCR
+#          ↓
+#   Render pulls backend image
 #
 # IMPORTANT:
-#   This script intentionally DOES NOT rebuild images.
-#
-#   The images published here must be the exact images produced
-#   by the preceding Docker validation stage.
-#
-# Required environment:
-#
-#   GITHUB_REPOSITORY
-#   GITHUB_REPOSITORY_OWNER
-#   GITHUB_ACTOR
-#   GITHUB_TOKEN
+#   - This script does NOT connect to Neon.
+#   - This script does NOT run database migrations.
+#   - This script does NOT rebuild images.
+#   - Neon credentials must NEVER be included in the release
+#     workflow or Docker image.
+#   - The backend image is runtime-configured by Render using
+#     the Neon environment variables.
 #
 # Usage:
 #
@@ -39,7 +37,6 @@
 # ============================================================
 
 set -Eeuo pipefail
-
 
 # ============================================================
 # CONFIGURATION
@@ -52,7 +49,6 @@ WEB_IMAGE_NAME="${WEB_IMAGE_NAME:-finora-web}"
 
 VALIDATED_BACKEND_IMAGE="${VALIDATED_BACKEND_IMAGE:-finora-ci-backend}"
 VALIDATED_WEB_IMAGE="${VALIDATED_WEB_IMAGE:-finora-ci-web}"
-
 
 # ============================================================
 # COLORS
@@ -71,7 +67,6 @@ else
     BLUE=''
     NC=''
 fi
-
 
 # ============================================================
 # LOGGING
@@ -93,7 +88,6 @@ error() {
     printf '%b\n' "${RED}[FAIL]${NC} $*" >&2
 }
 
-
 # ============================================================
 # ERROR HANDLER
 # ============================================================
@@ -102,37 +96,28 @@ on_error() {
     local line="$1"
 
     error "Release failed at line ${line}."
-
     printf '\n'
-
     warning "Release was NOT completed."
-
-    printf '\n'
 }
 
 trap 'on_error ${LINENO}' ERR
-
 
 # ============================================================
 # REQUIREMENTS
 # ============================================================
 
 require_command() {
-
     if ! command -v "$1" >/dev/null 2>&1; then
         error "Required command not found: $1"
         exit 1
     fi
-
 }
-
 
 # ============================================================
 # ARGUMENT VALIDATION
 # ============================================================
 
 if [[ $# -ne 1 ]]; then
-
     error "Exactly one version tag is required."
 
     printf '\n'
@@ -140,12 +125,9 @@ if [[ $# -ne 1 ]]; then
     printf '  %s v1.0.0\n' "$0"
 
     exit 1
-
 fi
 
-
 VERSION_TAG="$1"
-
 
 # ============================================================
 # VERSION VALIDATION
@@ -156,21 +138,14 @@ VERSION_TAG="$1"
 #   v1.2.3
 #   v10.20.30
 #
-# The leading "v" is removed from Docker image tags.
+# Docker image tags:
 #
-# Example:
-#
-#   Git tag:
-#       v1.0.0
-#
-#   Docker tags:
-#       1.0.0
-#       latest
+#   1.0.0
+#   latest
 #
 # ============================================================
 
 if [[ ! "${VERSION_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-
     error "Invalid version tag: ${VERSION_TAG}"
 
     printf '\n'
@@ -181,12 +156,9 @@ if [[ ! "${VERSION_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     printf '  v1.0.0\n'
 
     exit 1
-
 fi
 
-
 VERSION="${VERSION_TAG#v}"
-
 
 # ============================================================
 # GITHUB ENVIRONMENT VALIDATION
@@ -212,15 +184,11 @@ if [[ -z "${GITHUB_TOKEN:-}" ]]; then
     exit 1
 fi
 
-
 # ============================================================
 # NORMALIZE GHCR OWNER
-#
-# GHCR repository names must be lowercase.
 # ============================================================
 
 OWNER="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-
 
 # ============================================================
 # IMAGE REFERENCES
@@ -234,7 +202,6 @@ BACKEND_LATEST_IMAGE="${BACKEND_REPOSITORY}:latest"
 
 WEB_VERSION_IMAGE="${WEB_REPOSITORY}:${VERSION}"
 WEB_LATEST_IMAGE="${WEB_REPOSITORY}:latest"
-
 
 # ============================================================
 # RELEASE INFORMATION
@@ -256,7 +223,6 @@ log "Web image        : ${WEB_REPOSITORY}"
 
 printf '\n'
 
-
 # ============================================================
 # DOCKER REQUIREMENTS
 # ============================================================
@@ -272,60 +238,40 @@ fi
 
 success "Docker environment is available."
 
-
 # ============================================================
 # VALIDATED IMAGE VERIFICATION
 #
-# DO NOT BUILD HERE.
+# The release stage publishes the exact images produced by the
+# preceding Docker validation stage.
 #
-# scripts/docker.sh is responsible for building and validating
-# the complete stack.
+# No rebuild occurs here.
 #
-# Compose creates:
-#
-#   finora-ci-backend
-#   finora-ci-web
-#
-# Those exact images are published here.
 # ============================================================
 
 log "Verifying validated backend image..."
 
 if ! docker image inspect "${VALIDATED_BACKEND_IMAGE}" >/dev/null 2>&1; then
-
     error "Validated backend image not found:"
     error "  ${VALIDATED_BACKEND_IMAGE}"
-
     error "The Docker validation stage must run before release."
-
     exit 1
-
 fi
 
 success "Validated backend image found."
 
-
 log "Verifying validated web image..."
 
 if ! docker image inspect "${VALIDATED_WEB_IMAGE}" >/dev/null 2>&1; then
-
     error "Validated web image not found:"
     error "  ${VALIDATED_WEB_IMAGE}"
-
     error "The Docker validation stage must run before release."
-
     exit 1
-
 fi
 
 success "Validated web image found."
 
-
 # ============================================================
-# DISPLAY SOURCE IMAGE DIGESTS
-#
-# This provides useful evidence that the images being pushed
-# are the exact locally validated images.
+# DISPLAY SOURCE IMAGE IDS
 # ============================================================
 
 printf '\n'
@@ -339,7 +285,6 @@ docker image inspect \
 docker image inspect \
     "${VALIDATED_WEB_IMAGE}" \
     --format 'Web ID:     {{.Id}}'
-
 
 # ============================================================
 # GHCR LOGIN
@@ -356,7 +301,6 @@ printf '%s' "${GITHUB_TOKEN}" | \
         --password-stdin
 
 success "GHCR authentication successful."
-
 
 # ============================================================
 # BACKEND TAGGING
@@ -382,7 +326,6 @@ log "  ${BACKEND_VERSION_IMAGE}"
 log "Backend latest tag:"
 log "  ${BACKEND_LATEST_IMAGE}"
 
-
 # ============================================================
 # WEB TAGGING
 # ============================================================
@@ -407,7 +350,6 @@ log "  ${WEB_VERSION_IMAGE}"
 log "Web latest tag:"
 log "  ${WEB_LATEST_IMAGE}"
 
-
 # ============================================================
 # BACKEND PUSH
 # ============================================================
@@ -421,14 +363,12 @@ docker push \
 
 success "Backend ${VERSION} image published."
 
-
 log "Publishing backend latest image..."
 
 docker push \
     "${BACKEND_LATEST_IMAGE}"
 
 success "Backend latest image published."
-
 
 # ============================================================
 # WEB PUSH
@@ -443,14 +383,12 @@ docker push \
 
 success "Web ${VERSION} image published."
 
-
 log "Publishing web latest image..."
 
 docker push \
     "${WEB_LATEST_IMAGE}"
 
 success "Web latest image published."
-
 
 # ============================================================
 # RELEASE SUMMARY
@@ -477,7 +415,18 @@ echo "  ${WEB_LATEST_IMAGE}"
 
 printf '\n'
 
-success "GHCR publication completed."
+echo "Render backend deployment:"
+echo
+echo "  Use the versioned backend image:"
+echo "  ${BACKEND_VERSION_IMAGE}"
+echo
+echo "  Do NOT use the latest tag for production deployment."
+echo
+echo "Neon database:"
+echo
+echo "  Configured at Render runtime through environment variables."
+echo "  No Neon credentials are stored in the image."
 
 printf '\n'
 
+success "GHCR publication completed."
