@@ -347,6 +347,36 @@ docker compose -f "${COMPOSE_FILE}" up -d
 
 print_success "Docker stack started"
 
+echo ""
+echo "============================================================"
+echo " Backend Diagnostic"
+echo "============================================================"
+
+docker compose ps
+
+echo ""
+echo "--- Backend container state ---"
+
+docker inspect finora-backend \
+    --format '
+Status       : {{.State.Status}}
+Health       : {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}
+Exit Code    : {{.State.ExitCode}}
+Started At   : {{.State.StartedAt}}
+'
+
+echo ""
+echo "--- Backend healthcheck history ---"
+
+docker inspect finora-backend \
+    --format \
+    '{{range .State.Health.Log}}{{println "exit=" .ExitCode .Output}}{{end}}'
+
+echo ""
+echo "--- Backend logs ---"
+
+docker logs finora-backend --tail 200 || true
+
 # ============================================================
 # 8. CONTAINER VALIDATION
 # ============================================================
