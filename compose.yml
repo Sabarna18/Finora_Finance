@@ -1,53 +1,49 @@
 # ==========================================================
 # Finora - Docker Compose
 #
-# Complete Local / CI Validation Application Stack
+# Complete Local Development Application Stack
 #
 # Database:
 #   External PostgreSQL
 #
 # Local development:
-#   Neon PostgreSQL
-#
-# CI / Release validation:
-#   Dedicated CI PostgreSQL
+#   Backend + Web run locally in Docker
+#   Database remains cloud hosted (Neon PostgreSQL)
 #
 # Architecture:
 #
 #   Browser
 #      │
-#      ├──────────────► Frontend / Nginx :80
+#      ├──────────────► Web / Nginx :80
 #      │                    │
-#      │                    │ static React application
-#      │                    │
-#      │                    └── Browser API calls use
-#      │                        VITE_API_URL
+#      │                    └── React static application
 #      │
 #      └──────────────► Backend :8000
 #                              │
 #                              │ SSL / PostgreSQL
 #                              ▼
-#                       External PostgreSQL
+#                         Neon PostgreSQL
 #
 # IMPORTANT:
 #
 #   - There is NO local PostgreSQL container.
 #   - Database configuration belongs to backend/.env.
 #   - VITE_API_URL is a Vite build-time variable.
-#   - VITE_API_URL MUST be supplied explicitly by the caller.
-#   - This Compose file does NOT hardcode a frontend API origin.
+#   - Local development defaults VITE_API_URL to:
+#         http://localhost:8000/api/v1
+#   - Production CI/CD can override VITE_API_URL explicitly.
 #
-# Examples:
+# Local usage:
 #
-#   Local:
-#     VITE_API_URL=http://localhost:8000/api/v1 docker compose up --build
+#   docker compose up --build
 #
-#   CI:
-#     VITE_API_URL=http://localhost:8000/api/v1 ./scripts/docker.sh
+# Then open:
 #
-#   Release:
-#     VITE_API_URL=https://finora-backend-latest.onrender.com/api/v1 \
-#       ./scripts/docker.sh
+#   http://localhost
+#
+# Backend health:
+#
+#   http://localhost:8000/api/v1/health
 #
 # ==========================================================
 
@@ -62,19 +58,33 @@ services:
       dockerfile: Dockerfile
 
     container_name: finora-backend
+
     restart: unless-stopped
 
     # ------------------------------------------------------
     # Backend Environment
     # ------------------------------------------------------
-
+    #
+    # The backend .env contains the cloud PostgreSQL/Neon
+    # connection and backend secrets.
+    #
+    # Compose-level defaults below keep local browser access
+    # working without requiring production environment values.
+    #
     env_file:
       - ./backend/.env
+
+    environment:
+      DEBUG: ${DEBUG:-true}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-["http://localhost","http://localhost:80"]}
 
     # ------------------------------------------------------
     # Backend Source Mount
     # ------------------------------------------------------
-
+    #
+    # Keeps local development convenient: source changes are
+    # visible inside the running container.
+    #
     volumes:
       - ./backend:/backend
       - /backend/.venv
@@ -121,41 +131,31 @@ services:
       # Frontend Build Arguments
       # ----------------------------------------------------
       #
-      # VITE_API_URL is a Vite build-time variable.
+      # Vite variables are embedded during npm build.
       #
-      # IMPORTANT:
+      # Local default:
       #
-      # It MUST be explicitly supplied by the caller.
+      #   http://localhost:8000/api/v1
       #
-      # This prevents:
+      # CI/CD may override this value later:
       #
-      #   /api/v1
-      #
-      # or any other unintended fallback from being baked
-      # into the released frontend artifact.
-      #
-      # The value is supplied by:
-      #
-      #   docker.yml  → local CI validation URL
-      #   release.yml → Render production URL
+      #   VITE_API_URL=https://...
       #
       # ----------------------------------------------------
 
       args:
-        VITE_API_URL: ${VITE_API_URL:?VITE_API_URL must be explicitly provided}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
 
     container_name: finora-web
+
     restart: unless-stopped
 
     # ------------------------------------------------------
     # Backend Dependency
     # ------------------------------------------------------
     #
-    # Local / CI validation starts the web container after
-    # the backend becomes healthy.
+    # Do not start the web container until the API is healthy.
     #
-    # ------------------------------------------------------
-
     depends_on:
       backend:
         condition: service_healthy
@@ -191,13 +191,10 @@ services:
 
 # ==========================================================
 # Persistent Volumes
-# ==========================================================
 #
 # PostgreSQL volume is intentionally absent.
 #
-# Database persistence belongs to the external PostgreSQL
-# provider.
-#
+# Database persistence belongs to Neon PostgreSQL.
 # ==========================================================
 
 volumes:

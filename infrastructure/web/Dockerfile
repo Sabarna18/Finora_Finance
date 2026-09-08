@@ -1,6 +1,16 @@
 # ==========================================================
 # Finora Web Container
 # React + Nginx
+#
+# Local development:
+#   Vite API URL defaults to localhost backend
+#
+# Production:
+#   VITE_API_URL is overridden by CI/release at build time.
+#
+# IMPORTANT:
+#   VITE_API_URL is a Vite BUILD-TIME variable.
+#   It is intentionally not configured in the Nginx runtime stage.
 # ==========================================================
 
 
@@ -33,18 +43,17 @@ COPY frontend/ ./
 # Vite Environment
 # ==========================================================
 #
-# IMPORTANT:
-# VITE_API_URL is a BUILD-TIME variable.
+# Local default:
+#   http://localhost:8000/api/v1
 #
-# The release workflow should provide the Render backend URL.
+# CI / production can override this with:
 #
-# Example:
+#   --build-arg VITE_API_URL=https://<backend>/api/v1
 #
-#   --build-arg VITE_API_URL=https://<render-backend>/api/v1
-#
+# Compose also supplies the value through build.args.
 # ==========================================================
 
-ARG VITE_API_URL=/api/v1
+ARG VITE_API_URL=http://localhost:8000
 
 ENV VITE_API_URL=${VITE_API_URL}
 
@@ -54,7 +63,6 @@ ENV VITE_API_URL=${VITE_API_URL}
 # ==========================================================
 
 RUN npm run build
-
 
 
 # ==========================================================
@@ -100,4 +108,3 @@ EXPOSE 80
 # ==========================================================
 
 CMD ["nginx", "-g", "daemon off;"]
-

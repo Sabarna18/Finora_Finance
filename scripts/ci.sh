@@ -164,6 +164,114 @@ print_success "CI toolchain available"
 
 
 # ============================================================
+# 2. TEMPORARY CI ENVIRONMENT
+# ============================================================
+#
+# CI creates a disposable .env.ci file so the application is
+# validated against a complete, deterministic environment.
+#
+# IMPORTANT:
+#
+#   - This file is CI-only.
+#   - It is never committed.
+#   - It contains no production credentials.
+#   - It is removed automatically when this script exits.
+#   - Local Docker Compose continues using the developer's
+#     normal .env files and is not modified.
+#
+# Environment contract:
+#
+#   VITE_API_URL
+#       Backend origin only.
+#       /api/v1 is owned centrally by frontend/src/api/client.ts
+#
+#   BACKEND_CORS_ORIGINS
+#       CI frontend origins allowed by FastAPI.
+#
+#   POSTGRES_*
+#       CI PostgreSQL service connection.
+#
+#   Authentication settings
+#       Disposable values used only for CI validation.
+#
+# ============================================================
+
+print_step "Creating temporary CI environment..."
+
+CI_ENV_FILE="${ROOT_DIR}/.env.ci"
+
+cleanup() {
+    if [[ -f "${CI_ENV_FILE}" ]]; then
+        rm -f "${CI_ENV_FILE}"
+        echo ""
+        echo "✓ Temporary CI environment removed"
+    fi
+}
+
+trap cleanup EXIT
+
+cat > "${CI_ENV_FILE}" <<EOF
+# ============================================================
+# Finora - Disposable CI Environment
+# Generated automatically by ci.sh
+# ============================================================
+
+# Frontend
+VITE_API_URL=http://localhost:8000
+
+# Backend
+BACKEND_CORS_ORIGINS=["http://localhost","http://localhost:80"]
+DEBUG=true
+
+# Database
+DB_TYPE=postgresql
+POSTGRES_HOST=${CI_DB_HOST}
+POSTGRES_PORT=${CI_DB_PORT}
+POSTGRES_USER=${CI_DB_USER}
+POSTGRES_PASSWORD=${CI_DB_PASSWORD}
+POSTGRES_DB=${CI_DB_NAME}
+
+# Authentication
+SECRET_KEY=finora-ci-test-secret
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+EOF
+
+chmod 600 "${CI_ENV_FILE}"
+
+# Load the complete disposable environment for all child processes.
+set -a
+source "${CI_ENV_FILE}"
+set +a
+
+if [[ -z "${VITE_API_URL:-}" ]]; then
+    print_error "Temporary CI environment did not define VITE_API_URL"
+    exit 1
+fi
+
+if [[ -z "${BACKEND_CORS_ORIGINS:-}" ]]; then
+    print_error "Temporary CI environment did not define BACKEND_CORS_ORIGINS"
+    exit 1
+fi
+
+if [[ "${VITE_API_URL}" == */api/v1 ]]; then
+    print_error "VITE_API_URL must contain the backend origin only; do not append /api/v1."
+    echo "Received: ${VITE_API_URL}"
+    exit 1
+fi
+
+echo "Temporary CI environment:"
+echo "  VITE_API_URL         : ${VITE_API_URL}"
+echo "  BACKEND_CORS_ORIGINS : ${BACKEND_CORS_ORIGINS}"
+echo "  POSTGRES_HOST        : ${POSTGRES_HOST}"
+echo "  POSTGRES_PORT        : ${POSTGRES_PORT}"
+echo "  POSTGRES_DB          : ${POSTGRES_DB}"
+echo ""
+
+print_success "Temporary CI environment ready"
+
+
+# ============================================================
 # 2. PROJECT STRUCTURE
 # ============================================================
 
@@ -746,7 +854,7 @@ print_success "ESLint passed"
 
 print_step "Building production frontend..."
 
-VITE_API_URL="${VITE_API_URL:-/api/v1}" \
+VITE_API_URL="${VITE_API_URL}" \
 npm run build
 
 print_success "Frontend production build passed"
