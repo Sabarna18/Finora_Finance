@@ -57,11 +57,31 @@ WEB_SERVICE="${WEB_SERVICE:-web}"
 
 WEB_PORT="${WEB_PORT:-80}"
 
-HEALTH_PATH="${HEALTH_PATH:?HEALTH_PATH must be provided by the caller.}"
-WEB_HEALTH_PATH="${WEB_HEALTH_PATH:?WEB_HEALTH_PATH must be provided by the caller.}"
+# ------------------------------------------------------------
+# Health endpoints
+#
+# Stable defaults keep docker.sh directly runnable.
+# Workflows may override these values when necessary.
+# ------------------------------------------------------------
+
+HEALTH_PATH="${HEALTH_PATH:-/api/v1/health}"
+WEB_HEALTH_PATH="${WEB_HEALTH_PATH:-/web-health}"
+
+# Vite API URL MUST be supplied by the caller because it is a
+# build-time value and differs between local/CI/release builds.
 VITE_API_URL="${VITE_API_URL:?VITE_API_URL must be provided by the caller.}"
 
 export VITE_API_URL
+
+# ------------------------------------------------------------
+# Validate frontend API URL
+# ------------------------------------------------------------
+
+if [[ ! "${VITE_API_URL}" =~ ^https?://[^[:space:]]+$ ]]; then
+    printf '%s\n' "[FAIL] VITE_API_URL must be an absolute http:// or https:// URL." >&2
+    printf '%s\n' "[FAIL] Received: ${VITE_API_URL}" >&2
+    exit 1
+fi
 
 STARTUP_TIMEOUT="${STARTUP_TIMEOUT:-120}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-30}"

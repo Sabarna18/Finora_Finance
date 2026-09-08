@@ -3,107 +3,49 @@
 # ============================================================
 #
 # Release trigger:
-#
 #   git tag v1.0.0
 #   git push origin v1.0.0
 #
-# Release flow:
-#
-#   Version tag
-#       ↓
-#   Docker environment
-#       ↓
-#   Dedicated CI PostgreSQL
-#       ↓
-#   Full Compose validation
-#       ↓
-#   Backend + Web images
-#       ↓
-#   Frontend artifact verification
-#       ↓
-#   Health / smoke tests
-#       ↓
-#   Cleanup
-#       ↓
-#   Publish validated images to GHCR
-#
-# Production database:
-#
-#   Neon PostgreSQL is NOT accessed by this workflow.
-#
-# Production deployment:
-#
-#   GHCR backend image
-#       ↓
-#   Render
-#       ↓
-#   Neon PostgreSQL
-#
-# Frontend production API:
-#
+# Production frontend API:
 #   https://finora-backend-latest.onrender.com/api/v1
 #
-# IMPORTANT:
+# The production API URL is assigned by this workflow and
+# automatically inherited by scripts/docker.sh.
 #
-#   The production frontend API URL is supplied explicitly
-#   to the Docker build.
-#
-#   scripts/docker.sh does not choose or default the API URL.
+# scripts/docker.sh does not choose or hardcode the API URL.
 #
 # ============================================================
 
 name: Release
-
-# ============================================================
-# TRIGGERS
-# ============================================================
 
 on:
   push:
     tags:
       - "v*.*.*"
 
-# ============================================================
-# PERMISSIONS
-# ============================================================
-
 permissions:
   contents: read
   packages: write
-
-# ============================================================
-# CONCURRENCY
-# ============================================================
 
 concurrency:
   group: finora-release-${{ github.ref }}
   cancel-in-progress: false
 
-# ============================================================
-# JOBS
-# ============================================================
-
 jobs:
-  # ========================================================
-  # RELEASE
-  # ========================================================
-
   release:
     name: Validate and Publish Docker Images
     runs-on: ubuntu-latest
 
+    # ======================================================
+    # RELEASE ENVIRONMENT
+    # ======================================================
+    #
+    # This is the caller-provided production value.
+    # Every step in this job inherits it automatically.
+    #
     env:
       COMPOSE_PROJECT_NAME: finora-ci
       COMPOSE_FILE: compose.yml
-
-      # ----------------------------------------------------
-      # Frontend production API
-      #
-      # This value is intentionally explicit and absolute.
-      # It is passed through Compose to the Vite production
-      # build and becomes part of the released frontend bundle.
-      # ----------------------------------------------------
-
       VITE_API_URL: https://finora-backend-latest.onrender.com/api/v1
 
     steps:
@@ -130,12 +72,10 @@ jobs:
           echo "============================================================"
           echo " Docker Environment"
           echo "============================================================"
-
           docker --version
           docker compose version
-
           echo
-          echo "Frontend API URL:"
+          echo "Frontend production API:"
           echo "  ${VITE_API_URL}"
 
       # ====================================================
@@ -188,12 +128,13 @@ jobs:
           echo "============================================================"
           echo " Finora Docker Release Gate"
           echo "============================================================"
-
           echo
           echo "Release frontend API:"
           echo "  ${VITE_API_URL}"
+          echo
 
-          chmod +x scripts/docker.sh
+          # VITE_API_URL is inherited automatically from the
+          # release job environment.
           ./scripts/docker.sh
 
       # ====================================================
@@ -261,7 +202,3 @@ jobs:
           echo "============================================================"
           echo " Release successful"
           echo "============================================================"
-
-# ============================================================
-# END
-# ============================================================
