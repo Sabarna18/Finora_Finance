@@ -26,6 +26,7 @@ __pycache__/
 venv/
 env/
 ENV/
+*.env
 
 # uv
 .uv/
@@ -201,3 +202,4 @@ Desktop.ini
 
 .vercel
 .env*
+.vercel/

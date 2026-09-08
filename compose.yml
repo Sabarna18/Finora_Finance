@@ -1,25 +1,27 @@
 # ==========================================================
 # Finora - Docker Compose
 #
-# Local application stack
+# Complete Local Application Stack
 #
 # Database:
 #   Neon PostgreSQL (deployed)
 #
 # Architecture:
 #
-#   web
-#    │
-#    ▼
-#   backend
-#    │
-#    │ SSL / PostgreSQL
-#    ▼
-#   Neon PostgreSQL
+#   Browser
+#      │
+#      ├──────────────► Frontend / Nginx :80
+#      │
+#      └──────────────► Backend :8000
+#                              │
+#                              │ SSL / PostgreSQL
+#                              ▼
+#                         Neon PostgreSQL
 #
 # IMPORTANT:
 #
 # There is NO local PostgreSQL container.
+#
 # Neon is the single canonical Finora database.
 #
 # ==========================================================
@@ -30,8 +32,9 @@ services:
   # ========================================================
   # FastAPI Backend
   # ========================================================
+
   #
-  # The backend container is responsible for:
+  # Responsible for:
   #
   #   • FastAPI
   #   • Uvicorn
@@ -43,7 +46,7 @@ services:
   #
   #   Neon PostgreSQL
   #
-  # Configuration is loaded from:
+  # Configuration:
   #
   #   ./backend/.env
   #
@@ -59,36 +62,17 @@ services:
 
     restart: unless-stopped
 
+
     # ------------------------------------------------------
     # Application Environment
-    # ------------------------------------------------------
-    #
-    # backend/.env contains the Neon configuration.
-    #
-    # Required database variables:
-    #
-    #   POSTGRES_HOST
-    #   POSTGRES_PORT
-    #   POSTGRES_DB
-    #   POSTGRES_USER
-    #   POSTGRES_PASSWORD
-    #   POSTGRES_SSLMODE=require
-    #
     # ------------------------------------------------------
 
     env_file:
       - ./backend/.env
 
+
     # ------------------------------------------------------
     # Backend Source Mount
-    # ------------------------------------------------------
-    #
-    # Keeps local source code synchronized with the
-    # container and supports Docker-first development.
-    #
-    # The named /backend/.venv volume prevents the host
-    # environment from overwriting the container venv.
-    #
     # ------------------------------------------------------
 
     volumes:
@@ -96,12 +80,21 @@ services:
       - /backend/.venv
       - backend_logs:/backend/logs
 
+
     # ------------------------------------------------------
-    # Internal Backend Port
+    # Backend HTTP Port
     # ------------------------------------------------------
 
-    expose:
-      - "8000"
+    #
+    # Browser/API clients can reach FastAPI at:
+    #
+    #   http://localhost:8000/api/v1
+    #
+    # ------------------------------------------------------
+
+    ports:
+      - "8000:8000"
+
 
     # ------------------------------------------------------
     # Backend Health Check
@@ -118,6 +111,7 @@ services:
       retries: 5
       start_period: 20s
 
+
     # ------------------------------------------------------
     # Internal Network
     # ------------------------------------------------------
@@ -126,10 +120,11 @@ services:
       - finora_network
 
 
+
   # ========================================================
   # Web
   #
-  # React production build + Nginx
+  # React Production Build + Nginx
   # ========================================================
 
   web:
@@ -141,25 +136,36 @@ services:
       # ----------------------------------------------------
       # Frontend Build Arguments
       # ----------------------------------------------------
+      #
+      # IMPORTANT:
+      #
+      # VITE_API_URL is a Vite build-time variable.
+      #
+      # The browser communicates directly with the local
+      # FastAPI backend.
+      #
+      # ----------------------------------------------------
 
       args:
-        VITE_API_URL: ${VITE_API_URL:-/api/v1}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
+
 
     container_name: finora-web
 
     restart: unless-stopped
 
+
     # ------------------------------------------------------
     # Backend Dependency
     # ------------------------------------------------------
-    #
-    # Nginx starts after the backend health check passes.
-    #
-    # ------------------------------------------------------
 
+    #
+    # Start the frontend after the backend becomes healthy.
+    #
     depends_on:
       backend:
         condition: service_healthy
+
 
     # ------------------------------------------------------
     # Public HTTP Port
@@ -167,6 +173,7 @@ services:
 
     ports:
       - "80:80"
+
 
     # ------------------------------------------------------
     # Web Health Check
@@ -183,6 +190,7 @@ services:
       retries: 5
       start_period: 10s
 
+
     # ------------------------------------------------------
     # Internal Network
     # ------------------------------------------------------
@@ -191,13 +199,15 @@ services:
       - finora_network
 
 
+
 # ==========================================================
 # Persistent Volumes
 # ==========================================================
+
 #
 # PostgreSQL volume has intentionally been removed.
 #
-# Neon owns the database persistence.
+# Neon owns database persistence.
 #
 # ==========================================================
 
@@ -205,6 +215,7 @@ volumes:
 
   backend_logs:
     name: finora_backend_logs
+
 
 
 # ==========================================================

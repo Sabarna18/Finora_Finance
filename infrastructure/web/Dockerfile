@@ -32,6 +32,17 @@ COPY frontend/ ./
 # ==========================================================
 # Vite Environment
 # ==========================================================
+#
+# IMPORTANT:
+# VITE_API_URL is a BUILD-TIME variable.
+#
+# The release workflow should provide the Render backend URL.
+#
+# Example:
+#
+#   --build-arg VITE_API_URL=https://<render-backend>/api/v1
+#
+# ==========================================================
 
 ARG VITE_API_URL=/api/v1
 
@@ -57,8 +68,7 @@ FROM nginx:1.28-alpine
 # Remove Default Nginx Configuration
 # ==========================================================
 
-RUN rm -f \
-    /etc/nginx/conf.d/default.conf
+RUN rm -f /etc/nginx/conf.d/default.conf
 
 
 # ==========================================================
@@ -71,7 +81,7 @@ COPY --from=builder \
 
 
 # ==========================================================
-# Copy Nginx Configuration
+# Copy Finora Nginx Configuration
 # ==========================================================
 
 COPY infrastructure/web/nginx.conf \
@@ -90,3 +100,4 @@ EXPOSE 80
 # ==========================================================
 
 CMD ["nginx", "-g", "daemon off;"]
+
