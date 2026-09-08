@@ -131,6 +131,9 @@ cleanup_on_failure() {
         print_error "Docker stack validation failed"
     fi
 
+    # Remove disposable environment files created for this validation.
+    rm -f "${ROOT_DIR}/.env" "${BACKEND_DIR}/.env"
+
     exit "${exit_code}"
 }
 
@@ -206,49 +209,71 @@ done
 print_success "Docker project structure valid"
 
 # ============================================================
-# 3. LOCAL ENVIRONMENT
+# 3. TEMPORARY DOCKER ENVIRONMENT
 # ============================================================
 #
-# Compose consumes the developer's normal root .env and the
-# backend's .env. This script never creates or overwrites them.
+# GitHub Actions runs from a clean checkout, so developer .env
+# files are intentionally not committed and are not available.
 #
-# VITE_API_URL must be the backend origin only because
-# frontend/src/api/client.ts centrally appends /api/v1.
+# Create a disposable environment containing ONLY the values
+# required to run the Docker validation stack.
+#
+# This does NOT modify the developer's local .env files.
+#
+# Cleanup is guaranteed by the EXIT trap.
 #
 # ============================================================
 
-print_step "Validating local application environment..."
+print_step "Creating temporary Docker environment..."
 
-if [[ ! -f "${ROOT_DIR}/.env" ]]; then
-    print_error "Missing root .env file."
-    echo "Create it with at least:"
-    echo "  VITE_API_URL=http://localhost:8000"
-    exit 1
-fi
+ROOT_ENV_FILE="${ROOT_DIR}/.env"
+BACKEND_ENV_FILE="${BACKEND_DIR}/.env"
 
-if [[ ! -f "${BACKEND_DIR}/.env" ]]; then
-    print_error "Missing backend/.env file."
-    echo "The backend requires its local development configuration."
-    exit 1
-fi
+cleanup_environment() {
+    rm -f "${ROOT_ENV_FILE}" "${BACKEND_ENV_FILE}"
+}
 
-if ! grep -Eq '^VITE_API_URL=http://localhost:8000/?$' "${ROOT_DIR}/.env"; then
-    print_error "Root .env must define VITE_API_URL=http://localhost:8000"
-    echo "The frontend API client owns the /api/v1 prefix."
-    exit 1
-fi
+trap cleanup_environment EXIT
 
-if grep -Eq '^VITE_API_URL=.*\/api\/v1\/?$' "${ROOT_DIR}/.env"; then
-    print_error "VITE_API_URL must not contain /api/v1."
-    exit 1
-fi
+cat > "${ROOT_ENV_FILE}" <<EOF
+# Finora disposable Docker validation environment
+VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+EOF
 
-if ! grep -Eq '^BACKEND_CORS_ORIGINS=' "${BACKEND_DIR}/.env"; then
-    print_error "backend/.env is missing BACKEND_CORS_ORIGINS."
-    exit 1
-fi
+cat > "${BACKEND_ENV_FILE}" <<EOF
+# Finora disposable Docker validation environment
 
-print_success "Local application environment valid"
+APP_NAME=Finora
+DEBUG=${DEBUG:-true}
+
+DB_TYPE=postgresql
+
+POSTGRES_HOST=${POSTGRES_HOST:-host.docker.internal}
+POSTGRES_PORT=${POSTGRES_PORT:-5432}
+POSTGRES_USER=${POSTGRES_USER:-finora}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+POSTGRES_DB=${POSTGRES_DB:-finance_db}
+POSTGRES_SSLMODE=${POSTGRES_SSLMODE:-disable}
+
+SECRET_KEY=docker-validation-secret-key
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+
+BACKEND_CORS_ORIGINS='["http://localhost","http://localhost:80"]'
+EOF
+
+chmod 600 "${ROOT_ENV_FILE}" "${BACKEND_ENV_FILE}"
+
+echo "Temporary Docker environment:"
+echo "  VITE_API_URL         : ${VITE_API_URL:-http://localhost:8000}"
+echo "  BACKEND_CORS_ORIGINS : [http://localhost, http://localhost:80]"
+echo "  POSTGRES_HOST        : ${POSTGRES_HOST:-host.docker.internal}"
+echo "  POSTGRES_PORT        : ${POSTGRES_PORT:-5432}"
+echo "  POSTGRES_DB          : ${POSTGRES_DB:-finance_db}"
+echo "  POSTGRES_SSLMODE     : ${POSTGRES_SSLMODE:-disable}"
+echo ""
+
+print_success "Temporary Docker environment ready"
 
 # ============================================================
 # 4. COMPOSE CONFIGURATION
