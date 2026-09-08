@@ -1,0 +1,168 @@
+name: Finora Deploy
+
+on:
+  workflow_run:
+    workflows:
+      - "Release"
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: finora-deploy
+  cancel-in-progress: false
+
+env:
+  FRONTEND_DIR: frontend
+  VITE_API_URL: https://finora-backend-latest.onrender.com/api/v1
+
+jobs:
+  deploy:
+    name: Deploy Frontend to Vercel
+    runs-on: ubuntu-latest
+
+    if: >
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      # ======================================================
+      # Checkout EXACT release commit
+      # ======================================================
+
+      - name: Checkout released commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      # ======================================================
+      # Runtime
+      # ======================================================
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # ======================================================
+      # Verify release metadata
+      # ======================================================
+
+      - name: Verify release metadata
+        shell: bash
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+          RELEASE_REF: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -Eeuo pipefail
+
+          echo "============================================================"
+          echo " Finora Deployment"
+          echo "============================================================"
+          echo
+          echo "Release SHA : ${RELEASE_SHA}"
+          echo "Release ref : ${RELEASE_REF}"
+          echo
+
+          git status --short
+          git rev-parse HEAD
+
+          if [[ "$(git rev-parse HEAD)" != "${RELEASE_SHA}" ]]; then
+            echo "ERROR: Checked out SHA does not match release SHA."
+            exit 1
+          fi
+
+          echo
+          echo "✓ Exact successful release commit checked out."
+
+      # ======================================================
+      # Validate deployment script
+      # ======================================================
+
+      - name: Validate deployment script
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          chmod +x scripts/deploy.sh
+
+          bash -n scripts/deploy.sh
+
+          echo "✓ scripts/deploy.sh syntax valid."
+
+      # ======================================================
+      # Validate Vercel secrets
+      # ======================================================
+
+      - name: Validate Vercel configuration
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -Eeuo pipefail
+
+          [[ -n "${VERCEL_TOKEN}" ]] || {
+            echo "ERROR: VERCEL_TOKEN secret is missing."
+            exit 1
+          }
+
+          [[ -n "${VERCEL_ORG_ID}" ]] || {
+            echo "ERROR: VERCEL_ORG_ID secret is missing."
+            exit 1
+          }
+
+          [[ -n "${VERCEL_PROJECT_ID}" ]] || {
+            echo "ERROR: VERCEL_PROJECT_ID secret is missing."
+            exit 1
+          }
+
+          echo "✓ Vercel configuration is present."
+
+      # ======================================================
+      # Deploy frontend
+      # ======================================================
+
+      - name: Deploy frontend to Vercel
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+          VITE_API_URL: ${{ env.VITE_API_URL }}
+
+          VITE_APP_VERSION: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -Eeuo pipefail
+
+          ./scripts/deploy.sh
+
+      # ======================================================
+      # Summary
+      # ======================================================
+
+      - name: Deployment summary
+        shell: bash
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+          RELEASE_REF: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          {
+            echo "## Finora Deployment"
+            echo
+            echo "### Release"
+            echo
+            echo "- Release SHA: \`${RELEASE_SHA}\`"
+            echo "- Release ref: \`${RELEASE_REF}\`"
+            echo "- Frontend: Vercel"
+            echo "- Backend: Render"
+            echo "- Database: Neon PostgreSQL"
+            echo
+            echo "✓ Frontend deployment completed."
+          } >> "${GITHUB_STEP_SUMMARY}"

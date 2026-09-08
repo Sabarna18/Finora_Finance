@@ -199,3 +199,5 @@ Desktop.ini
 
 .serverless/
 
+.vercel
+.env*
