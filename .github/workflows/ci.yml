@@ -13,41 +13,38 @@
 #        │                      │
 #        │                      │
 #        ▼                      │
-#   PostgreSQL                 │
-#   Integration                │
-#        │                      │
-#        ├── Alembic            │
-#        ├── Schema             │
-#        ├── API                │
-#        └── Integration        │
+#   Isolated Tests              │
 #                               │
 #        └──────────┬───────────┘
 #                   │
 #                   ▼
 #               CI PASSED
 #
-#
-# Database responsibilities
-#
-#   SQLite
-#      → isolated backend tests only
-#
-#   PostgreSQL
-#      → Alembic
-#      → schema validation
-#      → API integration
-#
-#
 # IMPORTANT
 #
-#   This workflow is intentionally explicit.
+#   This workflow validates source code.
 #
-#   It does NOT depend on:
+#   Docker image validation is handled separately by:
 #
-#       make check
+#       .github/workflows/docker.yml
 #
-#   The Makefile quality gate will later be built to mirror
-#   this CI contract.
+#   Release image validation is handled by:
+#
+#       .github/workflows/release.yml
+#
+# Frontend API configuration:
+#
+#   The frontend build MUST use an explicit absolute URL.
+#
+#   CI validation:
+#
+#       http://localhost:8000/api/v1
+#
+#   Production release:
+#
+#       https://finora-backend-latest.onrender.com/api/v1
+#
+#   This workflow does not publish Docker images.
 #
 # ==========================================================
 
@@ -68,7 +65,6 @@ on:
 
 env:
   PYTHON_VERSION: "3.13"
-
   NODE_VERSION: "22"
 
   # --------------------------------------------------------
@@ -76,13 +72,9 @@ env:
   # --------------------------------------------------------
 
   POSTGRES_HOST: localhost
-
   POSTGRES_PORT: "5432"
-
   POSTGRES_USER: finora
-
   POSTGRES_PASSWORD: password
-
   POSTGRES_DB: finance_db
 
   # --------------------------------------------------------
@@ -90,24 +82,32 @@ env:
   # --------------------------------------------------------
 
   APP_NAME: Finora
-
   DEBUG: "false"
-
   DB_TYPE: postgresql
 
   SECRET_KEY: ci-test-secret-key
-
   ALGORITHM: HS256
-
   ACCESS_TOKEN_EXPIRE_MINUTES: "60"
 
   BACKEND_CORS_ORIGINS: '["http://localhost"]'
 
   # --------------------------------------------------------
   # Frontend
+  #
+  # This is an absolute URL intentionally.
+  #
+  # The previous relative value:
+  #
+  #   /api/v1
+  #
+  # could be baked into a production-style frontend build
+  # and later cause the browser to call the wrong origin.
+  #
+  # Docker/release workflows may override this value for
+  # their own environment.
   # --------------------------------------------------------
 
-  VITE_API_URL: /api/v1
+  VITE_API_URL: http://localhost:8000/api/v1
 
 # ==========================================================
 # CONCURRENCY
@@ -115,7 +115,6 @@ env:
 
 concurrency:
   group: finora-ci-${{ github.workflow }}-${{ github.ref }}
-
   cancel-in-progress: true
 
 # ==========================================================
@@ -133,216 +132,90 @@ jobs:
   # ========================================================
   # 1. BACKEND CHECK
   # ========================================================
-  #
-  # Responsibility:
-  #
-  #   • Python environment
-  #   • uv dependency validation
-  #   • source imports
-  #   • Ruff
-  #   • Black
-  #   • pytest
-  #
-  # Database responsibility:
-  #
-  #   NONE
-  #
-  # Backend tests should use their isolated test database
-  # configuration/fixtures.
-  #
-  # Alembic is intentionally NOT executed here.
-  #
-  # ========================================================
 
   backend-check:
     name: Backend Check
-
     runs-on: ubuntu-latest
-
     timeout-minutes: 15
 
     steps:
-      # ----------------------------------------------------
-      # Checkout
-      # ----------------------------------------------------
-
       - name: Checkout repository
-
         uses: actions/checkout@v4
 
-      # ----------------------------------------------------
-      # Python
-      # ----------------------------------------------------
-
       - name: Set up Python
-
         uses: actions/setup-python@v5
-
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # ----------------------------------------------------
-      # uv
-      # ----------------------------------------------------
-
       - name: Install uv
-
         uses: astral-sh/setup-uv@v6
-
         with:
           version: "latest"
-
           enable-cache: true
 
-      # ----------------------------------------------------
-      # Backend dependency cache
-      # ----------------------------------------------------
-
       - name: Restore uv cache
-
         uses: actions/cache@v4
-
         with:
           path: ~/.cache/uv
-
           key: >
             uv-${{ runner.os }}-
             py${{ env.PYTHON_VERSION }}-
             ${{ hashFiles('backend/uv.lock') }}
-
           restore-keys: |
             uv-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-
 
-      # ----------------------------------------------------
-      # Install backend dependencies
-      # ----------------------------------------------------
-
       - name: Install backend dependencies
-
         working-directory: backend
-
         run: |
-
           uv sync --frozen
 
-      # ----------------------------------------------------
-      # Verify dependency lock
-      # ----------------------------------------------------
-
       - name: Verify uv lock
-
         working-directory: backend
-
         run: |
-
           uv lock --check
 
-      # ----------------------------------------------------
-      # Verify Python source imports
-      # ----------------------------------------------------
-
       - name: Verify backend imports
-
         working-directory: backend
-
         env:
           DB_TYPE: sqlite
-
         run: |
-
           uv run python -c "from src.app import app; print('Backend import successful')"
 
-      # ----------------------------------------------------
-      # Ruff
-      # ----------------------------------------------------
-
       - name: Ruff lint
-
         working-directory: backend
-
         run: |
-
           uv run ruff check src tests
 
-      # ----------------------------------------------------
-      # Ruff format
-      # ----------------------------------------------------
-
       - name: Ruff format check
-
         working-directory: backend
-
         run: |
-
           uv run ruff format --check src tests
 
-      # ----------------------------------------------------
-      # Black
-      # ----------------------------------------------------
-
       - name: Black format check
-
         working-directory: backend
-
         run: |
-
           uv run black --check src tests
 
-      # ----------------------------------------------------
-      # Backend tests
-      # ----------------------------------------------------
-
       - name: Run backend tests
-
         working-directory: backend
-
         env:
           DB_TYPE: sqlite
-
         run: |
-
           uv run pytest -v
 
-      # ----------------------------------------------------
-      # Backend artifact collection
-      # ----------------------------------------------------
-
       - name: Upload backend test artifacts
-
         if: failure()
-
         uses: actions/upload-artifact@v4
-
         with:
           name: finora-backend-artifacts
-
           path: |
-
             backend/.pytest_cache
-
             backend/htmlcov
-
             backend/*.log
-
           if-no-files-found: ignore
 
   # ========================================================
   # 2. POSTGRESQL INTEGRATION
-  # ========================================================
-  #
-  # Responsibility:
-  #
-  #   • PostgreSQL 17
-  #   • database connectivity
-  #   • Alembic migration
-  #   • migration consistency
-  #   • schema validation
-  #   • API startup
-  #   • API smoke tests
-  #
-  # This is the ONLY CI job responsible for validating
-  # Alembic against PostgreSQL.
-  #
   # ========================================================
 
   postgres-integration:
@@ -380,126 +253,81 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ... remaining PostgreSQL integration steps
+      # PostgreSQL integration steps remain intentionally
+      # explicit and can be expanded independently from the
+      # Docker validation/release workflows.
 
   # ========================================================
   # 3. FRONTEND CHECK
   # ========================================================
-  #
-  # Responsibility:
-  #
-  #   • Node 22
-  #   • npm dependencies
-  #   • ESLint
-  #   • TypeScript
-  #   • production build
-  #
-  # ========================================================
 
   frontend-check:
     name: Frontend Check
-
     runs-on: ubuntu-latest
-
     timeout-minutes: 15
 
     steps:
-      # ----------------------------------------------------
-      # Checkout
-      # ----------------------------------------------------
-
       - name: Checkout repository
-
         uses: actions/checkout@v4
 
-      # ----------------------------------------------------
-      # Node
-      # ----------------------------------------------------
-
       - name: Set up Node.js
-
         uses: actions/setup-node@v4
-
         with:
           node-version: ${{ env.NODE_VERSION }}
-
           cache: npm
-
           cache-dependency-path: frontend/package-lock.json
 
-      # ----------------------------------------------------
-      # Install dependencies
-      # ----------------------------------------------------
-
       - name: Install frontend dependencies
-
         working-directory: frontend
-
         run: |
-
           npm ci
 
-      # ----------------------------------------------------
-      # ESLint
-      # ----------------------------------------------------
-
       - name: ESLint
-
         working-directory: frontend
-
         run: |
-
           npm run lint
 
-      # ----------------------------------------------------
-      # TypeScript
-      # ----------------------------------------------------
-
       - name: TypeScript
-
         working-directory: frontend
-
         run: |
-
           npx tsc --noEmit
 
-      # ----------------------------------------------------
-      # Production build
-      # ----------------------------------------------------
-
       - name: Frontend production build
-
         working-directory: frontend
-
         env:
-          VITE_API_URL: /api/v1
-
+          VITE_API_URL: ${{ env.VITE_API_URL }}
         run: |
-
+          echo "Frontend API URL: ${VITE_API_URL}"
           npm run build
 
-      # ----------------------------------------------------
-      # Upload frontend build on failure
-      # ----------------------------------------------------
+      - name: Verify frontend build API configuration
+        working-directory: frontend
+        env:
+          EXPECTED_API_URL: ${{ env.VITE_API_URL }}
+        run: |
+          echo "Checking frontend bundle for expected API URL..."
 
-      - name: Upload frontend artifacts
+          if ! grep -R -F -q \
+            "${EXPECTED_API_URL}" \
+            dist/assets; then
 
+            echo "::error::Expected VITE_API_URL was not found in the frontend build."
+            echo "Expected: ${EXPECTED_API_URL}"
+            exit 1
+          fi
+
+          echo "Frontend API URL is correctly embedded in the build."
+
+      - name: Upload frontend build on failure
         if: failure()
-
         uses: actions/upload-artifact@v4
-
         with:
           name: finora-frontend-artifacts
-
           path: |
-
             frontend/dist
-
             frontend/node_modules/.cache
-
           if-no-files-found: ignore
 
 # ==========================================================
 # END
 # ==========================================================
-

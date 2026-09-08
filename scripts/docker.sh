@@ -57,8 +57,11 @@ WEB_SERVICE="${WEB_SERVICE:-web}"
 
 WEB_PORT="${WEB_PORT:-80}"
 
-WEB_HEALTH_PATH="${WEB_HEALTH_PATH:-/web-health}"
-HEALTH_PATH="${HEALTH_PATH:-/api/v1/health}"
+HEALTH_PATH="${HEALTH_PATH:?HEALTH_PATH must be provided by the caller.}"
+WEB_HEALTH_PATH="${WEB_HEALTH_PATH:?WEB_HEALTH_PATH must be provided by the caller.}"
+VITE_API_URL="${VITE_API_URL:?VITE_API_URL must be provided by the caller.}"
+
+export VITE_API_URL
 
 STARTUP_TIMEOUT="${STARTUP_TIMEOUT:-120}"
 HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
@@ -297,7 +300,7 @@ BACKEND_CORS_ORIGINS=["http://localhost:80","http://localhost:5173"]
 # Frontend
 # ------------------------------------------------------------
 
-VITE_API_URL=/api/v1
+# VITE_API_URL is supplied by the caller/workflow as a Docker build argument.
 EOF
 
     chmod 600 "${CI_ENV_FILE}"
@@ -599,7 +602,45 @@ rm -f /tmp/finora-compose-config.json
 success "Backend database configuration validated."
 
 # ============================================================
-# 7. BUILD COMPLETE STACK
+# 7. VERIFY FRONTEND BUILD CONFIGURATION
+# ============================================================
+
+log "Verifying frontend build configuration..."
+
+compose config --format json > /tmp/finora-compose-config.json
+
+python3 - /tmp/finora-compose-config.json "${VITE_API_URL}" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+
+path = sys.argv[1]
+expected = sys.argv[2]
+
+with open(path, encoding="utf-8") as file:
+    config = json.load(file)
+
+web = config.get("services", {}).get("web", {})
+build = web.get("build", {})
+args = build.get("args", {})
+actual = args.get("VITE_API_URL")
+
+if actual != expected:
+    raise SystemExit(
+        "Frontend build argument mismatch: "
+        f"expected {expected!r}, got {actual!r}"
+    )
+
+print("Frontend build argument: OK")
+PY
+
+rm -f /tmp/finora-compose-config.json
+
+success "Frontend build configuration validated."
+
+# ============================================================
+# 8. BUILD COMPLETE STACK
 # ============================================================
 
 log "Building complete Docker stack..."
@@ -609,7 +650,7 @@ compose build --pull
 success "Complete Docker stack built successfully."
 
 # ============================================================
-# 8. START COMPLETE STACK
+# 9. START COMPLETE STACK
 # ============================================================
 
 log "Starting complete Docker stack..."
@@ -619,7 +660,7 @@ compose up -d
 success "Docker stack started."
 
 # ============================================================
-# 9. WAIT FOR CONTAINERS
+# 10. WAIT FOR CONTAINERS
 # ============================================================
 
 log "Waiting for application containers..."
@@ -664,7 +705,7 @@ if (( elapsed >= STARTUP_TIMEOUT )); then
 fi
 
 # ============================================================
-# 10. BACKEND HEALTH
+# 11. BACKEND HEALTH
 # ============================================================
 
 log "Checking backend health..."
@@ -709,7 +750,7 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
 done
 
 # ============================================================
-# 11. DATABASE CONNECTIVITY
+# 12. DATABASE CONNECTIVITY
 # ============================================================
 
 log "Checking backend → Neon PostgreSQL connectivity..."
@@ -743,7 +784,7 @@ success \
     "Backend → Neon PostgreSQL connectivity passed."
 
 # ============================================================
-# 12. ALEMBIC STATE
+# 13. ALEMBIC STATE
 # ============================================================
 
 log "Checking Alembic migration state..."
@@ -756,7 +797,7 @@ compose exec \
 success "Alembic migration state checked."
 
 # ============================================================
-# 13. WEB HEALTH
+# 14. WEB HEALTH
 # ============================================================
 
 log "Checking web container health..."
@@ -801,7 +842,7 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
 done
 
 # ============================================================
-# 14. NGINX CONFIGURATION
+# 15. NGINX CONFIGURATION
 # ============================================================
 
 log "Checking Nginx configuration..."
@@ -814,7 +855,7 @@ compose exec \
 success "Nginx configuration is valid."
 
 # ============================================================
-# 15. WEB HTTP SMOKE TEST
+# 16. WEB HTTP SMOKE TEST
 # ============================================================
 
 log "Checking web HTTP endpoint..."
@@ -849,7 +890,7 @@ for ((attempt=1; attempt<=HEALTH_RETRIES; attempt++)); do
 done
 
 # ============================================================
-# 16. WEB HEALTH ENDPOINT
+# 17. WEB HEALTH ENDPOINT
 # ============================================================
 
 log "Checking web health endpoint..."
@@ -877,7 +918,7 @@ else
 fi
 
 # ============================================================
-# 17. BACKEND API THROUGH NGINX
+# 18. BACKEND API THROUGH NGINX
 # ============================================================
 
 log "Checking API through Nginx reverse proxy..."
@@ -908,7 +949,7 @@ else
 fi
 
 # ============================================================
-# 18. FINAL STATUS
+# 19. FINAL STATUS
 # ============================================================
 
 printf '\n'

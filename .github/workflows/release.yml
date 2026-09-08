@@ -1,7 +1,6 @@
-name: Release
-
 # ============================================================
 # Finora — Release
+# ============================================================
 #
 # Release trigger:
 #
@@ -19,6 +18,8 @@ name: Release
 #   Full Compose validation
 #       ↓
 #   Backend + Web images
+#       ↓
+#   Frontend artifact verification
 #       ↓
 #   Health / smoke tests
 #       ↓
@@ -38,6 +39,23 @@ name: Release
 #       ↓
 #   Neon PostgreSQL
 #
+# Frontend production API:
+#
+#   https://finora-backend-latest.onrender.com/api/v1
+#
+# IMPORTANT:
+#
+#   The production frontend API URL is supplied explicitly
+#   to the Docker build.
+#
+#   scripts/docker.sh does not choose or default the API URL.
+#
+# ============================================================
+
+name: Release
+
+# ============================================================
+# TRIGGERS
 # ============================================================
 
 on:
@@ -45,15 +63,31 @@ on:
     tags:
       - "v*.*.*"
 
+# ============================================================
+# PERMISSIONS
+# ============================================================
+
 permissions:
   contents: read
   packages: write
+
+# ============================================================
+# CONCURRENCY
+# ============================================================
 
 concurrency:
   group: finora-release-${{ github.ref }}
   cancel-in-progress: false
 
+# ============================================================
+# JOBS
+# ============================================================
+
 jobs:
+  # ========================================================
+  # RELEASE
+  # ========================================================
+
   release:
     name: Validate and Publish Docker Images
     runs-on: ubuntu-latest
@@ -62,24 +96,34 @@ jobs:
       COMPOSE_PROJECT_NAME: finora-ci
       COMPOSE_FILE: compose.yml
 
+      # ----------------------------------------------------
+      # Frontend production API
+      #
+      # This value is intentionally explicit and absolute.
+      # It is passed through Compose to the Vite production
+      # build and becomes part of the released frontend bundle.
+      # ----------------------------------------------------
+
+      VITE_API_URL: https://finora-backend-latest.onrender.com/api/v1
+
     steps:
-      # ======================================================
+      # ====================================================
       # 1. CHECKOUT
-      # ======================================================
+      # ====================================================
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ======================================================
+      # ====================================================
       # 2. SET UP DOCKER BUILDX
-      # ======================================================
+      # ====================================================
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # ======================================================
+      # ====================================================
       # 3. DOCKER ENVIRONMENT
-      # ======================================================
+      # ====================================================
 
       - name: Verify Docker environment
         run: |
@@ -90,9 +134,13 @@ jobs:
           docker --version
           docker compose version
 
-      # ======================================================
+          echo
+          echo "Frontend API URL:"
+          echo "  ${VITE_API_URL}"
+
+      # ====================================================
       # 4. MAKE SCRIPTS EXECUTABLE
-      # ======================================================
+      # ====================================================
 
       - name: Make release scripts executable
         run: |
@@ -109,15 +157,9 @@ jobs:
           echo
           echo "Release scripts are valid."
 
-      # ======================================================
+      # ====================================================
       # 5. VALIDATE CI DATABASE SECRET
-      #
-      # scripts/docker.sh requires CI_DATABASE_URL.
-      #
-      # This MUST be a dedicated CI PostgreSQL database.
-      #
-      # DO NOT use the production Neon database.
-      # ======================================================
+      # ====================================================
 
       - name: Validate CI database secret
         env:
@@ -135,34 +177,9 @@ jobs:
           echo "CI database secret is configured."
           echo "Database credentials will not be printed."
 
-      # ======================================================
+      # ====================================================
       # 6. FULL DOCKER VALIDATION
-      #
-      # This is the release gate.
-      #
-      # scripts/docker.sh:
-      #
-      #   - creates temporary CI environment
-      #   - validates Compose
-      #   - validates backend database configuration
-      #   - builds backend + web images
-      #   - starts the application stack
-      #   - checks backend health
-      #   - checks CI PostgreSQL connectivity
-      #   - checks Alembic migration state
-      #   - checks web health
-      #   - validates Nginx
-      #   - runs HTTP smoke tests
-      #   - removes containers / volumes / temporary env
-      #
-      # The Docker images remain available locally after
-      # "docker compose down", so release.sh can publish them.
-      #
-      # IMPORTANT:
-      #
-      #   CI_DATABASE_URL is intentionally passed only to this
-      #   validation process. It is not stored in the Docker image.
-      # ======================================================
+      # ====================================================
 
       - name: Validate Docker stack
         env:
@@ -172,30 +189,16 @@ jobs:
           echo " Finora Docker Release Gate"
           echo "============================================================"
 
+          echo
+          echo "Release frontend API:"
+          echo "  ${VITE_API_URL}"
+
+          chmod +x scripts/docker.sh
           ./scripts/docker.sh
 
-      # ======================================================
+      # ====================================================
       # 7. PUBLISH VALIDATED IMAGES TO GHCR
-      #
-      # This runs only after the complete Docker validation
-      # succeeds.
-      #
-      # release.sh DOES NOT rebuild images.
-      #
-      # It publishes:
-      #
-      #   finora-ci-backend
-      #       → finora-backend:<version>
-      #       → finora-backend:latest
-      #
-      #   finora-ci-web
-      #       → finora-web:<version>
-      #       → finora-web:latest
-      #
-      # The version comes from the Git tag:
-      #
-      #   v1.0.0 → 1.0.0
-      # ======================================================
+      # ====================================================
 
       - name: Publish validated images to GHCR
         env:
@@ -210,9 +213,9 @@ jobs:
 
           ./scripts/release.sh "${GITHUB_REF_NAME}"
 
-      # ======================================================
+      # ====================================================
       # 8. RELEASE SUMMARY
-      # ======================================================
+      # ====================================================
 
       - name: Release summary
         run: |
@@ -224,12 +227,19 @@ jobs:
           echo " Finora Release"
           echo "============================================================"
           echo
+
           echo "Git tag:"
           echo "  ${GITHUB_REF_NAME}"
           echo
+
           echo "Repository:"
           echo "  ${GITHUB_REPOSITORY}"
           echo
+
+          echo "Frontend production API:"
+          echo "  ${VITE_API_URL}"
+          echo
+
           echo "GHCR:"
           echo "  ghcr.io/${OWNER}/finora-backend:${VERSION}"
           echo "  ghcr.io/${OWNER}/finora-backend:latest"
@@ -237,14 +247,21 @@ jobs:
           echo "  ghcr.io/${OWNER}/finora-web:${VERSION}"
           echo "  ghcr.io/${OWNER}/finora-web:latest"
           echo
+
           echo "Render backend:"
           echo "  Deploy the versioned backend image:"
           echo "  ghcr.io/${OWNER}/finora-backend:${VERSION}"
           echo
+
           echo "Neon:"
           echo "  Production Neon is configured at Render runtime."
           echo "  No Neon credentials are included in the image."
           echo
+
           echo "============================================================"
           echo " Release successful"
           echo "============================================================"
+
+# ============================================================
+# END
+# ============================================================

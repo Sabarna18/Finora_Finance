@@ -1,75 +1,75 @@
 # ==========================================================
 # Finora - Docker Compose
 #
-# Complete Local Application Stack
+# Complete Local / CI Validation Application Stack
 #
 # Database:
-#   Neon PostgreSQL (deployed)
+#   External PostgreSQL
+#
+# Local development:
+#   Neon PostgreSQL
+#
+# CI / Release validation:
+#   Dedicated CI PostgreSQL
 #
 # Architecture:
 #
 #   Browser
 #      │
 #      ├──────────────► Frontend / Nginx :80
+#      │                    │
+#      │                    │ static React application
+#      │                    │
+#      │                    └── Browser API calls use
+#      │                        VITE_API_URL
 #      │
 #      └──────────────► Backend :8000
 #                              │
 #                              │ SSL / PostgreSQL
 #                              ▼
-#                         Neon PostgreSQL
+#                       External PostgreSQL
 #
 # IMPORTANT:
 #
-# There is NO local PostgreSQL container.
+#   - There is NO local PostgreSQL container.
+#   - Database configuration belongs to backend/.env.
+#   - VITE_API_URL is a Vite build-time variable.
+#   - VITE_API_URL MUST be supplied explicitly by the caller.
+#   - This Compose file does NOT hardcode a frontend API origin.
 #
-# Neon is the single canonical Finora database.
+# Examples:
+#
+#   Local:
+#     VITE_API_URL=http://localhost:8000/api/v1 docker compose up --build
+#
+#   CI:
+#     VITE_API_URL=http://localhost:8000/api/v1 ./scripts/docker.sh
+#
+#   Release:
+#     VITE_API_URL=https://finora-backend-latest.onrender.com/api/v1 \
+#       ./scripts/docker.sh
 #
 # ==========================================================
 
-
 services:
-
   # ========================================================
   # FastAPI Backend
   # ========================================================
 
-  #
-  # Responsible for:
-  #
-  #   • FastAPI
-  #   • Uvicorn
-  #   • SQLAlchemy
-  #   • Alembic
-  #   • Backend quality tools
-  #
-  # Database:
-  #
-  #   Neon PostgreSQL
-  #
-  # Configuration:
-  #
-  #   ./backend/.env
-  #
-  # ========================================================
-
   backend:
-
     build:
       context: ./backend
       dockerfile: Dockerfile
 
     container_name: finora-backend
-
     restart: unless-stopped
 
-
     # ------------------------------------------------------
-    # Application Environment
+    # Backend Environment
     # ------------------------------------------------------
 
     env_file:
       - ./backend/.env
-
 
     # ------------------------------------------------------
     # Backend Source Mount
@@ -80,21 +80,12 @@ services:
       - /backend/.venv
       - backend_logs:/backend/logs
 
-
     # ------------------------------------------------------
     # Backend HTTP Port
     # ------------------------------------------------------
 
-    #
-    # Browser/API clients can reach FastAPI at:
-    #
-    #   http://localhost:8000/api/v1
-    #
-    # ------------------------------------------------------
-
     ports:
       - "8000:8000"
-
 
     # ------------------------------------------------------
     # Backend Health Check
@@ -102,15 +93,11 @@ services:
 
     healthcheck:
       test:
-        [
-          "CMD-SHELL",
-          "curl -f http://localhost:8000/api/v1/health || exit 1"
-        ]
+        ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
-
 
     # ------------------------------------------------------
     # Internal Network
@@ -119,8 +106,6 @@ services:
     networks:
       - finora_network
 
-
-
   # ========================================================
   # Web
   #
@@ -128,7 +113,6 @@ services:
   # ========================================================
 
   web:
-
     build:
       context: .
       dockerfile: infrastructure/web/Dockerfile
@@ -137,35 +121,44 @@ services:
       # Frontend Build Arguments
       # ----------------------------------------------------
       #
-      # IMPORTANT:
-      #
       # VITE_API_URL is a Vite build-time variable.
       #
-      # The browser communicates directly with the local
-      # FastAPI backend.
+      # IMPORTANT:
+      #
+      # It MUST be explicitly supplied by the caller.
+      #
+      # This prevents:
+      #
+      #   /api/v1
+      #
+      # or any other unintended fallback from being baked
+      # into the released frontend artifact.
+      #
+      # The value is supplied by:
+      #
+      #   docker.yml  → local CI validation URL
+      #   release.yml → Render production URL
       #
       # ----------------------------------------------------
 
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
-
+        VITE_API_URL: ${VITE_API_URL:?VITE_API_URL must be explicitly provided}
 
     container_name: finora-web
-
     restart: unless-stopped
-
 
     # ------------------------------------------------------
     # Backend Dependency
     # ------------------------------------------------------
+    #
+    # Local / CI validation starts the web container after
+    # the backend becomes healthy.
+    #
+    # ------------------------------------------------------
 
-    #
-    # Start the frontend after the backend becomes healthy.
-    #
     depends_on:
       backend:
         condition: service_healthy
-
 
     # ------------------------------------------------------
     # Public HTTP Port
@@ -173,7 +166,6 @@ services:
 
     ports:
       - "80:80"
-
 
     # ------------------------------------------------------
     # Web Health Check
@@ -183,13 +175,12 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://127.0.0.1/web-health || exit 1"
+          "wget --no-verbose --tries=1 --spider http://127.0.0.1/web-health || exit 1",
         ]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
-
 
     # ------------------------------------------------------
     # Internal Network
@@ -198,33 +189,26 @@ services:
     networks:
       - finora_network
 
-
-
 # ==========================================================
 # Persistent Volumes
 # ==========================================================
-
 #
-# PostgreSQL volume has intentionally been removed.
+# PostgreSQL volume is intentionally absent.
 #
-# Neon owns database persistence.
+# Database persistence belongs to the external PostgreSQL
+# provider.
 #
 # ==========================================================
 
 volumes:
-
   backend_logs:
     name: finora_backend_logs
-
-
 
 # ==========================================================
 # Docker Network
 # ==========================================================
 
 networks:
-
   finora_network:
     name: finora_network
     driver: bridge
-
