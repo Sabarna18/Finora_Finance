@@ -415,8 +415,21 @@ log "Deploying frontend to Vercel"
 
 cd "${PROJECT_ROOT}/${FRONTEND_DIR}"
 
+VERCEL_ARTIFACT_DIR="$(mktemp -d)"
+
+cleanup_vercel_artifact() {
+    rm -rf "${VERCEL_ARTIFACT_DIR}"
+}
+
+trap cleanup_vercel_artifact EXIT
+
+cp -R dist/. "${VERCEL_ARTIFACT_DIR}/"
+
+echo "[DEPLOY] Deploying isolated static artifact:"
+echo "  ${VERCEL_ARTIFACT_DIR}"
+
 DEPLOY_OUTPUT="$(
-    npx "vercel@${VERCEL_CLI_VERSION}" deploy "dist" \
+    npx "vercel@${VERCEL_CLI_VERSION}" deploy "${VERCEL_ARTIFACT_DIR}" \
         --prod \
         --yes \
         --token "${VERCEL_TOKEN}" \
@@ -428,6 +441,7 @@ DEPLOY_OUTPUT="$(
     fail "Vercel production deployment failed."
 }
 
+echo "${DEPLOY_OUTPUT}"
 echo "${DEPLOY_OUTPUT}"
 echo
 echo "[PASS] Frontend deployed to Vercel."
