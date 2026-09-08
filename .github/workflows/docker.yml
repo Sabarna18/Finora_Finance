@@ -3,54 +3,61 @@
 # ==========================================================
 #
 # Purpose:
-#   Validate the complete local Docker application stack on GitHub
-#   using the canonical Docker validation script.
+#   Validate the complete Finora Docker application stack on GitHub
+#   using the canonical scripts/docker.sh validation script.
 #
-# Architecture:
+# Runtime architecture under validation:
 #
-#   GitHub Actions
-#        │
-#        ├── Docker Engine
-#        │
-#        └── Docker Compose
-#                │
-#                ├── finora-web
-#                │      └── React/Vite + Nginx
-#                │
-#                └── finora-backend
-#                       └── FastAPI + Neon PostgreSQL
+#   GitHub Actions runner
+#          │
+#          ├── PostgreSQL 17 service
+#          │       │
+#          │       └── disposable CI database
+#          │
+#          └── Docker Compose
+#                  │
+#                  ├── finora-web :80
+#                  │      └── React/Vite + Nginx
+#                  │
+#                  └── finora-backend :8000
+#                         └── FastAPI
+#                                │
+#                                ▼
+#                       host.docker.internal:5432
+#                                │
+#                                ▼
+#                       PostgreSQL CI service
 #
 # IMPORTANT:
 #
-#   There is intentionally NO PostgreSQL container.
+#   The PostgreSQL service exists ONLY inside this GitHub Actions
+#   validation workflow.
 #
-#   The Docker stack being validated is:
+#   It does NOT modify compose.yml.
+#
+#   Local development remains:
 #
 #       web       → Docker
 #       backend   → Docker
 #       database  → Neon PostgreSQL
 #
-#   All validation logic lives in:
+#   The workflow therefore validates the Docker application in an
+#   isolated CI environment without ever touching production Neon.
 #
-#       scripts/docker.sh
+#   scripts/docker.sh owns the Docker validation logic and creates
+#   the temporary application environment consumed by Compose.
 #
-#   This workflow is intentionally thin and only provides:
-#
-#       - GitHub Actions runner
-#       - Docker
-#       - repository checkout
-#       - safe CI environment
-#       - Docker stack execution
-#
-#   CI source validation is handled by:
+#   CI source validation:
 #
 #       .github/workflows/ci.yml
 #
-#   Release image publishing is handled by:
+#   Release image publishing:
 #
 #       .github/workflows/release.yml
 #
-#   Deployment is handled separately.
+#   Deployment:
+#
+#       separate deployment workflow
 #
 # ==========================================================
 
@@ -68,13 +75,12 @@ on:
 # GLOBAL ENVIRONMENT
 # ==========================================================
 #
-# These are ONLY safe values required to validate the Docker
-# application stack.
+# These values are safe, disposable Docker-validation values.
 #
-# No production credentials are stored here.
+# The database values are repeated at the job level because the
+# PostgreSQL service and scripts/docker.sh both need them.
 #
-# The Docker validation script uses these values to construct
-# the disposable runtime environment required by Compose.
+# No production credentials are used.
 #
 # ==========================================================
 
@@ -109,7 +115,49 @@ jobs:
   docker-validation:
     name: Docker Stack Validation
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+
+    # ======================================================
+    # TEMPORARY GITHUB ACTIONS POSTGRESQL
+    # ======================================================
+    #
+    # This is NOT part of Finora's compose.yml.
+    #
+    # It exists only to give the Dockerized backend an isolated
+    # PostgreSQL instance during GitHub validation.
+    #
+    # ======================================================
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+
+        env:
+          POSTGRES_USER: finora
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: finance_db
+
+        ports:
+          - 5432:5432
+
+        options: >-
+          --health-cmd "pg_isready -U finora -d finance_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 10s
+
+    # ======================================================
+    # JOB ENVIRONMENT
+    # ======================================================
+
+    env:
+      POSTGRES_HOST: host.docker.internal
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: finora
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: finance_db
+      POSTGRES_SSLMODE: disable
 
     steps:
       # ====================================================
@@ -130,6 +178,32 @@ jobs:
           docker info
 
       # ====================================================
+      # VERIFY POSTGRESQL SERVICE
+      # ====================================================
+
+      - name: Verify PostgreSQL service
+        run: |
+          echo "Waiting for PostgreSQL service..."
+
+          for attempt in {1..30}; do
+            if pg_isready \
+              -h localhost \
+              -p 5432 \
+              -U finora \
+              -d finance_db; then
+              echo "PostgreSQL service is ready."
+              exit 0
+            fi
+
+            echo "PostgreSQL not ready."
+            echo "Retry ${attempt}/30..."
+            sleep 2
+          done
+
+          echo "::error::PostgreSQL service did not become ready."
+          exit 1
+
+      # ====================================================
       # VERIFY DOCKER FILES
       # ====================================================
 
@@ -142,23 +216,38 @@ jobs:
           test -f scripts/docker.sh
 
       # ====================================================
+      # CONFIGURE HOST GATEWAY
+      # ====================================================
+      #
+      # Docker containers on the Linux GitHub runner use
+      # host.docker.internal to reach the PostgreSQL service
+      # exposed on the runner host.
+      #
+      # ====================================================
+
+      - name: Configure Docker host gateway
+        run: |
+          docker network create finora_ci_network 2>/dev/null || true
+
+          echo "Docker host gateway:"
+          getent hosts host.docker.internal || true
+
+      # ====================================================
       # RUN CANONICAL DOCKER VALIDATION
       # ====================================================
       #
-      # scripts/docker.sh performs the complete validation:
+      # scripts/docker.sh:
       #
-      #   - Docker toolchain
-      #   - project structure
-      #   - local environment
-      #   - Compose configuration
-      #   - architecture
-      #   - image builds
-      #   - container startup
-      #   - backend health
-      #   - web health
-      #   - frontend application
-      #   - Vite API configuration
-      #   - Docker healthchecks
+      #   - creates disposable .env files
+      #   - validates Compose
+      #   - validates architecture
+      #   - builds backend/frontend images
+      #   - starts the stack
+      #   - waits for backend/web health
+      #   - validates application endpoints
+      #   - validates Vite API configuration
+      #   - validates Docker healthchecks
+      #   - cleans disposable environment files
       #
       # ====================================================
 
@@ -170,11 +259,6 @@ jobs:
       # ====================================================
       # FAILURE DIAGNOSTICS
       # ====================================================
-      #
-      # docker.sh already prints diagnostics on failure.
-      # This step provides the final Compose state as well.
-      #
-      # ====================================================
 
       - name: Collect Docker diagnostics
         if: failure()
@@ -182,26 +266,46 @@ jobs:
           echo "============================================================"
           echo " Docker Compose Status"
           echo "============================================================"
+
           docker compose ps || true
 
           echo ""
           echo "============================================================"
           echo " Docker Images"
           echo "============================================================"
-          docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" || true
+
+          docker images \
+            --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" || true
 
           echo ""
           echo "============================================================"
-          echo " Docker Volumes"
+          echo " Docker Networks"
           echo "============================================================"
-          docker volume ls || true
+
+          docker network ls || true
+
+          echo ""
+          echo "============================================================"
+          echo " Backend Logs"
+          echo "============================================================"
+
+          docker logs --tail 150 finora-backend 2>&1 || true
+
+          echo ""
+          echo "============================================================"
+          echo " Web Logs"
+          echo "============================================================"
+
+          docker logs --tail 150 finora-web 2>&1 || true
 
       # ====================================================
       # CLEANUP
       # ====================================================
       #
-      # Always remove containers/networks/volumes created by
-      # this workflow so the GitHub runner remains clean.
+      # Always clean the Compose stack.
+      #
+      # The PostgreSQL service itself is managed automatically
+      # by GitHub Actions and disappears with the job.
       #
       # ====================================================
 
@@ -209,6 +313,7 @@ jobs:
         if: always()
         run: |
           docker compose down --volumes --remove-orphans || true
+          docker network rm finora_ci_network 2>/dev/null || true
 
 # ==========================================================
 # END
