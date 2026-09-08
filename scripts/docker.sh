@@ -66,14 +66,6 @@ error() {
 cleanup() {
     local exit_code=$?
 
-    if [[ "${KEEP_STACK}" == false ]]; then
-        log "Stopping validation stack..."
-
-        docker compose \
-            -f "${COMPOSE_FILE}" \
-            down --remove-orphans >/dev/null 2>&1 || true
-    fi
-
     if [[ "${exit_code}" -ne 0 ]]; then
         FAILED=true
 
@@ -87,6 +79,18 @@ cleanup() {
         docker compose -f "${COMPOSE_FILE}" ps || true
 
         echo
+        echo "--- Backend health ---"
+        docker inspect finora-backend \
+            --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' \
+            2>/dev/null || true
+
+        echo
+        echo "--- Backend health history ---"
+        docker inspect finora-backend \
+            --format '{{range .State.Health.Log}}{{println "exit=" .ExitCode}}{{println .Output}}{{end}}' \
+            2>/dev/null || true
+
+        echo
         echo "--- Backend logs ---"
         docker logs finora-backend --tail 200 2>/dev/null || true
 
@@ -94,6 +98,17 @@ cleanup() {
         echo "--- Web logs ---"
         docker logs finora-web --tail 200 2>/dev/null || true
     fi
+
+    if [[ "${KEEP_STACK}" == false ]]; then
+        log "Stopping validation stack..."
+
+        docker compose \
+            -f "${COMPOSE_FILE}" \
+            down --remove-orphans >/dev/null 2>&1 || true
+    fi
+
+    # Never leave Neon credentials on the runner.
+    rm -f .env backend/.env
 
     exit "${exit_code}"
 }
@@ -162,81 +177,115 @@ done
 success "Required Docker files are present."
 
 # ==========================================================
-# 3. Validate local environment
+# 3. Create temporary Docker environment
 # ==========================================================
 #
-# The Docker stack intentionally uses the developer's real
-# backend/.env so that this validation tests the real Neon
-# PostgreSQL connection.
+# GitHub Actions runners do not contain the developer's .env
+# files. The Docker Compose file intentionally references:
 #
-# We do NOT create a fake PostgreSQL configuration here.
+#   .env
+#   backend/.env
+#
+# The workflow provides one secret:
+#
+#   NEON_DATABASE_URL
+#
+# This script converts that connection string into the
+# application's existing POSTGRES_* environment contract.
+#
+# The files exist for the entire lifetime of this script and
+# are deleted by cleanup(), including on failure.
 #
 # ==========================================================
 
-log "Checking environment configuration..."
+log "Creating temporary Docker environment..."
 
-if [[ ! -f ".env" ]]; then
-    error "Root .env is missing."
-    error "Create .env with VITE_API_URL, for example:"
-    error "  VITE_API_URL=http://localhost:8000"
+if [[ -z "${NEON_DATABASE_URL:-}" ]]; then
+    error "NEON_DATABASE_URL is not available."
+    error "The Docker validation workflow must provide the GitHub Secret."
     exit 1
 fi
 
-if [[ ! -f "backend/.env" ]]; then
-    error "backend/.env is missing."
-    error "Create backend/.env with the Neon PostgreSQL configuration."
+if [[ "${NEON_DATABASE_URL}" != postgresql://* && \
+      "${NEON_DATABASE_URL}" != postgres://* ]]; then
+    error "NEON_DATABASE_URL is not a valid PostgreSQL connection string."
     exit 1
 fi
 
-# Load root .env only for validation. Do not export it globally.
-set -a
-# shellcheck disable=SC1091
-source ".env"
-set +a
-
-if [[ -z "${VITE_API_URL:-}" ]]; then
-    error "VITE_API_URL is not defined in .env."
+if [[ "${NEON_DATABASE_URL}" != *"sslmode=require"* ]]; then
+    error "NEON_DATABASE_URL must contain sslmode=require for Neon."
     exit 1
 fi
 
-# VITE_API_URL must be the backend origin. client.ts owns /api/v1.
-if [[ "${VITE_API_URL}" == */api/v1 || "${VITE_API_URL}" == */api/v1/ ]]; then
-    error "VITE_API_URL must contain only the backend origin."
-    error "Current value: ${VITE_API_URL}"
-    error "Expected example: http://localhost:8000"
-    exit 1
-fi
+# Never print the connection string.
+python3 - <<'PY'
+import os
+import sys
+from urllib.parse import urlsplit, unquote
 
-# Verify that backend/.env contains the expected PostgreSQL
-# configuration. Values themselves are never printed.
-required_backend_vars=(
-    POSTGRES_HOST
-    POSTGRES_PORT
-    POSTGRES_USER
-    POSTGRES_PASSWORD
-    POSTGRES_DB
-)
+url = os.environ["NEON_DATABASE_URL"]
+parsed = urlsplit(url)
 
-for variable in "${required_backend_vars[@]}"; do
-    if ! grep -Eq "^${variable}=" backend/.env; then
-        error "Missing ${variable} in backend/.env."
-        exit 1
-    fi
-done
+if parsed.scheme not in {"postgresql", "postgres"}:
+    print("Invalid PostgreSQL URL scheme.")
+    sys.exit(1)
 
-# Neon requires SSL. If explicitly configured, it must not be
-# disabled for this Docker validation.
-if grep -Eq '^POSTGRES_SSLMODE=' backend/.env; then
-    sslmode="$(grep '^POSTGRES_SSLMODE=' backend/.env | head -n1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")"
+if not parsed.hostname:
+    print("NEON_DATABASE_URL is missing the database host.")
+    sys.exit(1)
 
-    if [[ "${sslmode}" == "disable" ]]; then
-        error "POSTGRES_SSLMODE=disable is not valid for Neon validation."
-        error "Use POSTGRES_SSLMODE=require in backend/.env."
-        exit 1
-    fi
-fi
+if not parsed.username:
+    print("NEON_DATABASE_URL is missing the database username.")
+    sys.exit(1)
 
-success "Local environment files and Neon configuration are present."
+if parsed.password is None:
+    print("NEON_DATABASE_URL is missing the database password.")
+    sys.exit(1)
+
+database = parsed.path.lstrip("/")
+if not database:
+    print("NEON_DATABASE_URL is missing the database name.")
+    sys.exit(1)
+
+try:
+    port = parsed.port or 5432
+except ValueError:
+    print("NEON_DATABASE_URL contains an invalid port.")
+    sys.exit(1)
+
+host = parsed.hostname
+user = unquote(parsed.username)
+password = unquote(parsed.password)
+
+# Root .env consumed by compose.yml for the Vite build argument.
+with open(".env", "w", encoding="utf-8") as f:
+    f.write("VITE_API_URL=http://localhost:8000\n")
+    f.write("DEBUG=true\n")
+    f.write('BACKEND_CORS_ORIGINS=\'["http://localhost","http://localhost:80"]\'\n')
+
+# backend/.env consumed by compose.yml.
+# Keep the application's existing POSTGRES_* contract.
+with open("backend/.env", "w", encoding="utf-8") as f:
+    f.write("APP_NAME=Finora\n")
+    f.write("DEBUG=true\n")
+    f.write("DB_TYPE=postgresql\n")
+    f.write(f"POSTGRES_HOST={host}\n")
+    f.write(f"POSTGRES_PORT={port}\n")
+    f.write(f"POSTGRES_USER={user}\n")
+    f.write(f"POSTGRES_PASSWORD={password}\n")
+    f.write(f"POSTGRES_DB={database}\n")
+    f.write("POSTGRES_SSLMODE=require\n")
+    f.write("SECRET_KEY=finora-docker-validation-secret\n")
+    f.write("ALGORITHM=HS256\n")
+    f.write("ACCESS_TOKEN_EXPIRE_MINUTES=60\n")
+    f.write('BACKEND_CORS_ORIGINS=\'["http://localhost","http://localhost:80"]\'\n')
+PY
+
+chmod 600 .env backend/.env
+
+success "Temporary root .env created."
+success "Temporary backend/.env created from Neon connection string."
+success "Neon credentials were not printed."
 
 # ==========================================================
 # 4. Validate Compose configuration
