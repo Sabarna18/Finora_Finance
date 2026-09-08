@@ -77,6 +77,7 @@ CI_DB_PORT="${POSTGRES_PORT:-5432}"
 CI_DB_USER="${POSTGRES_USER:-finora}"
 CI_DB_PASSWORD="${POSTGRES_PASSWORD:-password}"
 CI_DB_NAME="${POSTGRES_DB:-finance_db}"
+CI_DB_SSLMODE="${POSTGRES_SSLMODE:-disable}"
 
 
 # ============================================================
@@ -141,6 +142,7 @@ echo "  Host     : ${CI_DB_HOST}"
 echo "  Port     : ${CI_DB_PORT}"
 echo "  User     : ${CI_DB_USER}"
 echo "  Database : ${CI_DB_NAME}"
+echo "  SSL mode : ${CI_DB_SSLMODE}"
 echo ""
 
 
@@ -230,6 +232,7 @@ POSTGRES_PORT=${CI_DB_PORT}
 POSTGRES_USER=${CI_DB_USER}
 POSTGRES_PASSWORD=${CI_DB_PASSWORD}
 POSTGRES_DB=${CI_DB_NAME}
+POSTGRES_SSLMODE=${CI_DB_SSLMODE}
 
 # Authentication
 SECRET_KEY=finora-ci-test-secret
@@ -497,6 +500,7 @@ try:
         user="${CI_DB_USER}",
         password="${CI_DB_PASSWORD}",
         dbname="${CI_DB_NAME}",
+        sslmode="${CI_DB_SSLMODE}",
         connect_timeout=3,
     )
     conn.close()
@@ -549,6 +553,7 @@ POSTGRES_PORT="${CI_DB_PORT}" \
 POSTGRES_USER="${CI_DB_USER}" \
 POSTGRES_PASSWORD="${CI_DB_PASSWORD}" \
 POSTGRES_DB="${CI_DB_NAME}" \
+POSTGRES_SSLMODE="${CI_DB_SSLMODE}" \
 uv run alembic current || true
 
 echo ""
@@ -593,6 +598,7 @@ POSTGRES_PORT="${CI_DB_PORT}" \
 POSTGRES_USER="${CI_DB_USER}" \
 POSTGRES_PASSWORD="${CI_DB_PASSWORD}" \
 POSTGRES_DB="${CI_DB_NAME}" \
+POSTGRES_SSLMODE="${CI_DB_SSLMODE}" \
 uv run alembic upgrade head
 
 print_success "Alembic migrations applied successfully"
@@ -609,6 +615,7 @@ POSTGRES_PORT="${CI_DB_PORT}" \
 POSTGRES_USER="${CI_DB_USER}" \
 POSTGRES_PASSWORD="${CI_DB_PASSWORD}" \
 POSTGRES_DB="${CI_DB_NAME}" \
+POSTGRES_SSLMODE="${CI_DB_SSLMODE}" \
 uv run alembic current
 
 print_success "Alembic current revision verified"
@@ -625,6 +632,7 @@ POSTGRES_PORT="${CI_DB_PORT}" \
 POSTGRES_USER="${CI_DB_USER}" \
 POSTGRES_PASSWORD="${CI_DB_PASSWORD}" \
 POSTGRES_DB="${CI_DB_NAME}" \
+POSTGRES_SSLMODE="${CI_DB_SSLMODE}" \
 uv run alembic check
 
 print_success "Alembic consistency check passed"
@@ -661,6 +669,7 @@ POSTGRES_PORT="${CI_DB_PORT}" \
 POSTGRES_USER="${CI_DB_USER}" \
 POSTGRES_PASSWORD="${CI_DB_PASSWORD}" \
 POSTGRES_DB="${CI_DB_NAME}" \
+POSTGRES_SSLMODE="${CI_DB_SSLMODE}" \
 uv run python - <<'PY'
 from sqlalchemy import create_engine, inspect
 from src.db.database import DATABASE_URL
@@ -707,6 +716,7 @@ POSTGRES_PORT="${CI_DB_PORT}" \
 POSTGRES_USER="${CI_DB_USER}" \
 POSTGRES_PASSWORD="${CI_DB_PASSWORD}" \
 POSTGRES_DB="${CI_DB_NAME}" \
+POSTGRES_SSLMODE="${CI_DB_SSLMODE}" \
 uv run python - <<'PY'
 from sqlalchemy import create_engine, inspect
 from src.db.database import DATABASE_URL
