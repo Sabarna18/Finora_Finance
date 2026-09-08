@@ -1,20 +1,24 @@
 # ==========================================================
 # Finora - Docker Stack Validation
 #
-# Purpose:
-#   Run scripts/docker.sh on a clean GitHub runner.
+# Validates the complete Dockerized application against the
+# real Neon PostgreSQL service.
 #
 # Database:
-#   Real Neon PostgreSQL
+#   Neon PostgreSQL only
 #
-# Secret:
+# GitHub Secret:
 #   NEON_DATABASE_URL
 #
+# Environment lifecycle:
+#   scripts/docker.sh creates temporary .env files because
+#   compose.yml requires backend/.env.
+#
 # IMPORTANT:
-#   - No PostgreSQL GitHub service.
-#   - No CI database.
+#   - No PostgreSQL GitHub Actions service.
+#   - No local PostgreSQL container.
 #   - No permanent .env files.
-#   - scripts/docker.sh creates and removes temporary env files.
+#   - docker.sh owns Compose validation and cleanup.
 #
 # ==========================================================
 
@@ -45,12 +49,11 @@ jobs:
     timeout-minutes: 30
 
     env:
-      # Vite build-time API origin.
-      # client.ts adds /api/v1.
+      # Vite build-time backend origin.
+      # client.ts owns /api/v1.
       VITE_API_URL: http://localhost:8000
 
       # Complete Neon PostgreSQL connection string.
-      # The secret is consumed by scripts/docker.sh.
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
 
     steps:
@@ -62,7 +65,7 @@ jobs:
         uses: actions/checkout@v4
 
       # ====================================================
-      # 2. Verify Docker environment
+      # 2. Verify Docker
       # ====================================================
 
       - name: Verify Docker environment
@@ -76,16 +79,17 @@ jobs:
 
           docker --version
           docker compose version
-
-          echo
           docker info --format \
             'Server={{.ServerVersion}} | Storage={{.Driver}} | OS={{.OperatingSystem}}'
+
+          echo
+          echo "✓ Docker environment ready."
 
       # ====================================================
       # 3. Validate Neon secret
       # ====================================================
 
-      - name: Validate Neon secret
+      - name: Validate Neon configuration
         shell: bash
         run: |
           set -euo pipefail
@@ -114,14 +118,14 @@ jobs:
           fi
 
           echo "✓ NEON_DATABASE_URL is configured."
-          echo "✓ Neon PostgreSQL URL format is valid."
+          echo "✓ PostgreSQL connection string format is valid."
           echo "✓ Neon SSL is required."
 
       # ====================================================
-      # 4. Verify validation script
+      # 4. Validate Docker script
       # ====================================================
 
-      - name: Verify Docker validation script
+      - name: Validate Docker validation script
         shell: bash
         run: |
           set -euo pipefail
@@ -136,20 +140,30 @@ jobs:
           fi
 
           chmod +x scripts/docker.sh
-
           bash -n scripts/docker.sh
 
           echo "✓ scripts/docker.sh exists."
-          echo "✓ scripts/docker.sh syntax is valid."
-          echo "✓ scripts/docker.sh is executable."
+          echo "✓ Bash syntax is valid."
 
       # ====================================================
       # 5. Run complete Docker validation
       # ====================================================
       #
-      # docker.sh creates backend/.env BEFORE any Compose
-      # command, keeps it alive during the complete validation,
-      # and removes it during its EXIT cleanup.
+      # docker.sh is deliberately responsible for:
+      #
+      #   1. Creating temporary .env
+      #   2. Creating temporary backend/.env
+      #   3. docker compose config
+      #   4. Building backend/web
+      #   5. Starting containers
+      #   6. Backend health
+      #   7. Neon SQL connectivity
+      #   8. Web health
+      #   9. Frontend validation
+      #  10. Cleanup
+      #
+      # This is important because compose.yml requires
+      # backend/.env while Compose is being parsed.
       #
       # ====================================================
 
@@ -165,10 +179,41 @@ jobs:
           ./scripts/docker.sh
 
       # ====================================================
-      # 6. Additional diagnostics on failure
+      # 6. Defensive cleanup
+      # ====================================================
+      #
+      # docker.sh performs its own cleanup. This step protects
+      # the runner if docker.sh itself is interrupted before
+      # its EXIT trap can run.
+      #
+      # Do not run docker compose commands here: compose.yml
+      # requires backend/.env, which docker.sh deliberately
+      # removes after validation.
+      #
       # ====================================================
 
-      - name: Collect Docker diagnostics on failure
+      - name: Remove temporary environment files
+        if: always()
+        shell: bash
+        run: |
+          set +e
+
+          rm -f .env
+          rm -f backend/.env
+
+          echo "✓ Temporary environment files removed."
+
+      # ====================================================
+      # 7. Docker diagnostics
+      # ====================================================
+      #
+      # Only useful when containers still exist. docker.sh
+      # normally cleans them after collecting its own failure
+      # diagnostics.
+      #
+      # ====================================================
+
+      - name: Collect remaining Docker diagnostics
         if: failure()
         shell: bash
         run: |
@@ -176,59 +221,17 @@ jobs:
 
           echo
           echo "=========================================================="
-          echo " Docker Failure Diagnostics"
+          echo " Remaining Docker Diagnostics"
           echo "=========================================================="
 
-          echo
-          echo "--- Compose status ---"
-          docker compose -f compose.yml ps
-
-          echo
-          echo "--- Containers ---"
           docker ps -a \
             --filter "name=finora-backend" \
             --filter "name=finora-web"
 
           echo
-          echo "--- Backend health history ---"
-          docker inspect finora-backend \
-            --format '{{range .State.Health.Log}}{{println "exit=" .ExitCode}}{{println .Output}}{{end}}' \
-            2>/dev/null || true
-
-          echo
           echo "--- Backend logs ---"
-          docker logs finora-backend --tail 250 2>&1 || true
-
-          echo
-          echo "--- Web health history ---"
-          docker inspect finora-web \
-            --format '{{range .State.Health.Log}}{{println "exit=" .ExitCode}}{{println .Output}}{{end}}' \
-            2>/dev/null || true
+          docker logs finora-backend --tail 100 2>&1 || true
 
           echo
           echo "--- Web logs ---"
-          docker logs finora-web --tail 250 2>&1 || true
-
-      # ====================================================
-      # 7. Final cleanup
-      # ====================================================
-      #
-      # docker.sh normally performs its own cleanup. This
-      # step is defensive cleanup for failures outside the
-      # script itself.
-      #
-      # ====================================================
-
-      - name: Cleanup Docker resources
-        if: always()
-        shell: bash
-        run: |
-          set +e
-
-          docker compose -f compose.yml down --remove-orphans
-
-          # Defensive removal. docker.sh also removes these.
-          rm -f .env backend/.env
-
-          echo "✓ Docker resources cleaned up."
-          echo "✓ Temporary environment files removed."
+          docker logs finora-web --tail 100 2>&1 || true
