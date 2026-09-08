@@ -82,6 +82,7 @@ jobs:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
 
     steps:
+
       # ====================================================
       # 1. Checkout
       # ====================================================
@@ -153,7 +154,116 @@ jobs:
           echo "✓ Neon SSL mode is configured."
 
       # ====================================================
-      # 4. Validate Docker project files
+      # 4. Create temporary Docker environment
+      # ====================================================
+      #
+      # GitHub runners do not contain developer .env files.
+      #
+      # compose.yml intentionally expects:
+      #   .env
+      #   backend/.env
+      #
+      # Create both files temporarily from the single
+      # NEON_DATABASE_URL secret. They are deleted after the
+      # validation job, including on failure.
+      #
+      # No database service is created by this workflow.
+      #
+      # ====================================================
+
+      - name: Create temporary Docker environment
+        shell: bash
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+
+          echo "=========================================================="
+          echo " Creating Temporary Docker Environment"
+          echo "=========================================================="
+
+          cleanup_env() {
+            rm -f .env backend/.env
+          }
+
+          trap cleanup_env EXIT
+
+          mkdir -p backend
+
+          # Root .env is used by Compose for Vite build arguments.
+          cat > .env <<'EOF'
+          VITE_API_URL=http://localhost:8000
+          DEBUG=true
+          BACKEND_CORS_ORIGINS='["http://localhost","http://localhost:80"]'
+          EOF
+
+          # Parse the Neon URL without exposing the password.
+          #
+          # urllib.parse handles URL-encoded credentials safely.
+          python3 - <<'PY'
+          import os
+          import sys
+          from urllib.parse import urlsplit, unquote
+
+          url = os.environ["NEON_DATABASE_URL"]
+
+          parsed = urlsplit(url)
+
+          if parsed.scheme not in {"postgresql", "postgres"}:
+              print("::error::NEON_DATABASE_URL must use postgresql:// or postgres://")
+              sys.exit(1)
+
+          if not parsed.hostname:
+              print("::error::NEON_DATABASE_URL is missing the database host.")
+              sys.exit(1)
+
+          if not parsed.username:
+              print("::error::NEON_DATABASE_URL is missing the database username.")
+              sys.exit(1)
+
+          if parsed.password is None:
+              print("::error::NEON_DATABASE_URL is missing the database password.")
+              sys.exit(1)
+
+          database = parsed.path.lstrip("/")
+          if not database:
+              print("::error::NEON_DATABASE_URL is missing the database name.")
+              sys.exit(1)
+
+          port = parsed.port or 5432
+
+          # Decode URL-encoded credentials before writing the backend
+          # environment file. The file is temporary and never logged.
+          user = unquote(parsed.username)
+          password = unquote(parsed.password)
+          host = parsed.hostname
+
+          # Keep the application's existing POSTGRES_* contract.
+          # Neon SSL is mandatory for this validation.
+          with open("backend/.env", "w", encoding="utf-8") as f:
+              f.write("APP_NAME=Finora\n")
+              f.write("DEBUG=true\n")
+              f.write("DB_TYPE=postgresql\n")
+              f.write(f"POSTGRES_HOST={host}\n")
+              f.write(f"POSTGRES_PORT={port}\n")
+              f.write(f"POSTGRES_USER={user}\n")
+              f.write(f"POSTGRES_PASSWORD={password}\n")
+              f.write(f"POSTGRES_DB={database}\n")
+              f.write("POSTGRES_SSLMODE=require\n")
+              f.write("SECRET_KEY=finora-docker-validation-secret\n")
+              f.write("ALGORITHM=HS256\n")
+              f.write("ACCESS_TOKEN_EXPIRE_MINUTES=60\n")
+              f.write('BACKEND_CORS_ORIGINS=["http://localhost","http://localhost:80"]\n')
+          PY
+
+          chmod 600 .env backend/.env
+
+          echo "✓ Temporary root .env created."
+          echo "✓ Temporary backend/.env created from NEON_DATABASE_URL."
+          echo "✓ Neon credentials were not printed."
+
+      # ====================================================
+      # 5. Validate Docker project files
       # ====================================================
 
       - name: Validate Docker project structure
@@ -191,7 +301,7 @@ jobs:
           echo "✓ Docker project structure is valid."
 
       # ====================================================
-      # 5. Validate Compose definition
+      # 6. Validate Compose definition
       # ====================================================
       #
       # This is intentionally done before docker.sh as a
@@ -239,7 +349,7 @@ jobs:
           echo "✓ No local PostgreSQL service."
 
       # ====================================================
-      # 6. Run the complete Docker validation
+      # 7. Run the complete Docker validation
       # ====================================================
       #
       # docker.sh owns:
@@ -268,7 +378,7 @@ jobs:
           ./scripts/docker.sh
 
       # ====================================================
-      # 7. Failure diagnostics
+      # 8. Failure diagnostics
       # ====================================================
       #
       # docker.sh already prints detailed diagnostics.
@@ -324,7 +434,7 @@ jobs:
             'table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}'
 
       # ====================================================
-      # 8. Final cleanup
+      # 9. Final cleanup
       # ====================================================
 
       - name: Cleanup Docker stack
@@ -341,5 +451,10 @@ jobs:
             -f compose.yml \
             down --remove-orphans
 
+          # Remove the temporary environment files created for
+          # the GitHub runner. Never persist Neon credentials.
+          rm -f .env backend/.env
+
           echo
           echo "✓ Docker validation resources cleaned up."
+          echo "✓ Temporary environment files removed."
