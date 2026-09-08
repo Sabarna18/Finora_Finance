@@ -1,320 +1,345 @@
 # ==========================================================
 # Finora - Docker Stack Validation
-# ==========================================================
 #
-# Purpose:
-#   Validate the complete Finora Docker application stack on GitHub
-#   using the canonical scripts/docker.sh validation script.
+# Validates the Dockerized application against the real
+# Neon PostgreSQL service.
 #
-# Runtime architecture under validation:
+# Architecture:
 #
-#   GitHub Actions runner
-#          │
-#          ├── PostgreSQL 17 service
-#          │       │
-#          │       └── disposable CI database
-#          │
-#          └── Docker Compose
-#                  │
-#                  ├── finora-web :80
-#                  │      └── React/Vite + Nginx
-#                  │
-#                  └── finora-backend :8000
-#                         └── FastAPI
-#                                │
-#                                ▼
-#                       host.docker.internal:5432
-#                                │
-#                                ▼
-#                       PostgreSQL CI service
+#   GitHub Actions Runner
+#          |
+#          +---- Docker build
+#          |
+#          +---- Finora Backend :8000
+#          |          |
+#          |          +---- Neon PostgreSQL (SSL)
+#          |
+#          +---- Finora Web :80
+#
+# The actual validation logic lives in:
+#
+#   scripts/docker.sh
+#
+# This workflow only provides:
+#   - clean Ubuntu runner
+#   - Docker
+#   - Neon credentials
+#   - execution of docker.sh
 #
 # IMPORTANT:
-#
-#   The PostgreSQL service exists ONLY inside this GitHub Actions
-#   validation workflow.
-#
-#   It does NOT modify compose.yml.
-#
-#   Local development remains:
-#
-#       web       → Docker
-#       backend   → Docker
-#       database  → Neon PostgreSQL
-#
-#   The workflow therefore validates the Docker application in an
-#   isolated CI environment without ever touching production Neon.
-#
-#   scripts/docker.sh owns the Docker validation logic and creates
-#   the temporary application environment consumed by Compose.
-#
-#   CI source validation:
-#
-#       .github/workflows/ci.yml
-#
-#   Release image publishing:
-#
-#       .github/workflows/release.yml
-#
-#   Deployment:
-#
-#       separate deployment workflow
+#   - No PostgreSQL service is created here.
+#   - No local PostgreSQL container is used.
+#   - Neon is the only database.
+#   - Secrets are never printed.
 #
 # ==========================================================
 
 name: Finora Docker Validation
 
-# ==========================================================
-# TRIGGERS
-# ==========================================================
-
 on:
   push:
+    branches:
+      - main
+      - develop
+      - "feature/**"
   pull_request:
+    branches:
+      - main
+      - develop
 
-# ==========================================================
-# GLOBAL ENVIRONMENT
-# ==========================================================
-#
-# These values are safe, disposable Docker-validation values.
-#
-# The database values are repeated at the job level because the
-# PostgreSQL service and scripts/docker.sh both need them.
-#
-# No production credentials are used.
-#
-# ==========================================================
-
-env:
-  VITE_API_URL: http://localhost:8000
-  DEBUG: "true"
-
-# ==========================================================
-# CONCURRENCY
-# ==========================================================
-
+# Prevent duplicate Docker validations for the same branch/PR.
 concurrency:
-  group: finora-docker-${{ github.workflow }}-${{ github.ref }}
+  group: docker-validation-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
-# ==========================================================
-# PERMISSIONS
-# ==========================================================
 
 permissions:
   contents: read
 
-# ==========================================================
-# JOBS
-# ==========================================================
-
 jobs:
-  # ========================================================
-  # DOCKER STACK VALIDATION
-  # ========================================================
-
   docker-validation:
-    name: Docker Stack Validation
+    name: Docker Stack + Neon Validation
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
-    # ======================================================
-    # TEMPORARY GITHUB ACTIONS POSTGRESQL
-    # ======================================================
-    #
-    # This is NOT part of Finora's compose.yml.
-    #
-    # It exists only to give the Dockerized backend an isolated
-    # PostgreSQL instance during GitHub validation.
-    #
-    # ======================================================
-
-    services:
-      postgres:
-        image: postgres:17-alpine
-
-        env:
-          POSTGRES_USER: finora
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: finance_db
-
-        ports:
-          - 5432:5432
-
-        options: >-
-          --health-cmd "pg_isready -U finora -d finance_db"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-          --health-start-period 10s
-
-    # ======================================================
-    # JOB ENVIRONMENT
-    # ======================================================
-
+    # ------------------------------------------------------
+    # Runtime environment consumed by scripts/docker.sh
+    # ------------------------------------------------------
     env:
-      POSTGRES_HOST: host.docker.internal
-      POSTGRES_PORT: "5432"
-      POSTGRES_USER: finora
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: finance_db
-      POSTGRES_SSLMODE: disable
+      # Frontend Vite build variable.
+      # The frontend calls the backend directly from the browser.
+      VITE_API_URL: http://localhost:8000
+
+      # Complete Neon PostgreSQL connection string.
+      #
+      # Store the complete Neon connection string as the
+      # single GitHub Actions secret: NEON_DATABASE_URL
+      #
+      # Example format:
+      #   postgresql://USER:PASSWORD@HOST:5432/DB?sslmode=require
+      #
+      # The value is passed to docker.sh, which creates the
+      # temporary backend/.env required by the existing app.
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
 
     steps:
       # ====================================================
-      # CHECKOUT
+      # 1. Checkout
       # ====================================================
 
       - name: Checkout repository
         uses: actions/checkout@v4
 
       # ====================================================
-      # VERIFY DOCKER
+      # 2. Docker environment
       # ====================================================
 
       - name: Verify Docker environment
+        shell: bash
         run: |
+          set -euo pipefail
+
+          echo "=========================================================="
+          echo " Docker Environment"
+          echo "=========================================================="
+
           docker --version
           docker compose version
-          docker info
+
+          echo
+          echo "Docker daemon:"
+          docker info --format \
+            'Server={{.ServerVersion}} | Storage={{.Driver}} | OS={{.OperatingSystem}}'
 
       # ====================================================
-      # VERIFY POSTGRESQL SERVICE
+      # 3. Validate Neon secret
+      # ====================================================
+      #
+      # We validate presence and basic PostgreSQL URL shape
+      # only. The secret value is never echoed.
+      #
       # ====================================================
 
-      - name: Verify PostgreSQL service
+      - name: Validate Neon configuration
+        shell: bash
         run: |
-          echo "Waiting for PostgreSQL service..."
+          set -euo pipefail
 
-          for attempt in {1..30}; do
-            if pg_isready \
-              -h localhost \
-              -p 5432 \
-              -U finora \
-              -d finance_db; then
-              echo "PostgreSQL service is ready."
-              exit 0
+          echo "=========================================================="
+          echo " Neon Configuration"
+          echo "=========================================================="
+
+          if [[ -z "${NEON_DATABASE_URL:-}" ]]; then
+            echo "::error::GitHub Secret NEON_DATABASE_URL is missing."
+            echo "Add the complete Neon PostgreSQL connection string under:"
+            echo "Repository Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+
+          # Basic format validation without printing the secret.
+          if [[ "${NEON_DATABASE_URL}" != postgresql://* &&                 "${NEON_DATABASE_URL}" != postgres://* ]]; then
+            echo "::error::NEON_DATABASE_URL is not a valid PostgreSQL connection string."
+            exit 1
+          fi
+
+          # Neon connections must use SSL.
+          if [[ "${NEON_DATABASE_URL}" != *"sslmode=require"* ]]; then
+            echo "::error::NEON_DATABASE_URL must include sslmode=require."
+            echo "Use the connection string supplied by Neon."
+            exit 1
+          fi
+
+          echo "✓ NEON_DATABASE_URL is configured."
+          echo "✓ PostgreSQL connection string format is valid."
+          echo "✓ Neon SSL mode is configured."
+
+      # ====================================================
+      # 4. Validate Docker project files
+      # ====================================================
+
+      - name: Validate Docker project structure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "=========================================================="
+          echo " Docker Project Structure"
+          echo "=========================================================="
+
+          required_files=(
+            "compose.yml"
+            "scripts/docker.sh"
+            "backend/Dockerfile"
+            "infrastructure/web/Dockerfile"
+            "infrastructure/web/nginx.conf"
+            "frontend/package.json"
+          )
+
+          for file in "${required_files[@]}"; do
+            if [[ ! -f "${file}" ]]; then
+              echo "::error::Missing required file: ${file}"
+              exit 1
             fi
 
-            echo "PostgreSQL not ready."
-            echo "Retry ${attempt}/30..."
-            sleep 2
+            echo "✓ ${file}"
           done
 
-          echo "::error::PostgreSQL service did not become ready."
-          exit 1
+          if [[ ! -x "scripts/docker.sh" ]]; then
+            chmod +x scripts/docker.sh
+          fi
+
+          echo
+          echo "✓ Docker project structure is valid."
 
       # ====================================================
-      # VERIFY DOCKER FILES
+      # 5. Validate Compose definition
+      # ====================================================
+      #
+      # This is intentionally done before docker.sh as a
+      # cheap early failure check.
+      #
+      # The workflow must never contain a PostgreSQL service.
+      #
       # ====================================================
 
-      - name: Verify Docker project
+      - name: Validate Compose architecture
+        shell: bash
         run: |
-          test -f compose.yml
-          test -f backend/Dockerfile
-          test -f infrastructure/web/Dockerfile
-          test -f infrastructure/web/nginx.conf
-          test -f scripts/docker.sh
+          set -euo pipefail
+
+          echo "=========================================================="
+          echo " Compose Architecture"
+          echo "=========================================================="
+
+          docker compose -f compose.yml config --quiet
+
+          services="$(docker compose -f compose.yml config --services)"
+
+          echo
+          echo "Services:"
+          echo "${services}"
+
+          if echo "${services}" | grep -qx "postgres"; then
+            echo "::error::PostgreSQL service must not exist in compose.yml."
+            echo "Finora uses Neon PostgreSQL externally."
+            exit 1
+          fi
+
+          if ! echo "${services}" | grep -qx "backend"; then
+            echo "::error::backend service is missing from compose.yml."
+            exit 1
+          fi
+
+          if ! echo "${services}" | grep -qx "web"; then
+            echo "::error::web service is missing from compose.yml."
+            exit 1
+          fi
+
+          echo
+          echo "✓ Compose contains backend + web only."
+          echo "✓ No local PostgreSQL service."
 
       # ====================================================
-      # CONFIGURE HOST GATEWAY
+      # 6. Run the complete Docker validation
       # ====================================================
       #
-      # Docker containers on the Linux GitHub runner use
-      # host.docker.internal to reach the PostgreSQL service
-      # exposed on the runner host.
+      # docker.sh owns:
+      #   - image builds
+      #   - container startup
+      #   - health checks
+      #   - backend API test
+      #   - Neon SQL connectivity
+      #   - frontend validation
+      #   - Vite API configuration validation
+      #   - final stack validation
       #
       # ====================================================
 
-      - name: Configure Docker host gateway
+      - name: Run Docker stack validation
+        shell: bash
         run: |
-          docker network create finora_ci_network 2>/dev/null || true
+          set -euo pipefail
 
-          echo "Docker host gateway:"
-          getent hosts host.docker.internal || true
+          echo "=========================================================="
+          echo " Starting Finora Docker Stack Validation"
+          echo "=========================================================="
 
-      # ====================================================
-      # RUN CANONICAL DOCKER VALIDATION
-      # ====================================================
-      #
-      # scripts/docker.sh:
-      #
-      #   - creates disposable .env files
-      #   - validates Compose
-      #   - validates architecture
-      #   - builds backend/frontend images
-      #   - starts the stack
-      #   - waits for backend/web health
-      #   - validates application endpoints
-      #   - validates Vite API configuration
-      #   - validates Docker healthchecks
-      #   - cleans disposable environment files
-      #
-      # ====================================================
-
-      - name: Validate Docker stack
-        run: |
           chmod +x scripts/docker.sh
+
           ./scripts/docker.sh
 
       # ====================================================
-      # FAILURE DIAGNOSTICS
+      # 7. Failure diagnostics
+      # ====================================================
+      #
+      # docker.sh already prints detailed diagnostics.
+      # This step provides an additional Compose-level view
+      # if a failure occurs before cleanup.
+      #
       # ====================================================
 
-      - name: Collect Docker diagnostics
+      - name: Collect Docker diagnostics on failure
         if: failure()
+        shell: bash
         run: |
-          echo "============================================================"
-          echo " Docker Compose Status"
-          echo "============================================================"
+          set +e
 
-          docker compose ps || true
+          echo
+          echo "=========================================================="
+          echo " Docker Failure Diagnostics"
+          echo "=========================================================="
 
-          echo ""
-          echo "============================================================"
-          echo " Docker Images"
-          echo "============================================================"
+          echo
+          echo "--- Compose status ---"
+          docker compose -f compose.yml ps
 
-          docker images \
-            --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" || true
+          echo
+          echo "--- Docker containers ---"
+          docker ps -a \
+            --filter "name=finora-backend" \
+            --filter "name=finora-web"
 
-          echo ""
-          echo "============================================================"
-          echo " Docker Networks"
-          echo "============================================================"
+          echo
+          echo "--- Backend logs ---"
+          docker logs finora-backend --tail 250 2>&1 || true
 
-          docker network ls || true
+          echo
+          echo "--- Backend health ---"
+          docker inspect finora-backend \
+            --format '{{range .State.Health.Log}}{{println "exit=" .ExitCode}}{{println .Output}}{{end}}' \
+            2>&1 || true
 
-          echo ""
-          echo "============================================================"
-          echo " Backend Logs"
-          echo "============================================================"
+          echo
+          echo "--- Web logs ---"
+          docker logs finora-web --tail 250 2>&1 || true
 
-          docker logs --tail 150 finora-backend 2>&1 || true
+          echo
+          echo "--- Web health ---"
+          docker inspect finora-web \
+            --format '{{range .State.Health.Log}}{{println "exit=" .ExitCode}}{{println .Output}}{{end}}' \
+            2>&1 || true
 
-          echo ""
-          echo "============================================================"
-          echo " Web Logs"
-          echo "============================================================"
-
-          docker logs --tail 150 finora-web 2>&1 || true
+          echo
+          echo "--- Docker images ---"
+          docker images --format \
+            'table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}'
 
       # ====================================================
-      # CLEANUP
-      # ====================================================
-      #
-      # Always clean the Compose stack.
-      #
-      # The PostgreSQL service itself is managed automatically
-      # by GitHub Actions and disappears with the job.
-      #
+      # 8. Final cleanup
       # ====================================================
 
       - name: Cleanup Docker stack
         if: always()
+        shell: bash
         run: |
-          docker compose down --volumes --remove-orphans || true
-          docker network rm finora_ci_network 2>/dev/null || true
+          set +e
 
-# ==========================================================
-# END
-# ==========================================================
+          echo "=========================================================="
+          echo " Cleaning Docker Validation Resources"
+          echo "=========================================================="
+
+          docker compose \
+            -f compose.yml \
+            down --remove-orphans
+
+          echo
+          echo "✓ Docker validation resources cleaned up."

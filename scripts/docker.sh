@@ -1,629 +1,583 @@
 #!/usr/bin/env bash
-
-# ============================================================
+# ==========================================================
 # Finora - Docker Stack Validation
-# ============================================================
 #
-# Purpose:
-#   Validate and run the complete local Docker application stack.
+# Validates the complete Docker application stack:
 #
-# Architecture:
-#
-#       Browser
-#          │
-#          ▼
-#       finora-web :80
-#          │
-#          │ Vite bundle calls backend directly
-#          ▼
-#       finora-backend :8000
-#          │
-#          ▼
-#       Neon PostgreSQL (cloud)
+#   Browser
+#      |
+#      +----> Web / Nginx :80
+#      |
+#      +----> Backend :8000
+#                    |
+#                    +----> Neon PostgreSQL
 #
 # IMPORTANT:
+#   - No PostgreSQL container is created.
+#   - Neon PostgreSQL is the only database.
+#   - Local backend/.env supplies the Neon connection.
+#   - Root .env supplies VITE_API_URL for the frontend build.
 #
-#   This stack intentionally has NO local PostgreSQL container.
+# Usage:
+#   ./scripts/docker.sh
+#   ./scripts/docker.sh --keep
 #
-#   Local Docker:
+# --keep:
+#   Keep the Docker stack running after validation.
 #
-#       web       → local container
-#       backend   → local container
-#       database  → Neon PostgreSQL
-#
-#   This script:
-#
-#       1. validates Docker/Compose
-#       2. validates required project files
-#       3. validates local environment configuration
-#       4. validates Compose configuration
-#       5. builds backend/frontend images
-#       6. starts the complete application stack
-#       7. waits for backend/web health
-#       8. validates HTTP endpoints
-#       9. validates the frontend bundle API configuration
-#      10. prints container status
-#
-#   CI, release and deployment workflows remain separate.
-#
-# ============================================================
+# ==========================================================
 
 set -Eeuo pipefail
 
-# ============================================================
-# PATHS
-# ============================================================
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${PROJECT_ROOT}"
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="${ROOT_DIR}/compose.yml"
+COMPOSE_FILE="${COMPOSE_FILE:-compose.yml}"
+KEEP_STACK=false
+FAILED=false
 
-BACKEND_DIR="${ROOT_DIR}/backend"
-FRONTEND_DIR="${ROOT_DIR}/frontend"
+if [[ "${1:-}" == "--keep" ]]; then
+    KEEP_STACK=true
+elif [[ "${1:-}" != "" ]]; then
+    echo "Usage: $0 [--keep]"
+    exit 1
+fi
 
-BACKEND_CONTAINER="${BACKEND_CONTAINER:-finora-backend}"
-WEB_CONTAINER="${WEB_CONTAINER:-finora-web}"
+# ----------------------------------------------------------
+# Output helpers
+# ----------------------------------------------------------
 
-BACKEND_URL="${BACKEND_URL:-http://localhost:8000}"
-WEB_URL="${WEB_URL:-http://localhost}"
-
-BACKEND_HEALTH_URL="${BACKEND_URL}/api/v1/health"
-WEB_HEALTH_URL="${WEB_URL}/web-health"
-
-MAX_RETRIES="${MAX_RETRIES:-30}"
-RETRY_INTERVAL="${RETRY_INTERVAL:-2}"
-
-# ============================================================
-# LOGGING
-# ============================================================
-
-print_header() {
-    echo ""
-    echo "============================================================"
-    echo " $1"
-    echo "============================================================"
-    echo ""
+log() {
+    printf '\n→ %s\n' "$1"
 }
 
-print_step() {
-    echo "→ $1"
+success() {
+    printf '✓ %s\n' "$1"
 }
 
-print_success() {
-    echo "✓ $1"
-    echo ""
+error() {
+    printf '✗ %s\n' "$1" >&2
 }
 
-print_error() {
-    echo ""
-    echo "✗ $1"
-    echo ""
-}
+# ----------------------------------------------------------
+# Cleanup
+# ----------------------------------------------------------
 
-# ============================================================
-# FAILURE DIAGNOSTICS
-# ============================================================
-
-show_diagnostics() {
-    echo ""
-    echo "============================================================"
-    echo " Docker Diagnostics"
-    echo "============================================================"
-    echo ""
-
-    echo "Container status:"
-    docker compose -f "${COMPOSE_FILE}" ps || true
-
-    echo ""
-    echo "Backend logs:"
-    docker logs --tail 100 "${BACKEND_CONTAINER}" 2>&1 || true
-
-    echo ""
-    echo "Web logs:"
-    docker logs --tail 100 "${WEB_CONTAINER}" 2>&1 || true
-}
-
-cleanup_on_failure() {
+cleanup() {
     local exit_code=$?
 
-    if (( exit_code != 0 )); then
-        show_diagnostics
-        echo ""
-        print_error "Docker stack validation failed"
+    if [[ "${KEEP_STACK}" == false ]]; then
+        log "Stopping validation stack..."
+
+        docker compose \
+            -f "${COMPOSE_FILE}" \
+            down --remove-orphans >/dev/null 2>&1 || true
     fi
 
-    # Remove disposable environment files created for this validation.
-    rm -f "${ROOT_DIR}/.env" "${BACKEND_DIR}/.env"
+    if [[ "${exit_code}" -ne 0 ]]; then
+        FAILED=true
+
+        echo
+        echo "=========================================================="
+        echo " Finora Docker Validation FAILED"
+        echo "=========================================================="
+
+        echo
+        echo "--- Docker Compose status ---"
+        docker compose -f "${COMPOSE_FILE}" ps || true
+
+        echo
+        echo "--- Backend logs ---"
+        docker logs finora-backend --tail 200 2>/dev/null || true
+
+        echo
+        echo "--- Web logs ---"
+        docker logs finora-web --tail 200 2>/dev/null || true
+    fi
 
     exit "${exit_code}"
 }
 
-trap cleanup_on_failure EXIT
+trap cleanup EXIT
 
-# ============================================================
-# COMMAND VALIDATION
-# ============================================================
+# ----------------------------------------------------------
+# Header
+# ----------------------------------------------------------
 
-require_command() {
-    local command_name="$1"
+echo
+echo "=========================================================="
+echo " Finora Docker Stack Validation"
+echo "=========================================================="
+echo
+echo "Project : ${PROJECT_ROOT}"
+echo "Compose : ${COMPOSE_FILE}"
+echo "Database: Neon PostgreSQL"
+echo
 
-    if ! command -v "${command_name}" >/dev/null 2>&1; then
-        print_error "Required command not found: ${command_name}"
-        exit 1
-    fi
+# ==========================================================
+# 1. Toolchain validation
+# ==========================================================
+
+log "Checking Docker..."
+
+command -v docker >/dev/null 2>&1 || {
+    error "Docker is not installed."
+    exit 1
 }
 
-# ============================================================
-# START
-# ============================================================
-
-print_header "Finora Docker Stack Validation"
-
-echo "Root directory     : ${ROOT_DIR}"
-echo "Compose file       : ${COMPOSE_FILE}"
-echo "Backend URL        : ${BACKEND_URL}"
-echo "Web URL            : ${WEB_URL}"
-echo "Backend container  : ${BACKEND_CONTAINER}"
-echo "Web container      : ${WEB_CONTAINER}"
-echo ""
-
-# ============================================================
-# 1. DOCKER TOOLCHAIN
-# ============================================================
-
-print_step "Validating Docker toolchain..."
-
-require_command docker
-
-docker --version
-docker compose version
-
-if ! docker info >/dev/null 2>&1; then
-    print_error "Docker daemon is not running or is inaccessible."
+docker info >/dev/null 2>&1 || {
+    error "Docker daemon is not available."
     exit 1
-fi
+}
 
-print_success "Docker toolchain available"
+docker compose version >/dev/null 2>&1 || {
+    error "Docker Compose is not available."
+    exit 1
+}
 
-# ============================================================
-# 2. PROJECT STRUCTURE
-# ============================================================
+success "Docker and Docker Compose are available."
 
-print_step "Validating Docker project structure..."
+# ==========================================================
+# 2. Required project files
+# ==========================================================
+
+log "Checking required Docker files..."
 
 required_files=(
     "${COMPOSE_FILE}"
-    "${BACKEND_DIR}/Dockerfile"
-    "${FRONTEND_DIR}/package.json"
-    "${FRONTEND_DIR}/package-lock.json"
-    "${ROOT_DIR}/infrastructure/web/Dockerfile"
-    "${ROOT_DIR}/infrastructure/web/nginx.conf"
+    "backend/Dockerfile"
+    "backend/requirements.txt"
+    "infrastructure/web/Dockerfile"
+    "infrastructure/web/nginx.conf"
+    "frontend/package.json"
 )
 
 for file in "${required_files[@]}"; do
     if [[ ! -f "${file}" ]]; then
-        print_error "Missing required file: ${file}"
+        error "Missing required file: ${file}"
         exit 1
     fi
 done
 
-print_success "Docker project structure valid"
+success "Required Docker files are present."
 
-# ============================================================
-# 3. TEMPORARY DOCKER ENVIRONMENT
-# ============================================================
+# ==========================================================
+# 3. Validate local environment
+# ==========================================================
 #
-# GitHub Actions runs from a clean checkout, so developer .env
-# files are intentionally not committed and are not available.
+# The Docker stack intentionally uses the developer's real
+# backend/.env so that this validation tests the real Neon
+# PostgreSQL connection.
 #
-# Create a disposable environment containing ONLY the values
-# required to run the Docker validation stack.
+# We do NOT create a fake PostgreSQL configuration here.
 #
-# This does NOT modify the developer's local .env files.
-#
-# Cleanup is guaranteed by the EXIT trap.
-#
-# ============================================================
+# ==========================================================
 
-print_step "Creating temporary Docker environment..."
+log "Checking environment configuration..."
 
-ROOT_ENV_FILE="${ROOT_DIR}/.env"
-BACKEND_ENV_FILE="${BACKEND_DIR}/.env"
-
-cleanup_environment() {
-    rm -f "${ROOT_ENV_FILE}" "${BACKEND_ENV_FILE}"
-}
-
-trap cleanup_environment EXIT
-
-cat > "${ROOT_ENV_FILE}" <<EOF
-# Finora disposable Docker validation environment
-VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
-EOF
-
-cat > "${BACKEND_ENV_FILE}" <<EOF
-# Finora disposable Docker validation environment
-
-APP_NAME=Finora
-DEBUG=${DEBUG:-true}
-
-DB_TYPE=postgresql
-
-POSTGRES_HOST=${POSTGRES_HOST:-host.docker.internal}
-POSTGRES_PORT=${POSTGRES_PORT:-5432}
-POSTGRES_USER=${POSTGRES_USER:-finora}
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
-POSTGRES_DB=${POSTGRES_DB:-finance_db}
-POSTGRES_SSLMODE=${POSTGRES_SSLMODE:-disable}
-
-SECRET_KEY=docker-validation-secret-key
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=60
-
-BACKEND_CORS_ORIGINS='["http://localhost","http://localhost:80"]'
-EOF
-
-chmod 600 "${ROOT_ENV_FILE}" "${BACKEND_ENV_FILE}"
-
-echo "Temporary Docker environment:"
-echo "  VITE_API_URL         : ${VITE_API_URL:-http://localhost:8000}"
-echo "  BACKEND_CORS_ORIGINS : [http://localhost, http://localhost:80]"
-echo "  POSTGRES_HOST        : ${POSTGRES_HOST:-host.docker.internal}"
-echo "  POSTGRES_PORT        : ${POSTGRES_PORT:-5432}"
-echo "  POSTGRES_DB          : ${POSTGRES_DB:-finance_db}"
-echo "  POSTGRES_SSLMODE     : ${POSTGRES_SSLMODE:-disable}"
-echo ""
-
-print_success "Temporary Docker environment ready"
-
-# ============================================================
-# 4. COMPOSE CONFIGURATION
-# ============================================================
-
-print_step "Validating Docker Compose configuration..."
-
-cd "${ROOT_DIR}"
-
-docker compose -f "${COMPOSE_FILE}" config --quiet
-
-print_success "Docker Compose configuration valid"
-
-# ============================================================
-# 5. ARCHITECTURE VALIDATION
-# ============================================================
-#
-# Verify that the local stack does NOT accidentally introduce
-# a PostgreSQL container.
-#
-# ============================================================
-
-print_step "Validating Docker architecture..."
-
-COMPOSE_SERVICES="$(docker compose -f "${COMPOSE_FILE}" config --services)"
-
-if ! grep -qx "backend" <<< "${COMPOSE_SERVICES}"; then
-    print_error "Compose stack is missing backend service."
+if [[ ! -f ".env" ]]; then
+    error "Root .env is missing."
+    error "Create .env with VITE_API_URL, for example:"
+    error "  VITE_API_URL=http://localhost:8000"
     exit 1
 fi
 
-if ! grep -qx "web" <<< "${COMPOSE_SERVICES}"; then
-    print_error "Compose stack is missing web service."
+if [[ ! -f "backend/.env" ]]; then
+    error "backend/.env is missing."
+    error "Create backend/.env with the Neon PostgreSQL configuration."
     exit 1
 fi
 
-if grep -qx "postgres" <<< "${COMPOSE_SERVICES}"; then
-    print_error "Local Compose must not run PostgreSQL."
-    echo "Finora local architecture uses Neon PostgreSQL."
+# Load root .env only for validation. Do not export it globally.
+set -a
+# shellcheck disable=SC1091
+source ".env"
+set +a
+
+if [[ -z "${VITE_API_URL:-}" ]]; then
+    error "VITE_API_URL is not defined in .env."
     exit 1
 fi
 
-if grep -Eiq 'postgres:(|[0-9])' <<< "${COMPOSE_SERVICES}"; then
-    print_error "A PostgreSQL service was detected unexpectedly."
+# VITE_API_URL must be the backend origin. client.ts owns /api/v1.
+if [[ "${VITE_API_URL}" == */api/v1 || "${VITE_API_URL}" == */api/v1/ ]]; then
+    error "VITE_API_URL must contain only the backend origin."
+    error "Current value: ${VITE_API_URL}"
+    error "Expected example: http://localhost:8000"
     exit 1
 fi
 
-print_success "Docker architecture valid"
+# Verify that backend/.env contains the expected PostgreSQL
+# configuration. Values themselves are never printed.
+required_backend_vars=(
+    POSTGRES_HOST
+    POSTGRES_PORT
+    POSTGRES_USER
+    POSTGRES_PASSWORD
+    POSTGRES_DB
+)
 
-# ============================================================
-# 6. BUILD IMAGES
-# ============================================================
-
-print_header "Building Finora Docker Images"
-
-print_step "Building backend and frontend images..."
-
-docker compose -f "${COMPOSE_FILE}" build --pull
-
-print_success "Docker images built successfully"
-
-# ============================================================
-# 7. START STACK
-# ============================================================
-
-print_header "Starting Finora Docker Stack"
-
-print_step "Starting backend and web containers..."
-
-docker compose -f "${COMPOSE_FILE}" up -d
-
-print_success "Docker stack started"
-
-echo ""
-echo "============================================================"
-echo " Backend Diagnostic"
-echo "============================================================"
-
-docker compose ps
-
-echo ""
-echo "--- Backend container state ---"
-
-docker inspect finora-backend \
-    --format '
-Status       : {{.State.Status}}
-Health       : {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}
-Exit Code    : {{.State.ExitCode}}
-Started At   : {{.State.StartedAt}}
-'
-
-echo ""
-echo "--- Backend healthcheck history ---"
-
-docker inspect finora-backend \
-    --format \
-    '{{range .State.Health.Log}}{{println "exit=" .ExitCode .Output}}{{end}}'
-
-echo ""
-echo "--- Backend logs ---"
-
-docker logs finora-backend --tail 200 || true
-
-# ============================================================
-# 8. CONTAINER VALIDATION
-# ============================================================
-
-print_step "Validating running containers..."
-
-if ! docker inspect "${BACKEND_CONTAINER}" >/dev/null 2>&1; then
-    print_error "Backend container was not created: ${BACKEND_CONTAINER}"
-    exit 1
-fi
-
-if ! docker inspect "${WEB_CONTAINER}" >/dev/null 2>&1; then
-    print_error "Web container was not created: ${WEB_CONTAINER}"
-    exit 1
-fi
-
-BACKEND_STATE="$(docker inspect -f '{{.State.Status}}' "${BACKEND_CONTAINER}")"
-WEB_STATE="$(docker inspect -f '{{.State.Status}}' "${WEB_CONTAINER}")"
-
-if [[ "${BACKEND_STATE}" != "running" ]]; then
-    print_error "Backend container is not running: ${BACKEND_STATE}"
-    exit 1
-fi
-
-if [[ "${WEB_STATE}" != "running" ]]; then
-    print_error "Web container is not running: ${WEB_STATE}"
-    exit 1
-fi
-
-print_success "Backend and web containers are running"
-
-# ============================================================
-# 9. BACKEND HEALTH
-# ============================================================
-
-print_header "Backend Runtime Validation"
-
-print_step "Waiting for backend health endpoint..."
-
-backend_healthy=false
-
-for ((attempt=1; attempt<=MAX_RETRIES; attempt++)); do
-    if curl --fail --silent --show-error \
-        --max-time 5 \
-        "${BACKEND_HEALTH_URL}" >/dev/null 2>&1; then
-
-        backend_healthy=true
-        break
-    fi
-
-    if (( attempt == MAX_RETRIES )); then
-        print_error "Backend health check failed."
-        echo "URL: ${BACKEND_HEALTH_URL}"
+for variable in "${required_backend_vars[@]}"; do
+    if ! grep -Eq "^${variable}=" backend/.env; then
+        error "Missing ${variable} in backend/.env."
         exit 1
     fi
-
-    echo "Backend not ready."
-    echo "Retry ${attempt}/${MAX_RETRIES}..."
-    sleep "${RETRY_INTERVAL}"
 done
 
-if [[ "${backend_healthy}" != true ]]; then
-    print_error "Backend did not become healthy."
-    exit 1
-fi
+# Neon requires SSL. If explicitly configured, it must not be
+# disabled for this Docker validation.
+if grep -Eq '^POSTGRES_SSLMODE=' backend/.env; then
+    sslmode="$(grep '^POSTGRES_SSLMODE=' backend/.env | head -n1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")"
 
-BACKEND_RESPONSE="$(
-    curl --fail --silent --show-error \
-        --max-time 5 \
-        "${BACKEND_HEALTH_URL}"
-)"
-
-echo "Backend response: ${BACKEND_RESPONSE}"
-
-print_success "Backend health check passed"
-
-# ============================================================
-# 10. WEB HEALTH
-# ============================================================
-
-print_header "Frontend Runtime Validation"
-
-print_step "Waiting for web health endpoint..."
-
-web_healthy=false
-
-for ((attempt=1; attempt<=MAX_RETRIES; attempt++)); do
-    if curl --fail --silent --show-error \
-        --max-time 5 \
-        "${WEB_HEALTH_URL}" >/dev/null 2>&1; then
-
-        web_healthy=true
-        break
-    fi
-
-    if (( attempt == MAX_RETRIES )); then
-        print_error "Web health check failed."
-        echo "URL: ${WEB_HEALTH_URL}"
+    if [[ "${sslmode}" == "disable" ]]; then
+        error "POSTGRES_SSLMODE=disable is not valid for Neon validation."
+        error "Use POSTGRES_SSLMODE=require in backend/.env."
         exit 1
     fi
+fi
 
-    echo "Web not ready."
-    echo "Retry ${attempt}/${MAX_RETRIES}..."
-    sleep "${RETRY_INTERVAL}"
+success "Local environment files and Neon configuration are present."
+
+# ==========================================================
+# 4. Validate Compose configuration
+# ==========================================================
+
+log "Validating Docker Compose configuration..."
+
+docker compose -f "${COMPOSE_FILE}" config >/dev/null
+
+success "Compose configuration is valid."
+
+# ----------------------------------------------------------
+# Ensure PostgreSQL is NOT defined as a Compose service.
+# ----------------------------------------------------------
+
+if docker compose -f "${COMPOSE_FILE}" config --services | grep -qx "postgres"; then
+    error "Invalid architecture: postgres service exists in ${COMPOSE_FILE}."
+    error "Finora uses Neon PostgreSQL externally."
+    exit 1
+fi
+
+success "Compose architecture confirmed: no local PostgreSQL container."
+
+# ==========================================================
+# 5. Build backend and web images
+# ==========================================================
+
+log "Building backend and web images..."
+
+docker compose \
+    -f "${COMPOSE_FILE}" \
+    build --pull backend web
+
+success "Backend and web images built successfully."
+
+# ==========================================================
+# 6. Start backend
+# ==========================================================
+
+log "Starting backend container..."
+
+docker compose \
+    -f "${COMPOSE_FILE}" \
+    up -d backend
+
+# ----------------------------------------------------------
+# Wait for backend health.
+# Compose healthcheck is the source of truth.
+# ----------------------------------------------------------
+
+log "Waiting for backend health..."
+
+backend_ready=false
+
+for _ in {1..36}; do
+    status="$(docker inspect \
+        --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}' \
+        finora-backend 2>/dev/null || true)"
+
+    case "${status}" in
+        healthy)
+            backend_ready=true
+            break
+            ;;
+        unhealthy)
+            break
+            ;;
+    esac
+
+    sleep 5
 done
 
-if [[ "${web_healthy}" != true ]]; then
-    print_error "Web container did not become healthy."
+if [[ "${backend_ready}" != true ]]; then
+    error "Backend did not become healthy."
+
+    echo
+    echo "--- Backend health history ---"
+    docker inspect finora-backend \
+        --format '{{range .State.Health.Log}}{{println "exit=" .ExitCode}}{{println .Output}}{{end}}' \
+        2>/dev/null || true
+
+    echo
+    echo "--- Backend logs ---"
+    docker logs finora-backend --tail 200 2>/dev/null || true
+
     exit 1
 fi
 
-WEB_RESPONSE="$(
-    curl --fail --silent --show-error \
-        --max-time 5 \
-        "${WEB_HEALTH_URL}"
-)"
+success "Backend container is healthy."
 
-echo "Web response: ${WEB_RESPONSE}"
+# ==========================================================
+# 7. Validate backend HTTP endpoint
+# ==========================================================
 
-print_success "Web health check passed"
+log "Testing backend health endpoint..."
 
-# ============================================================
-# 11. FRONTEND APPLICATION
-# ============================================================
+backend_health="$(curl -fsS --max-time 10 \
+    http://localhost:8000/api/v1/health)"
 
-print_step "Validating frontend application..."
-
-FRONTEND_RESPONSE="$(
-    curl --fail --silent --show-error \
-        --max-time 5 \
-        "${WEB_URL}/"
-)"
-
-if ! grep -qi "<html" <<< "${FRONTEND_RESPONSE}"; then
-    print_error "Frontend did not return an HTML application."
+if [[ -z "${backend_health}" ]]; then
+    error "Backend health endpoint returned an empty response."
     exit 1
 fi
 
-print_success "Frontend application is being served"
+success "Backend API responded successfully."
+echo "  Response: ${backend_health}"
 
-# ============================================================
-# 12. VITE API CONFIGURATION
-# ============================================================
+# ==========================================================
+# 8. Validate Neon connectivity from INSIDE backend
+# ==========================================================
 #
-# The built frontend must contain the backend origin.
+# This is intentionally performed inside the actual backend
+# container. A host-side database test is not sufficient:
 #
-# Expected:
+#   host -> Neon       !=       backend container -> Neon
 #
-#     http://localhost:8000
+# The command below uses the application's configured
+# PostgreSQL environment and verifies a real SQL connection.
 #
-# Not:
+# No credentials are printed.
 #
-#     /api/v1
-#     http://localhost:8000/api/v1
-#
-# The centralized Axios client adds /api/v1.
-#
-# ============================================================
+# ==========================================================
 
-print_step "Validating frontend API configuration..."
+log "Testing Neon PostgreSQL connectivity from backend container..."
 
-if ! docker exec "${WEB_CONTAINER}" \
-    sh -c 'grep -R -F -q "http://localhost:8000" /usr/share/nginx/html/assets 2>/dev/null'; then
+docker exec finora-backend python - <<'PY'
+import os
+import sys
 
-    print_error "Frontend bundle does not contain the expected backend origin."
-    echo "Expected: http://localhost:8000"
+try:
+    import psycopg2
+except ImportError as exc:
+    print(f"psycopg2 import failed: {exc}")
+    sys.exit(1)
+
+host = os.environ.get("POSTGRES_HOST")
+port = os.environ.get("POSTGRES_PORT", "5432")
+user = os.environ.get("POSTGRES_USER")
+password = os.environ.get("POSTGRES_PASSWORD")
+database = os.environ.get("POSTGRES_DB")
+
+missing = [
+    name
+    for name, value in {
+        "POSTGRES_HOST": host,
+        "POSTGRES_PORT": port,
+        "POSTGRES_USER": user,
+        "POSTGRES_PASSWORD": password,
+        "POSTGRES_DB": database,
+    }.items()
+    if not value
+]
+
+if missing:
+    print("Missing database environment variables: " + ", ".join(missing))
+    sys.exit(1)
+
+try:
+    connection = psycopg2.connect(
+        host=host,
+        port=port,
+        user=user,
+        password=password,
+        dbname=database,
+        sslmode="require",
+        connect_timeout=10,
+    )
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT 1;")
+        result = cursor.fetchone()
+
+    connection.close()
+
+    if result != (1,):
+        print(f"Unexpected PostgreSQL response: {result}")
+        sys.exit(1)
+
+except Exception as exc:
+    print(f"Neon PostgreSQL connection failed: {exc}")
+    sys.exit(1)
+
+print("Neon PostgreSQL connection successful.")
+print("SQL test: SELECT 1 → 1")
+PY
+
+success "Backend container can connect to Neon PostgreSQL."
+
+# ==========================================================
+# 9. Validate web container
+# ==========================================================
+
+log "Starting web container..."
+
+docker compose \
+    -f "${COMPOSE_FILE}" \
+    up -d web
+
+log "Waiting for web health..."
+
+web_ready=false
+
+for _ in {1..24}; do
+    status="$(docker inspect \
+        --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}starting{{end}}' \
+        finora-web 2>/dev/null || true)"
+
+    case "${status}" in
+        healthy)
+            web_ready=true
+            break
+            ;;
+        unhealthy)
+            break
+            ;;
+    esac
+
+    sleep 5
+done
+
+if [[ "${web_ready}" != true ]]; then
+    error "Web container did not become healthy."
+
+    echo
+    echo "--- Web health history ---"
+    docker inspect finora-web \
+        --format '{{range .State.Health.Log}}{{println "exit=" .ExitCode}}{{println .Output}}{{end}}' \
+        2>/dev/null || true
+
+    echo
+    echo "--- Web logs ---"
+    docker logs finora-web --tail 200 2>/dev/null || true
+
     exit 1
 fi
 
-if docker exec "${WEB_CONTAINER}" \
-    sh -c 'grep -R -F -q "http://localhost:8000/api/v1" /usr/share/nginx/html/assets 2>/dev/null'; then
+success "Web container is healthy."
 
-    print_error "Frontend bundle contains /api/v1 inside VITE_API_URL."
-    echo "The API version must be owned by frontend/src/api/client.ts."
+# ==========================================================
+# 10. Validate frontend HTTP response
+# ==========================================================
+
+log "Testing frontend..."
+
+frontend_html="$(curl -fsS --max-time 10 http://localhost/)"
+
+if ! grep -qi '<html' <<< "${frontend_html}"; then
+    error "Frontend did not return valid HTML."
     exit 1
 fi
 
-print_success "Frontend API configuration is correct"
+success "Frontend returned valid HTML."
 
-# ============================================================
-# 13. CONTAINER HEALTH STATUS
-# ============================================================
+# ==========================================================
+# 11. Validate web health endpoint
+# ==========================================================
 
-print_step "Validating Docker health status..."
+log "Testing Nginx web health endpoint..."
 
-BACKEND_HEALTH="$(
-    docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \
-        "${BACKEND_CONTAINER}"
-)"
+web_health="$(curl -fsS --max-time 10 http://localhost/web-health)"
 
-WEB_HEALTH="$(
-    docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' \
-        "${WEB_CONTAINER}"
-)"
-
-echo "Backend health : ${BACKEND_HEALTH}"
-echo "Web health     : ${WEB_HEALTH}"
-echo ""
-
-if [[ "${BACKEND_HEALTH}" != "healthy" ]]; then
-    print_error "Backend Docker healthcheck is not healthy."
+if ! grep -qi 'web ok' <<< "${web_health}"; then
+    error "Unexpected /web-health response: ${web_health}"
     exit 1
 fi
 
-if [[ "${WEB_HEALTH}" != "healthy" ]]; then
-    print_error "Web Docker healthcheck is not healthy."
+success "Nginx web health endpoint responded successfully."
+
+# ==========================================================
+# 12. Validate compiled Vite API URL
+# ==========================================================
+
+log "Validating compiled frontend API configuration..."
+
+if ! docker exec finora-web \
+    sh -c "grep -R -F '${VITE_API_URL}' /usr/share/nginx/html/assets >/dev/null 2>&1"; then
+
+    error "Compiled frontend bundle does not contain VITE_API_URL=${VITE_API_URL}."
     exit 1
 fi
 
-print_success "Docker healthchecks passed"
+if docker exec finora-web \
+    sh -c "grep -R -E 'VITE_API_URL.{0,80}/api/v1|${VITE_API_URL}/api/v1' /usr/share/nginx/html/assets >/dev/null 2>&1"; then
 
-# ============================================================
-# 14. FINAL STACK STATUS
-# ============================================================
+    error "Frontend bundle appears to contain /api/v1 inside VITE_API_URL."
+    error "client.ts should own the /api/v1 prefix."
+    exit 1
+fi
 
-print_header "✓ FINORA DOCKER VALIDATION PASSED"
+success "Frontend contains the correct backend origin."
+
+# ==========================================================
+# 13. Validate running containers
+# ==========================================================
+
+log "Validating final Docker stack..."
+
+backend_status="$(docker inspect --format '{{.State.Status}}' finora-backend)"
+web_status="$(docker inspect --format '{{.State.Status}}' finora-web)"
+
+if [[ "${backend_status}" != "running" ]]; then
+    error "Backend container is not running: ${backend_status}"
+    exit 1
+fi
+
+if [[ "${web_status}" != "running" ]]; then
+    error "Web container is not running: ${web_status}"
+    exit 1
+fi
+
+success "Backend and web containers are running."
+
+# ==========================================================
+# 14. Final Compose status
+# ==========================================================
 
 docker compose -f "${COMPOSE_FILE}" ps
 
-echo ""
-echo "Validated:"
-echo "  ✓ Docker daemon"
-echo "  ✓ Docker Compose"
-echo "  ✓ Project structure"
-echo "  ✓ Local environment"
-echo "  ✓ Compose configuration"
-echo "  ✓ Finora architecture"
-echo "  ✓ Backend image build"
-echo "  ✓ Frontend image build"
-echo "  ✓ Backend container"
-echo "  ✓ Web container"
-echo "  ✓ Backend health endpoint"
-echo "  ✓ Web health endpoint"
-echo "  ✓ Frontend application"
-echo "  ✓ Vite API configuration"
-echo "  ✓ Docker healthchecks"
-echo ""
+echo
+echo "=========================================================="
+echo " Finora Docker Stack Validation PASSED"
+echo "=========================================================="
+echo
+echo "✓ Backend image built"
+echo "✓ Web image built"
+echo "✓ Backend container healthy"
+echo "✓ Backend API responding"
+echo "✓ Neon PostgreSQL reachable from backend"
+echo "✓ Web container healthy"
+echo "✓ Nginx responding"
+echo "✓ Frontend HTML served"
+echo "✓ Vite API configuration validated"
+echo "✓ No local PostgreSQL container"
+echo
 
-echo "Runtime architecture:"
-echo "  Browser"
-echo "     ↓"
-echo "  finora-web :80"
-echo "     ↓"
-echo "  Browser → finora-backend :8000"
-echo "     ↓"
-echo "  Neon PostgreSQL (cloud)"
-echo ""
+if [[ "${KEEP_STACK}" == true ]]; then
+    echo "Docker stack is still running."
+    echo "Stop it with:"
+    echo "  docker compose -f ${COMPOSE_FILE} down"
+else
+    echo "Docker validation stack will be stopped automatically."
+fi
 
-echo "Finora Docker stack is healthy and ready."
-echo ""
+exit 0
