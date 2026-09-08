@@ -220,7 +220,7 @@ cat > "${CI_ENV_FILE}" <<EOF
 VITE_API_URL=http://localhost:8000
 
 # Backend
-BACKEND_CORS_ORIGINS=["http://localhost","http://localhost:80"]
+BACKEND_CORS_ORIGINS='["http://localhost","http://localhost:80"]'
 DEBUG=true
 
 # Database
