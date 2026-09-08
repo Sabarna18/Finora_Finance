@@ -3,35 +3,76 @@
 # ============================================================
 #
 # Release trigger:
+#
 #   git tag v1.0.0
 #   git push origin v1.0.0
 #
-# Production frontend API:
-#   https://finora-backend-latest.onrender.com/api/v1
+# Release flow:
 #
-# The production API URL is assigned by this workflow and
-# automatically inherited by scripts/docker.sh.
+#   Git version tag
+#       ↓
+#   Extract version (1.0.0)
+#       ↓
+#   Inject VITE_APP_VERSION into Docker build
+#       ↓
+#   Inject production VITE_API_URL
+#       ↓
+#   Full Docker validation
+#       ↓
+#   Verify frontend bundle contains version + API URL
+#       ↓
+#   Publish validated images to GHCR
 #
-# scripts/docker.sh does not choose or hardcode the API URL.
+# IMPORTANT:
+#
+#   The Git tag is the single source of truth for the application
+#   version.
+#
+#   v1.0.0 → VITE_APP_VERSION=1.0.0
+#
+#   VITE_APP_VERSION is a Vite build-time environment variable.
+#   It is passed through the Docker build and embedded into the
+#   frontend bundle.
 #
 # ============================================================
 
 name: Release
+
+# ============================================================
+# TRIGGERS
+# ============================================================
 
 on:
   push:
     tags:
       - "v*.*.*"
 
+# ============================================================
+# PERMISSIONS
+# ============================================================
+
 permissions:
   contents: read
   packages: write
+
+# ============================================================
+# CONCURRENCY
+# ============================================================
 
 concurrency:
   group: finora-release-${{ github.ref }}
   cancel-in-progress: false
 
+# ============================================================
+# JOBS
+# ============================================================
+
 jobs:
+
+  # ========================================================
+  # RELEASE
+  # ========================================================
+
   release:
     name: Validate and Publish Docker Images
     runs-on: ubuntu-latest
@@ -40,15 +81,33 @@ jobs:
     # RELEASE ENVIRONMENT
     # ======================================================
     #
-    # This is the caller-provided production value.
-    # Every step in this job inherits it automatically.
+    # VITE_API_URL:
+    #   Production Render backend.
+    #
+    # VITE_APP_VERSION:
+    #   Derived automatically from the Git tag.
+    #
+    # Example:
+    #
+    #   Git tag:
+    #       v1.0.0
+    #
+    #   becomes:
+    #       VITE_APP_VERSION=1.0.0
+    #
+    # GitHub Actions does not allow shell expressions directly
+    # inside a job-level env value, therefore VITE_APP_VERSION
+    # is written to GITHUB_ENV after checkout.
     #
     env:
       COMPOSE_PROJECT_NAME: finora-ci
       COMPOSE_FILE: compose.yml
+
+      # Production Render backend API
       VITE_API_URL: https://finora-backend-latest.onrender.com/api/v1
 
     steps:
+
       # ====================================================
       # 1. CHECKOUT
       # ====================================================
@@ -57,14 +116,65 @@ jobs:
         uses: actions/checkout@v4
 
       # ====================================================
-      # 2. SET UP DOCKER BUILDX
+      # 2. EXTRACT RELEASE VERSION
+      # ====================================================
+      #
+      # GitHub:
+      #
+      #   refs/tags/v1.0.0
+      #
+      # GITHUB_REF_NAME:
+      #
+      #   v1.0.0
+      #
+      # Strip "v":
+      #
+      #   1.0.0
+      #
+      # Then expose it as:
+      #
+      #   VITE_APP_VERSION
+      #
+      # which is inherited by all subsequent steps.
+      #
+      # ====================================================
+
+      - name: Extract release version
+        run: |
+          echo "============================================================"
+          echo " Release Version"
+          echo "============================================================"
+
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid release version: ${VERSION}"
+            echo "::error::Expected semantic version such as 1.0.0"
+            exit 1
+          fi
+
+          echo "Git tag:"
+          echo "  ${GITHUB_REF_NAME}"
+
+          echo
+          echo "Application version:"
+          echo "  ${VERSION}"
+
+          # Make the version available to every subsequent step.
+          echo "VITE_APP_VERSION=${VERSION}" >> "${GITHUB_ENV}"
+
+          echo
+          echo "VITE_APP_VERSION exported to GitHub Actions."
+
+      # ====================================================
+      # 3. SET UP DOCKER BUILDX
       # ====================================================
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       # ====================================================
-      # 3. DOCKER ENVIRONMENT
+      # 4. DOCKER ENVIRONMENT
       # ====================================================
 
       - name: Verify Docker environment
@@ -72,14 +182,20 @@ jobs:
           echo "============================================================"
           echo " Docker Environment"
           echo "============================================================"
+
           docker --version
           docker compose version
+
           echo
           echo "Frontend production API:"
           echo "  ${VITE_API_URL}"
 
+          echo
+          echo "Frontend application version:"
+          echo "  ${VITE_APP_VERSION}"
+
       # ====================================================
-      # 4. MAKE SCRIPTS EXECUTABLE
+      # 5. MAKE SCRIPTS EXECUTABLE
       # ====================================================
 
       - name: Make release scripts executable
@@ -98,7 +214,7 @@ jobs:
           echo "Release scripts are valid."
 
       # ====================================================
-      # 5. VALIDATE CI DATABASE SECRET
+      # 6. VALIDATE CI DATABASE SECRET
       # ====================================================
 
       - name: Validate CI database secret
@@ -118,7 +234,7 @@ jobs:
           echo "Database credentials will not be printed."
 
       # ====================================================
-      # 6. FULL DOCKER VALIDATION
+      # 7. FULL DOCKER VALIDATION
       # ====================================================
 
       - name: Validate Docker stack
@@ -129,16 +245,26 @@ jobs:
           echo " Finora Docker Release Gate"
           echo "============================================================"
           echo
+
           echo "Release frontend API:"
           echo "  ${VITE_API_URL}"
+
+          echo
+          echo "Release frontend version:"
+          echo "  ${VITE_APP_VERSION}"
+
           echo
 
-          # VITE_API_URL is inherited automatically from the
-          # release job environment.
+          # Both VITE values are inherited automatically:
+          #
+          #   VITE_API_URL
+          #   VITE_APP_VERSION
+          #
+          # docker.sh passes them into the Compose build.
           ./scripts/docker.sh
 
       # ====================================================
-      # 7. PUBLISH VALIDATED IMAGES TO GHCR
+      # 8. PUBLISH VALIDATED IMAGES TO GHCR
       # ====================================================
 
       - name: Publish validated images to GHCR
@@ -155,7 +281,7 @@ jobs:
           ./scripts/release.sh "${GITHUB_REF_NAME}"
 
       # ====================================================
-      # 8. RELEASE SUMMARY
+      # 9. RELEASE SUMMARY
       # ====================================================
 
       - name: Release summary
@@ -171,6 +297,10 @@ jobs:
 
           echo "Git tag:"
           echo "  ${GITHUB_REF_NAME}"
+          echo
+
+          echo "Application version:"
+          echo "  ${VITE_APP_VERSION}"
           echo
 
           echo "Repository:"
@@ -197,6 +327,11 @@ jobs:
           echo "Neon:"
           echo "  Production Neon is configured at Render runtime."
           echo "  No Neon credentials are included in the image."
+          echo
+
+          echo "Frontend build values:"
+          echo "  VITE_API_URL=${VITE_API_URL}"
+          echo "  VITE_APP_VERSION=${VITE_APP_VERSION}"
           echo
 
           echo "============================================================"
