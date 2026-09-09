@@ -1,339 +1,284 @@
-# ============================================================
-# Finora — Release
-# ============================================================
+# ==========================================================
+# Finora - Release
+# ==========================================================
 #
 # Release trigger:
 #
 #   git tag v1.0.0
 #   git push origin v1.0.0
 #
-# Release flow:
+# Release layers:
 #
-#   Git version tag
-#       ↓
-#   Extract version (1.0.0)
-#       ↓
-#   Inject VITE_APP_VERSION into Docker build
-#       ↓
-#   Inject production VITE_API_URL
-#       ↓
-#   Full Docker validation
-#       ↓
-#   Verify frontend bundle contains version + API URL
-#       ↓
-#   Publish validated images to GHCR
+#   CI
+#     └── application quality gate
+#         └── disposable PostgreSQL service
+#
+#   Docker Validation
+#     └── compose.yml
+#         └── real Neon PostgreSQL
+#         └── backend + web containers
+#
+#   Release
+#     └── tagged commit
+#         └── compose.yml build
+#         └── compose.yml up
+#         └── real Neon validation
+#         └── exact validated image IDs
+#         └── GHCR
+#
+# Deployment is intentionally separate.
+#
+# A later deploy.yml consumes:
+#
+#   ghcr.io/<owner>/finora-backend:<version>
+#   ghcr.io/<owner>/finora-web:<version>
+#
+# and deploys them to:
+#
+#   VPS simulation
+#   Render
+#   Vercel
 #
 # IMPORTANT:
+#   This workflow uses ONLY:
 #
-#   The Git tag is the single source of truth for the application
-#   version.
+#       NEON_DATABASE_URL
 #
-#   v1.0.0 → VITE_APP_VERSION=1.0.0
+#   for the Docker/release database.
 #
-#   VITE_APP_VERSION is a Vite build-time environment variable.
-#   It is passed through the Docker build and embedded into the
-#   frontend bundle.
+#   It does NOT use CI_DATABASE_URL or any CI database secret.
 #
-# ============================================================
+#   The CI workflow has its own disposable PostgreSQL service
+#   and remains completely independent.
+#
+# ==========================================================
 
-name: Release
-
-# ============================================================
-# TRIGGERS
-# ============================================================
+name: Finora Release
 
 on:
   push:
     tags:
       - "v*.*.*"
 
-# ============================================================
-# PERMISSIONS
-# ============================================================
+concurrency:
+  group: finora-release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
   packages: write
 
-# ============================================================
-# CONCURRENCY
-# ============================================================
-
-concurrency:
-  group: finora-release-${{ github.ref }}
-  cancel-in-progress: false
-
-# ============================================================
-# JOBS
-# ============================================================
-
 jobs:
-
   # ========================================================
-  # RELEASE
+  # 1. RELEASE
   # ========================================================
 
   release:
-    name: Validate and Publish Docker Images
+    name: Build Validate and Publish
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
-    # ======================================================
-    # RELEASE ENVIRONMENT
-    # ======================================================
-    #
-    # VITE_API_URL:
-    #   Production Render backend.
-    #
-    # VITE_APP_VERSION:
-    #   Derived automatically from the Git tag.
-    #
-    # Example:
-    #
-    #   Git tag:
-    #       v1.0.0
-    #
-    #   becomes:
-    #       VITE_APP_VERSION=1.0.0
-    #
-    # GitHub Actions does not allow shell expressions directly
-    # inside a job-level env value, therefore VITE_APP_VERSION
-    # is written to GITHUB_ENV after checkout.
-    #
     env:
-      COMPOSE_PROJECT_NAME: finora-ci
-      COMPOSE_FILE: compose.yml
+      # ----------------------------------------------------
+      # Frontend build-time configuration
+      # ----------------------------------------------------
+      #
+      # client.ts owns /api/v1.
+      #
+      VITE_API_URL: http://localhost:8000
 
-      # Production Render backend API
-      VITE_API_URL: https://finora-backend-latest.onrender.com/api/v1
+      # ----------------------------------------------------
+      # Real Neon connection string
+      # ----------------------------------------------------
+      #
+      # This is the ONLY database secret used by release.
+      #
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+
+      # ----------------------------------------------------
+      # GHCR
+      # ----------------------------------------------------
+
+      GHCR_REGISTRY: ghcr.io
+      GHCR_OWNER: ${{ github.repository_owner }}
+      GHCR_USERNAME: ${{ github.actor }}
+      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-
       # ====================================================
-      # 1. CHECKOUT
+      # 1. Checkout exact tagged commit
       # ====================================================
 
-      - name: Checkout repository
+      - name: Checkout release commit
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # ====================================================
-      # 2. EXTRACT RELEASE VERSION
-      # ====================================================
-      #
-      # GitHub:
-      #
-      #   refs/tags/v1.0.0
-      #
-      # GITHUB_REF_NAME:
-      #
-      #   v1.0.0
-      #
-      # Strip "v":
-      #
-      #   1.0.0
-      #
-      # Then expose it as:
-      #
-      #   VITE_APP_VERSION
-      #
-      # which is inherited by all subsequent steps.
-      #
+      # 2. Resolve semantic version
       # ====================================================
 
-      - name: Extract release version
+      - name: Resolve release version
+        id: version
+        shell: bash
         run: |
-          echo "============================================================"
-          echo " Release Version"
-          echo "============================================================"
+          set -euo pipefail
 
-          VERSION="${GITHUB_REF_NAME#v}"
+          TAG="${GITHUB_REF_NAME}"
 
-          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Invalid release version: ${VERSION}"
-            echo "::error::Expected semantic version such as 1.0.0"
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag must match vMAJOR.MINOR.PATCH."
             exit 1
           fi
 
-          echo "Git tag:"
-          echo "  ${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
 
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+          echo "=========================================================="
+          echo " Finora Release"
+          echo "=========================================================="
           echo
-          echo "Application version:"
-          echo "  ${VERSION}"
-
-          # Make the version available to every subsequent step.
-          echo "VITE_APP_VERSION=${VERSION}" >> "${GITHUB_ENV}"
-
+          echo "Tag     : ${TAG}"
+          echo "Version : ${VERSION}"
+          echo "Commit  : ${GITHUB_SHA}"
           echo
-          echo "VITE_APP_VERSION exported to GitHub Actions."
 
       # ====================================================
-      # 3. SET UP DOCKER BUILDX
-      # ====================================================
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # ====================================================
-      # 4. DOCKER ENVIRONMENT
+      # 3. Verify Docker
       # ====================================================
 
       - name: Verify Docker environment
+        shell: bash
         run: |
-          echo "============================================================"
-          echo " Docker Environment"
-          echo "============================================================"
+          set -euo pipefail
 
           docker --version
           docker compose version
-
-          echo
-          echo "Frontend production API:"
-          echo "  ${VITE_API_URL}"
-
-          echo
-          echo "Frontend application version:"
-          echo "  ${VITE_APP_VERSION}"
+          docker info --format \
+            'Server={{.ServerVersion}} | Storage={{.Driver}} | OS={{.OperatingSystem}}'
 
       # ====================================================
-      # 5. MAKE SCRIPTS EXECUTABLE
+      # 4. Validate release environment
       # ====================================================
 
-      - name: Make release scripts executable
+      - name: Validate Neon release configuration
+        shell: bash
         run: |
-          echo "============================================================"
-          echo " Release Scripts"
-          echo "============================================================"
+          set -euo pipefail
 
-          chmod +x scripts/docker.sh
-          chmod +x scripts/release.sh
-
-          bash -n scripts/docker.sh
-          bash -n scripts/release.sh
-
-          echo
-          echo "Release scripts are valid."
-
-      # ====================================================
-      # 6. VALIDATE CI DATABASE SECRET
-      # ====================================================
-
-      - name: Validate CI database secret
-        env:
-          CI_DATABASE_URL: ${{ secrets.FINORA_CI_DATABASE_URL }}
-        run: |
-          echo "============================================================"
-          echo " CI Database Configuration"
-          echo "============================================================"
-
-          if [[ -z "${CI_DATABASE_URL}" ]]; then
-            echo "::error::FINORA_CI_DATABASE_URL GitHub secret is not configured."
+          if [[ -z "${NEON_DATABASE_URL:-}" ]]; then
+            echo "::error::NEON_DATABASE_URL GitHub Secret is missing."
             exit 1
           fi
 
-          echo "CI database secret is configured."
-          echo "Database credentials will not be printed."
+          if [[ "${NEON_DATABASE_URL}" != postgres://* &&
+                "${NEON_DATABASE_URL}" != postgresql://* ]]; then
+            echo "::error::NEON_DATABASE_URL must be a PostgreSQL connection string."
+            exit 1
+          fi
+
+          if [[ "${NEON_DATABASE_URL}" != *"sslmode=require"* ]]; then
+            echo "::error::NEON_DATABASE_URL must contain sslmode=require."
+            exit 1
+          fi
+
+          if [[ -z "${GHCR_TOKEN:-}" ]]; then
+            echo "::error::GitHub token is unavailable for GHCR publishing."
+            exit 1
+          fi
+
+          echo "✓ NEON_DATABASE_URL is configured"
+          echo "✓ GHCR publishing token is available"
 
       # ====================================================
-      # 7. FULL DOCKER VALIDATION
+      # 5. Validate project structure
       # ====================================================
 
-      - name: Validate Docker stack
+      - name: Validate release files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            "compose.yml"
+            "scripts/release.sh"
+            "backend/Dockerfile"
+            "infrastructure/web/Dockerfile"
+            "infrastructure/web/nginx.conf"
+            "frontend/package.json"
+          )
+
+          for file in "${required_files[@]}"; do
+            if [[ ! -f "${file}" ]]; then
+              echo "::error::Missing required file: ${file}"
+              exit 1
+            fi
+          done
+
+          chmod +x scripts/release.sh
+          bash -n scripts/release.sh
+
+          echo "✓ Release project structure is valid"
+          echo "✓ release.sh syntax is valid"
+
+      # ====================================================
+      # 6. Run release
+      # ====================================================
+      #
+      # release.sh owns the complete artifact lifecycle:
+      #
+      #   temporary env
+      #       ↓
+      #   compose config
+      #       ↓
+      #   compose build
+      #       ↓
+      #   compose up
+      #       ↓
+      #   backend health
+      #       ↓
+      #   Neon connectivity
+      #       ↓
+      #   frontend health
+      #       ↓
+      #   capture exact image IDs
+      #       ↓
+      #   GHCR push
+      #
+      # No CI database URL is involved.
+      #
+      # ====================================================
+
+      - name: Build validate and publish
+        shell: bash
         env:
-          CI_DATABASE_URL: ${{ secrets.FINORA_CI_DATABASE_URL }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          echo "============================================================"
-          echo " Finora Docker Release Gate"
-          echo "============================================================"
-          echo
+          set -euo pipefail
 
-          echo "Release frontend API:"
-          echo "  ${VITE_API_URL}"
-
-          echo
-          echo "Release frontend version:"
-          echo "  ${VITE_APP_VERSION}"
-
-          echo
-
-          # Both VITE values are inherited automatically:
-          #
-          #   VITE_API_URL
-          #   VITE_APP_VERSION
-          #
-          # docker.sh passes them into the Compose build.
-          ./scripts/docker.sh
+          ./scripts/release.sh
 
       # ====================================================
-      # 8. PUBLISH VALIDATED IMAGES TO GHCR
+      # 7. Final cleanup
       # ====================================================
 
-      - name: Publish validated images to GHCR
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
-          GITHUB_ACTOR: ${{ github.actor }}
+      - name: Cleanup release runner
+        if: always()
+        shell: bash
         run: |
-          echo "============================================================"
-          echo " Publishing Validated Images"
-          echo "============================================================"
+          set +e
 
-          ./scripts/release.sh "${GITHUB_REF_NAME}"
+          docker compose \
+            -f compose.yml \
+            down --remove-orphans
 
-      # ====================================================
-      # 9. RELEASE SUMMARY
-      # ====================================================
+          rm -f \
+            .env \
+            backend/.env
 
-      - name: Release summary
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "✓ Release runner cleanup completed."
 
-          echo
-          echo "============================================================"
-          echo " Finora Release"
-          echo "============================================================"
-          echo
-
-          echo "Git tag:"
-          echo "  ${GITHUB_REF_NAME}"
-          echo
-
-          echo "Application version:"
-          echo "  ${VITE_APP_VERSION}"
-          echo
-
-          echo "Repository:"
-          echo "  ${GITHUB_REPOSITORY}"
-          echo
-
-          echo "Frontend production API:"
-          echo "  ${VITE_API_URL}"
-          echo
-
-          echo "GHCR:"
-          echo "  ghcr.io/${OWNER}/finora-backend:${VERSION}"
-          echo "  ghcr.io/${OWNER}/finora-backend:latest"
-          echo
-          echo "  ghcr.io/${OWNER}/finora-web:${VERSION}"
-          echo "  ghcr.io/${OWNER}/finora-web:latest"
-          echo
-
-          echo "Render backend:"
-          echo "  Deploy the versioned backend image:"
-          echo "  ghcr.io/${OWNER}/finora-backend:${VERSION}"
-          echo
-
-          echo "Neon:"
-          echo "  Production Neon is configured at Render runtime."
-          echo "  No Neon credentials are included in the image."
-          echo
-
-          echo "Frontend build values:"
-          echo "  VITE_API_URL=${VITE_API_URL}"
-          echo "  VITE_APP_VERSION=${VITE_APP_VERSION}"
-          echo
-
-          echo "============================================================"
-          echo " Release successful"
-          echo "============================================================"
+# ==========================================================
+# END
+# ==========================================================
