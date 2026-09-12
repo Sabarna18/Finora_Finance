@@ -9,8 +9,10 @@
 #   VITE_API_URL is overridden by CI/release at build time.
 #
 # IMPORTANT:
-#   VITE_API_URL is a Vite BUILD-TIME variable.
-#   It is intentionally not configured in the Nginx runtime stage.
+#   VITE_API_URL and VITE_APP_VERSION are Vite BUILD-TIME
+#   variables.
+#   VITE_APP_VERSION is also retained as final-image metadata
+#   so deployment can verify release integrity.
 # ==========================================================
 
 
@@ -42,21 +44,20 @@ COPY frontend/ ./
 # ==========================================================
 # Vite Environment
 # ==========================================================
-#
-# Local default:
-#   http://localhost:8000/api/v1
-#
-# CI / production can override this with:
-#
-#   --build-arg VITE_API_URL=https://<backend>/api/v1
-#
-# Compose also supplies the value through build.args.
-# ==========================================================
 
-ARG VITE_API_URL=http://localhost:8000
+# Local default
+ARG VITE_API_URL=http://localhost:8000/api/v1
+
+# Application version
+#
+# Release pipeline supplies the actual semantic version:
+#   VITE_APP_VERSION=1.0.3
+#
+# Local development falls back to:
+#   vdev
+ARG VITE_APP_VERSION=vdev
 
 ENV VITE_API_URL=${VITE_API_URL}
-
 ENV VITE_APP_VERSION=${VITE_APP_VERSION}
 
 
@@ -72,6 +73,16 @@ RUN npm run build
 # ==========================================================
 
 FROM nginx:1.28-alpine
+
+
+# ==========================================================
+# Retain Release Version as Final Image Metadata
+# ==========================================================
+
+# ARG must be redeclared because this is a new build stage.
+ARG VITE_APP_VERSION=vdev
+
+ENV VITE_APP_VERSION=${VITE_APP_VERSION}
 
 
 # ==========================================================
