@@ -8,6 +8,7 @@
 #   git push origin v1.0.0
 #
 # The Git release tag is the SINGLE source of truth for:
+#
 #   - release image tag
 #   - APP_VERSION
 #   - frontend VITE_APP_VERSION
@@ -32,44 +33,70 @@ permissions:
   packages: write
 
 jobs:
+
+  # ========================================================
+  # RELEASE
+  # ========================================================
+
   release:
+
     name: Build Validate and Publish
+
     runs-on: ubuntu-latest
+
     timeout-minutes: 30
 
     env:
-      # Frontend build-time backend origin.
+
+      # ----------------------------------------------------
+      # Frontend build-time backend origin
+      # ----------------------------------------------------
+      #
       # client.ts owns /api/v1.
+      #
       VITE_API_URL: http://localhost:8000
 
-      # Git release metadata.
+      # ----------------------------------------------------
+      # Git release metadata
+      # ----------------------------------------------------
       RELEASE_TAG: ${{ github.ref_name }}
 
-      # Real Neon database used only by release validation.
+      # ----------------------------------------------------
+      # Real Neon database used only by release validation
+      # ----------------------------------------------------
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
 
-      # GHCR.
+      # ----------------------------------------------------
+      # GHCR
+      # ----------------------------------------------------
       GHCR_REGISTRY: ghcr.io
       GHCR_OWNER: ${{ github.repository_owner }}
       GHCR_USERNAME: ${{ github.actor }}
       GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
+
       # ====================================================
       # 1. Checkout exact tagged commit
       # ====================================================
 
       - name: Checkout release commit
+
         uses: actions/checkout@v4
+
         with:
           fetch-depth: 0
 
       # ====================================================
       # 2. Resolve semantic version
       # ====================================================
+
       - name: Resolve release version
+
         id: version
+
         shell: bash
+
         run: |
           set -euo pipefail
 
@@ -95,26 +122,35 @@ jobs:
           echo "APP_VERSION : ${VERSION}"
           echo "Commit      : ${GITHUB_SHA}"
           echo
-          # ====================================================
-          # 3. Verify Docker
-          # ====================================================
 
-          - name: Verify Docker environment
-            shell: bash
-            run: |
-              set -euo pipefail
+      # ====================================================
+      # 3. Verify Docker
+      # ====================================================
 
-              docker --version
-              docker compose version
-              docker info --format \
-                'Server={{.ServerVersion}} | Storage={{.Driver}} | OS={{.OperatingSystem}}'
+      - name: Verify Docker environment
+
+        shell: bash
+
+        run: |
+          set -euo pipefail
+
+          docker --version
+          docker compose version
+
+          docker info --format \
+            'Server={{.ServerVersion}} | Storage={{.Driver}} | OS={{.OperatingSystem}}'
 
       # ====================================================
       # 4. Validate release environment
       # ====================================================
 
-      - name: Validate Neon release configuration
+      - name: Validate release configuration
+
         shell: bash
+
+        env:
+          APP_VERSION: ${{ steps.version.outputs.app_version }}
+
         run: |
           set -euo pipefail
 
@@ -139,6 +175,11 @@ jobs:
             exit 1
           fi
 
+          if [[ -z "${APP_VERSION:-}" ]]; then
+            echo "::error::APP_VERSION could not be resolved from Git release tag."
+            exit 1
+          fi
+
           echo "✓ NEON_DATABASE_URL is configured"
           echo "✓ GHCR publishing token is available"
           echo "✓ APP_VERSION=${APP_VERSION}"
@@ -148,7 +189,9 @@ jobs:
       # ====================================================
 
       - name: Validate release files
+
         shell: bash
+
         run: |
           set -euo pipefail
 
@@ -169,31 +212,73 @@ jobs:
           done
 
           chmod +x scripts/release.sh
+
           bash -n scripts/release.sh
 
           echo "✓ Release project structure is valid"
           echo "✓ release.sh syntax is valid"
 
       # ====================================================
-      # 6. Run release
+      # 6. Build validate and publish
+      # ====================================================
+      #
+      # release.sh owns the complete artifact lifecycle:
+      #
+      #   Git release tag
+      #       ↓
+      #   temporary environment
+      #       ↓
+      #   compose config
+      #       ↓
+      #   compose build
+      #       ↓
+      #   compose up
+      #       ↓
+      #   backend health
+      #       ↓
+      #   Neon connectivity
+      #       ↓
+      #   frontend health
+      #       ↓
+      #   exact image IDs
+      #       ↓
+      #   GHCR push
+      #
       # ====================================================
 
       - name: Build validate and publish
+
         shell: bash
+
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          APP_VERSION: ${{ steps.version.outputs.app_version }}
+
         run: |
           set -euo pipefail
 
-          # Pass the exact Git release tag explicitly.
-          # release.sh derives VERSION/APP_VERSION from it.
-          ./scripts/release.sh "${GITHUB_REF_NAME}"
+          echo "Release tag : ${RELEASE_TAG}"
+          echo "APP_VERSION : ${APP_VERSION}"
+
+          # Pass the exact Git release tag.
+          #
+          # release.sh derives:
+          #
+          #   VERSION=${RELEASE_TAG#v}
+          #   APP_VERSION=VERSION
+          #
+          ./scripts/release.sh "${RELEASE_TAG}"
 
       # ====================================================
       # 7. Final cleanup
       # ====================================================
 
       - name: Cleanup release runner
+
         if: always()
+
         shell: bash
+
         run: |
           set +e
 
@@ -210,3 +295,4 @@ jobs:
 # ==========================================================
 # END
 # ==========================================================
+
