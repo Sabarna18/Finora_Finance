@@ -8,13 +8,28 @@ FROM python:3.13-slim
 
 
 # ==========================================================
+# Build Arguments
+# ==========================================================
+
+# Release pipeline passes the semantic application version.
+# Example:
+#   1.0.5
+#
+# Development builds can use:
+#   vdev
+#
+ARG APP_VERSION=vdev
+
+
+# ==========================================================
 # Environment
 # ==========================================================
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/backend \
-    PATH="/backend/.venv/bin:$PATH"
+    PATH="/backend/.venv/bin:$PATH" \
+    APP_VERSION=${APP_VERSION}
 
 
 # ==========================================================
@@ -50,6 +65,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest \
 
 # Copy dependency metadata first so Docker can cache
 # dependency installation independently of source changes.
+
 COPY pyproject.toml uv.lock ./
 
 
@@ -60,6 +76,7 @@ COPY pyproject.toml uv.lock ./
 # --frozen guarantees that the committed uv.lock is used.
 # --no-dev keeps test/development dependencies out of
 # the production runtime image.
+
 RUN uv sync \
     --frozen \
     --no-dev
@@ -91,3 +108,4 @@ EXPOSE 8000
 # ==========================================================
 
 ENTRYPOINT ["/backend/docker-entrypoint.sh"]
+

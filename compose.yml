@@ -48,17 +48,37 @@
 # ==========================================================
 
 services:
+
   # ========================================================
   # FastAPI Backend
   # ========================================================
 
   backend:
+
     build:
       context: ./backend
       dockerfile: Dockerfile
 
-    container_name: finora-backend
+      # ----------------------------------------------------
+      # Backend Build Arguments
+      # ----------------------------------------------------
+      #
+      # APP_VERSION is embedded into the Docker image.
+      #
+      # Local development:
+      #   APP_VERSION=vdev
+      #
+      # Release pipeline:
+      #   APP_VERSION=1.0.5
+      #
+      # This allows the VPS deployment script to inspect the
+      # published image and determine which Finora release
+      # it contains.
+      #
+      args:
+        APP_VERSION: ${APP_VERSION:-vdev}
 
+    container_name: finora-backend
     restart: unless-stopped
 
     # ------------------------------------------------------
@@ -71,13 +91,20 @@ services:
     # Compose-level defaults below keep local browser access
     # working without requiring production environment values.
     #
+
     env_file:
       - ./backend/.env
 
     environment:
       DEBUG: ${DEBUG:-true}
+
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-["http://localhost","http://localhost:80"]}
-      APP_VERSION: ${APP_VERSION:-dev}
+
+      # Runtime application version.
+      #
+      # This should match the build argument above for normal
+      # local/release builds.
+      APP_VERSION: ${APP_VERSION:-vdev}
 
     # ------------------------------------------------------
     # Backend Source Mount
@@ -86,6 +113,7 @@ services:
     # Keeps local development convenient: source changes are
     # visible inside the running container.
     #
+
     volumes:
       - ./backend:/backend
       - /backend/.venv
@@ -104,7 +132,10 @@ services:
 
     healthcheck:
       test:
-        ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
+        [
+          "CMD-SHELL",
+          "curl -f http://localhost:8000/api/v1/health || exit 1"
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -117,6 +148,7 @@ services:
     networks:
       - finora_network
 
+
   # ========================================================
   # Web
   #
@@ -124,6 +156,7 @@ services:
   # ========================================================
 
   web:
+
     build:
       context: .
       dockerfile: infrastructure/web/Dockerfile
@@ -134,22 +167,19 @@ services:
       #
       # Vite variables are embedded during npm build.
       #
-      # Local default:
+      # Local defaults:
       #
-      #   http://localhost:8000/api/v1
+      #   VITE_API_URL=http://localhost:8000/api/v1
+      #   VITE_APP_VERSION=vdev
       #
-      # CI/CD may override this value later:
+      # CI/CD may override these values explicitly.
       #
-      #   VITE_API_URL=https://...
-      #
-      # ----------------------------------------------------
 
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
         VITE_APP_VERSION: ${VITE_APP_VERSION:-vdev}
 
     container_name: finora-web
-
     restart: unless-stopped
 
     # ------------------------------------------------------
@@ -158,6 +188,7 @@ services:
     #
     # Do not start the web container until the API is healthy.
     #
+
     depends_on:
       backend:
         condition: service_healthy
@@ -177,7 +208,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget --no-verbose --tries=1 --spider http://127.0.0.1/web-health || exit 1",
+          "wget --no-verbose --tries=1 --spider http://127.0.0.1/web-health || exit 1"
         ]
       interval: 10s
       timeout: 5s
@@ -191,6 +222,7 @@ services:
     networks:
       - finora_network
 
+
 # ==========================================================
 # Persistent Volumes
 #
@@ -200,14 +232,18 @@ services:
 # ==========================================================
 
 volumes:
+
   backend_logs:
     name: finora_backend_logs
+
 
 # ==========================================================
 # Docker Network
 # ==========================================================
 
 networks:
+
   finora_network:
     name: finora_network
     driver: bridge
+
