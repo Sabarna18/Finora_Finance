@@ -67,34 +67,34 @@ jobs:
       # ====================================================
       # 2. Resolve semantic version
       # ====================================================
-    - name: Resolve release version
-      id: version
-      shell: bash
-      run: |
-        set -euo pipefail
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
 
-        TAG="${GITHUB_REF_NAME}"
+          TAG="${GITHUB_REF_NAME}"
 
-        if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-          echo "::error::Release tag must match vMAJOR.MINOR.PATCH."
-          exit 1
-        fi
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag must match vMAJOR.MINOR.PATCH."
+            exit 1
+          fi
 
-        VERSION="${TAG#v}"
+          VERSION="${TAG#v}"
 
-        echo "release_tag=${TAG}" >> "${GITHUB_OUTPUT}"
-        echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-        echo "app_version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "release_tag=${TAG}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "app_version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
-        echo "=========================================================="
-        echo " Finora Release"
-        echo "=========================================================="
-        echo
-        echo "Tag         : ${TAG}"
-        echo "Version     : ${VERSION}"
-        echo "APP_VERSION : ${VERSION}"
-        echo "Commit      : ${GITHUB_SHA}"
-        echo
+          echo "=========================================================="
+          echo " Finora Release"
+          echo "=========================================================="
+          echo
+          echo "Tag         : ${TAG}"
+          echo "Version     : ${VERSION}"
+          echo "APP_VERSION : ${VERSION}"
+          echo "Commit      : ${GITHUB_SHA}"
+          echo
           # ====================================================
           # 3. Verify Docker
           # ====================================================
