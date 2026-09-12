@@ -77,6 +77,7 @@ services:
     environment:
       DEBUG: ${DEBUG:-true}
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-["http://localhost","http://localhost:80"]}
+      APP_VERSION: ${APP_VERSION:-dev}
 
     # ------------------------------------------------------
     # Backend Source Mount
@@ -145,6 +146,7 @@ services:
 
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-vdev}
 
     container_name: finora-web
 

@@ -25,12 +25,24 @@
 #
 # Usage:
 #
-#   VERSION=1.0.0 \
+#   GITHUB_REF_NAME=v1.0.0 \
 #   GHCR_OWNER=myuser \
 #   GHCR_USERNAME=myuser \
 #   GHCR_TOKEN=... \
 #   NEON_DATABASE_URL='postgresql://...' \
 #   ./scripts/release.sh
+#
+# The script derives:
+#
+#   Git tag:    v1.0.0
+#   Image tag:  1.0.0
+#   APP_VERSION=1.0.0
+#
+# The existing release workflow may also pass the tag as the
+# first argument:
+#
+#   ./scripts/release.sh "${GITHUB_REF_NAME}"
+#
 #
 # ==========================================================
 
@@ -41,7 +53,6 @@ cd "${PROJECT_ROOT}"
 
 COMPOSE_FILE="${COMPOSE_FILE:-compose.yml}"
 
-VERSION="${VERSION:-}"
 GHCR_REGISTRY="${GHCR_REGISTRY:-ghcr.io}"
 GHCR_OWNER="${GHCR_OWNER:-}"
 GHCR_USERNAME="${GHCR_USERNAME:-}"
@@ -49,9 +60,6 @@ GHCR_TOKEN="${GHCR_TOKEN:-}"
 
 NEON_DATABASE_URL="${NEON_DATABASE_URL:-}"
 VITE_API_URL="${VITE_API_URL:-http://localhost:8000}"
-
-STACK_STARTED=false
-PUBLISHED=false
 
 log() {
     printf '\n→ %s\n' "$1"
@@ -64,6 +72,52 @@ success() {
 error() {
     printf '✗ %s\n' "$1" >&2
 }
+
+# ----------------------------------------------------------
+# Release version
+#
+# The release version is authoritative from the Git release
+# tag. In GitHub Actions this is GITHUB_REF_NAME.
+#
+# Local execution falls back to the exact tag checked out at
+# HEAD. An optional positional argument is supported so the
+# existing release workflow can continue to call:
+#
+#   ./scripts/release.sh "${GITHUB_REF_NAME}"
+#
+# The value is always normalized:
+#
+#   v1.2.3 -> 1.2.3
+#
+# APP_VERSION is then propagated into the temporary runtime
+# environment used by the release validation. Deployment
+# systems can inject the same APP_VERSION into the released
+# image/container later.
+# ----------------------------------------------------------
+
+RELEASE_TAG="${1:-${GITHUB_REF_NAME:-}}"
+
+if [[ -z "${RELEASE_TAG}" ]]; then
+    RELEASE_TAG="$(git describe --tags --exact-match HEAD 2>/dev/null || true)"
+fi
+
+VERSION=""
+APP_VERSION=""
+
+if [[ -n "${RELEASE_TAG}" ]]; then
+    [[ "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+        { error "Git release tag must match vMAJOR.MINOR.PATCH, e.g. v1.0.0."; exit 1; }
+
+    VERSION="${RELEASE_TAG#v}"
+    APP_VERSION="${VERSION}"
+else
+    error "No Git release tag was found."
+    error "Release must be created from a tag such as v1.0.0."
+    exit 1
+fi
+
+STACK_STARTED=false
+PUBLISHED=false
 
 cleanup() {
     local rc=$?
@@ -109,7 +163,9 @@ echo " Finora Release"
 echo "=========================================================="
 echo
 echo "Compose : ${COMPOSE_FILE}"
-echo "Version : ${VERSION:-<unset>}"
+echo "Git tag : ${RELEASE_TAG}"
+echo "Version : ${VERSION}"
+echo "App ver : ${APP_VERSION}"
 echo "Database: Neon PostgreSQL"
 echo "Registry: ${GHCR_REGISTRY}"
 echo
@@ -123,11 +179,20 @@ log "Validating release inputs..."
 [[ -f "${COMPOSE_FILE}" ]] ||
     { error "Missing ${COMPOSE_FILE}."; exit 1; }
 
-[[ -n "${VERSION}" ]] ||
-    { error "VERSION is required."; exit 1; }
+[[ -n "${RELEASE_TAG}" ]] ||
+    { error "Git release tag is required."; exit 1; }
 
-[[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
-    { error "VERSION must be MAJOR.MINOR.PATCH, e.g. 1.0.0."; exit 1; }
+[[ -n "${VERSION}" ]] ||
+    { error "Could not derive application version from Git release tag."; exit 1; }
+
+# When running locally, make sure the supplied tag actually exists.
+# In GitHub Actions the checkout is already associated with the tag,
+# but this check also protects against accidentally publishing from
+# an arbitrary branch with a manually supplied version.
+if ! git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}" >/dev/null; then
+    error "Git release tag does not exist: ${RELEASE_TAG}"
+    exit 1
+fi
 
 [[ -n "${GHCR_OWNER}" ]] ||
     { error "GHCR_OWNER is required."; exit 1; }
@@ -215,7 +280,9 @@ log "Validating compose.yml..."
 # because compose.yml references backend/.env.
 cat > "${PROJECT_ROOT}/.env" <<EOF
 VITE_API_URL=${VITE_API_URL}
+VITE_APP_VERSION=${APP_VERSION}
 DEBUG=true
+APP_VERSION=${APP_VERSION}
 BACKEND_CORS_ORIGINS='["http://localhost","http://localhost:80"]'
 EOF
 
@@ -247,6 +314,7 @@ def q(value: str) -> str:
     return "'" + value.replace("'", "'\"'\"'") + "'"
 
 print("APP_NAME=Finora")
+print("APP_VERSION=${APP_VERSION}")
 print("DEBUG=true")
 print("DB_TYPE=postgresql")
 print(f"POSTGRES_HOST={q(parts.hostname)}")
@@ -338,6 +406,22 @@ done
     { error "Backend did not become healthy."; exit 1; }
 
 success "Backend container is healthy."
+
+log "Verifying release application version..."
+
+container_app_version="$(
+    docker inspect         --format '{{range .Config.Env}}{{println .}}{{end}}'         finora-backend         | sed -n 's/^APP_VERSION=//p'         | head -n 1
+)"
+
+[[ "${container_app_version}" == "${APP_VERSION}" ]] ||
+    {
+        error "Backend APP_VERSION mismatch."
+        error "Expected: ${APP_VERSION}"
+        error "Received: ${container_app_version:-<unset>}"
+        exit 1
+    }
+
+success "Backend APP_VERSION=${APP_VERSION}."
 
 log "Testing backend API..."
 
@@ -457,6 +541,19 @@ grep -qi 'web ok' <<< "${web_health}" ||
 
 success "Nginx health validation passed."
 
+log "Verifying frontend release version..."
+
+# Vite embeds VITE_APP_VERSION into the immutable web artifact.
+# The exact generated asset is implementation-dependent, so scan
+# the served application files inside the validated container.
+if ! docker exec finora-web sh -c "grep -R -F -- '${APP_VERSION}' /usr/share/nginx/html 2>/dev/null | head -n 1" >/dev/null; then
+    error "Frontend artifact does not contain APP_VERSION=${APP_VERSION}."
+    error "Ensure compose.yml passes VITE_APP_VERSION to the web build."
+    exit 1
+fi
+
+success "Frontend artifact contains APP_VERSION=${APP_VERSION}."
+
 # ==========================================================
 # 10. Capture EXACT validated image IDs
 # ==========================================================
@@ -552,6 +649,12 @@ echo "=========================================================="
 echo " Finora Release PASSED"
 echo "=========================================================="
 echo
+echo "Git release:"
+echo "  ${RELEASE_TAG}"
+echo
+echo "Application version:"
+echo "  APP_VERSION=${APP_VERSION}"
+echo
 echo "Published immutable release:"
 echo "  ${BACKEND_IMAGE}:${VERSION}"
 echo "  ${WEB_IMAGE}:${VERSION}"
@@ -569,4 +672,6 @@ echo "  ✓ frontend health passed"
 echo "  ✓ exact validated image IDs were captured"
 echo "  ✓ no rebuild occurred after validation"
 echo "  ✓ validated images were published to GHCR"
+echo "  ✓ Git release tag is the authoritative application version"
+echo "  ✓ APP_VERSION=${APP_VERSION} was injected during validation"
 echo

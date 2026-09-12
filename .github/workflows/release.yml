@@ -7,49 +7,12 @@
 #   git tag v1.0.0
 #   git push origin v1.0.0
 #
-# Release layers:
+# The Git release tag is the SINGLE source of truth for:
+#   - release image tag
+#   - APP_VERSION
+#   - frontend VITE_APP_VERSION
 #
-#   CI
-#     └── application quality gate
-#         └── disposable PostgreSQL service
-#
-#   Docker Validation
-#     └── compose.yml
-#         └── real Neon PostgreSQL
-#         └── backend + web containers
-#
-#   Release
-#     └── tagged commit
-#         └── compose.yml build
-#         └── compose.yml up
-#         └── real Neon validation
-#         └── exact validated image IDs
-#         └── GHCR
-#
-# Deployment is intentionally separate.
-#
-# A later deploy.yml consumes:
-#
-#   ghcr.io/<owner>/finora-backend:<version>
-#   ghcr.io/<owner>/finora-web:<version>
-#
-# and deploys them to:
-#
-#   VPS simulation
-#   Render
-#   Vercel
-#
-# IMPORTANT:
-#   This workflow uses ONLY:
-#
-#       NEON_DATABASE_URL
-#
-#   for the Docker/release database.
-#
-#   It does NOT use CI_DATABASE_URL or any CI database secret.
-#
-#   The CI workflow has its own disposable PostgreSQL service
-#   and remains completely independent.
+# Deployment remains intentionally separate.
 #
 # ==========================================================
 
@@ -69,36 +32,23 @@ permissions:
   packages: write
 
 jobs:
-  # ========================================================
-  # 1. RELEASE
-  # ========================================================
-
   release:
     name: Build Validate and Publish
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     env:
-      # ----------------------------------------------------
-      # Frontend build-time configuration
-      # ----------------------------------------------------
-      #
+      # Frontend build-time backend origin.
       # client.ts owns /api/v1.
-      #
       VITE_API_URL: http://localhost:8000
 
-      # ----------------------------------------------------
-      # Real Neon connection string
-      # ----------------------------------------------------
-      #
-      # This is the ONLY database secret used by release.
-      #
+      # Git release metadata.
+      RELEASE_TAG: ${{ github.ref_name }}
+
+      # Real Neon database used only by release validation.
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
 
-      # ----------------------------------------------------
-      # GHCR
-      # ----------------------------------------------------
-
+      # GHCR.
       GHCR_REGISTRY: ghcr.io
       GHCR_OWNER: ${{ github.repository_owner }}
       GHCR_USERNAME: ${{ github.actor }}
@@ -139,9 +89,9 @@ jobs:
           echo " Finora Release"
           echo "=========================================================="
           echo
-          echo "Tag     : ${TAG}"
-          echo "Version : ${VERSION}"
-          echo "Commit  : ${GITHUB_SHA}"
+          echo "Tag         : ${TAG}"
+          echo "APP_VERSION : ${VERSION}"
+          echo "Commit      : ${GITHUB_SHA}"
           echo
 
       # ====================================================
@@ -190,6 +140,7 @@ jobs:
 
           echo "✓ NEON_DATABASE_URL is configured"
           echo "✓ GHCR publishing token is available"
+          echo "✓ APP_VERSION=${APP_VERSION}"
 
       # ====================================================
       # 5. Validate project structure
@@ -225,39 +176,15 @@ jobs:
       # ====================================================
       # 6. Run release
       # ====================================================
-      #
-      # release.sh owns the complete artifact lifecycle:
-      #
-      #   temporary env
-      #       ↓
-      #   compose config
-      #       ↓
-      #   compose build
-      #       ↓
-      #   compose up
-      #       ↓
-      #   backend health
-      #       ↓
-      #   Neon connectivity
-      #       ↓
-      #   frontend health
-      #       ↓
-      #   capture exact image IDs
-      #       ↓
-      #   GHCR push
-      #
-      # No CI database URL is involved.
-      #
-      # ====================================================
 
       - name: Build validate and publish
         shell: bash
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
 
-          ./scripts/release.sh
+          # Pass the exact Git release tag explicitly.
+          # release.sh derives VERSION/APP_VERSION from it.
+          ./scripts/release.sh "${GITHUB_REF_NAME}"
 
       # ====================================================
       # 7. Final cleanup
