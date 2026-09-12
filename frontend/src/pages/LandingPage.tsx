@@ -26,6 +26,9 @@ import {
 import Logo
     from "../components/brands/Logo";
 
+import BackendHealthChecker
+    from "../components/ui/BackendHealthChecker";
+
 
 // ======================================================
 // DATA
@@ -408,6 +411,11 @@ export default function LandingPage() {
                                     Personal finance, made clearer
 
                                 </div>
+
+
+                                {/* BACKEND STATUS */}
+
+                                <BackendHealthChecker />
 
 
                                 <h1
@@ -1005,7 +1013,7 @@ export default function LandingPage() {
                                                         <div
                                                             style={{
                                                                 height:
-                                                                    `${height}% `,
+                                                                    `${height}%`,
                                                             }}
                                                             className="
                                 w-full
@@ -2309,4 +2317,3 @@ export default function LandingPage() {
     );
 
 }
-
