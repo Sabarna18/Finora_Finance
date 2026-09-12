@@ -1,159 +1,337 @@
-# ==========================================================
-# Finora - Release
+# ============================================================
+# Finora — Docker Validation
 #
-# Trigger:
-#   git tag v1.0.0
-#   git push origin v1.0.0
+# Purpose:
+#   Validate the complete Finora Docker application stack
+#   against a dedicated CI Neon PostgreSQL database.
 #
-# Flow:
-#   tag -> release.sh -> compose build -> compose up
-#       -> validate -> publish exact images to GHCR
+# Architecture:
 #
-# Deployment is NOT performed here.
-# A later deploy workflow consumes the immutable version tag
-# for VPS simulation, Render, and Vercel.
-# ==========================================================
+#   GitHub Actions
+#        │
+#        ▼
+#   scripts/docker.sh
+#        │
+#        ├── Temporary environment
+#        │
+#        ├── Docker Compose validation
+#        │
+#        ├── Build backend
+#        ├── Build web
+#        │
+#        ├── Backend
+#        │      │
+#        │      └──► CI Neon PostgreSQL
+#        │
+#        ├── Backend health
+#        ├── Neon connectivity
+#        ├── Web health
+#        ├── Frontend smoke test
+#        │
+#        └── Cleanup
+#
+# IMPORTANT:
+#
+#   - No local PostgreSQL container is created.
+#   - CI uses a dedicated Neon PostgreSQL database.
+#   - Production Neon MUST NOT be used for CI.
+#   - scripts/docker.sh owns the complete validation logic.
+#   - scripts/docker.sh creates and removes temporary env files.
+#
+# Required GitHub secret:
+#
+#   FINORA_CI_DATABASE_URL
+#
+# Example format:
+#
+#   postgresql://user:password@host/db?sslmode=require
+#
+# ============================================================
 
-name: Finora Release
+name: Docker Validation
+
+# ============================================================
+# TRIGGERS
+# ============================================================
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches:
+      - main
+      - master
+      - "feature/**"
+      - "feature-*"
 
-concurrency:
-  group: finora-release-${{ github.ref }}
-  cancel-in-progress: false
+  pull_request:
+
+  workflow_dispatch:
+
+# ============================================================
+# PERMISSIONS
+# ============================================================
 
 permissions:
   contents: read
-  packages: write
+
+# ============================================================
+# CONCURRENCY
+#
+# If several commits are pushed quickly to the same branch,
+# cancel the older validation run and validate the newest one.
+# ============================================================
+
+concurrency:
+  group: docker-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ============================================================
+# JOBS
+# ============================================================
 
 jobs:
-  release:
-    name: Validate and Publish GHCR
+  validate-docker:
+    name: Validate Docker Stack
+
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+
+    # --------------------------------------------------------
+    # Environment
+    # --------------------------------------------------------
 
     env:
-      # Browser-facing backend origin for the local release
-      # validation build. client.ts owns /api/v1.
-      VITE_API_URL: http://localhost:8000
+      COMPOSE_PROJECT_NAME: finora-docker-validation
+      COMPOSE_FILE: compose.yml
 
-      # Single database secret. release.sh converts it into
-      # the backend/.env contract required by compose.yml.
+      # Dedicated CI Neon database.
+      #
+      # The value is mapped to the variable expected by
+      # scripts/docker.sh.
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
 
-      # GitHub token is granted packages:write above.
-      GHCR_USERNAME: ${{ github.actor }}
-      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GHCR_OWNER: ${{ github.repository_owner }}
-      GHCR_REGISTRY: ghcr.io
-
     steps:
-      - name: Checkout tagged release
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      # ======================================================
+      # 1. CHECKOUT
+      # ======================================================
 
-      - name: Resolve release version
-        id: version
-        shell: bash
-        run: |
-          set -euo pipefail
+      - name: Checkout repository
 
-          TAG="${GITHUB_REF_NAME}"
+        uses: actions/checkout@v5
 
-          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Release tag must match vMAJOR.MINOR.PATCH."
-            exit 1
-          fi
-
-          VERSION="${TAG#v}"
-
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
-          echo "=========================================================="
-          echo " Finora Release"
-          echo "=========================================================="
-          echo
-          echo "Tag     : ${TAG}"
-          echo "Version : ${VERSION}"
-          echo "Commit  : ${GITHUB_SHA}"
+      # ======================================================
+      # 2. VERIFY DOCKER ENVIRONMENT
+      # ======================================================
 
       - name: Verify Docker environment
-        shell: bash
+
         run: |
-          set -euo pipefail
+
+          echo "============================================================"
+          echo " Docker Environment"
+          echo "============================================================"
+
+          echo
+
           docker --version
           docker compose version
-          docker info --format 'Server={{.ServerVersion}} | OS={{.OperatingSystem}}'
 
-      - name: Validate release secrets
-        shell: bash
-        run: |
-          set -euo pipefail
+          echo
 
-          if [[ -z "${NEON_DATABASE_URL:-}" ]]; then
-            echo "::error::NEON_DATABASE_URL GitHub Secret is missing."
+          if ! docker info >/dev/null 2>&1; then
+            echo "::error::Docker daemon is not available."
             exit 1
           fi
 
-          if [[ "$NEON_DATABASE_URL" != postgres://* &&
-                "$NEON_DATABASE_URL" != postgresql://* ]]; then
-            echo "::error::NEON_DATABASE_URL must be a PostgreSQL URL."
+          echo "Docker daemon is available."
+          echo "Docker Compose is available."
+
+      # ======================================================
+      # 3. VALIDATE CI DATABASE SECRET
+      #
+      # Do not print the secret.
+      # ======================================================
+
+      - name: Validate CI database configuration
+
+        run: |
+
+          echo "============================================================"
+          echo " CI Database Configuration"
+          echo "============================================================"
+
+          echo
+
+          if [[ -z "${NEON_DATABASE_URL}" ]]; then
+            echo "::error::FINORA_CI_DATABASE_URL is not configured."
             exit 1
           fi
 
-          if [[ "$NEON_DATABASE_URL" != *"sslmode=require"* ]]; then
-            echo "::error::NEON_DATABASE_URL must contain sslmode=require."
+          case "${NEON_DATABASE_URL}" in
+            postgresql://*|postgres://*)
+              ;;
+            *)
+              echo "::error::FINORA_CI_DATABASE_URL must use postgresql:// or postgres://."
+              exit 1
+              ;;
+          esac
+
+          if [[ "${NEON_DATABASE_URL}" != *"sslmode=require"* ]]; then
+            echo "::error::CI Neon database URL must contain sslmode=require."
             exit 1
           fi
 
-          echo "✓ Neon configuration is present."
-          echo "✓ GHCR publishing credentials are available."
+          echo "CI Neon database configuration is available."
+          echo "Credentials will not be printed."
 
-      - name: Validate release script
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f scripts/release.sh
-          bash -n scripts/release.sh
-          chmod +x scripts/release.sh
-          echo "✓ scripts/release.sh is valid."
+      # ======================================================
+      # 4. VALIDATE DOCKER SCRIPT
+      # ======================================================
 
-      - name: Build validate and publish
-        shell: bash
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          set -euo pipefail
-          ./scripts/release.sh
+      - name: Validate Docker validation script
 
-      - name: Print published image references
-        shell: bash
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          set -euo pipefail
+
+          echo "============================================================"
+          echo " Docker Validation Script"
+          echo "============================================================"
 
           echo
-          echo "=========================================================="
-          echo " Published GHCR Images"
-          echo "=========================================================="
-          echo
-          echo "ghcr.io/${GHCR_OWNER}/finora-backend:${VERSION}"
-          echo "ghcr.io/${GHCR_OWNER}/finora-backend:latest"
-          echo "ghcr.io/${GHCR_OWNER}/finora-web:${VERSION}"
-          echo "ghcr.io/${GHCR_OWNER}/finora-web:latest"
-          echo
-          echo "✓ Release publication complete."
 
-      - name: Final cleanup
-        if: always()
-        shell: bash
+          if [[ ! -f scripts/docker.sh ]]; then
+            echo "::error::scripts/docker.sh not found."
+            exit 1
+          fi
+
+          chmod +x scripts/docker.sh
+
+          bash -n scripts/docker.sh
+
+          echo "scripts/docker.sh exists."
+          echo "Shell syntax validation passed."
+
+      # ======================================================
+      # 5. VERIFY COMPOSE FILE
+      # ======================================================
+
+      - name: Verify Compose file
+
         run: |
-          set +e
-          docker compose -f compose.yml down --remove-orphans
-          rm -f .env backend/.env
-          echo "✓ Release runner cleanup completed."
+
+          echo "============================================================"
+          echo " Docker Compose"
+          echo "============================================================"
+
+          echo
+
+          if [[ ! -f "${COMPOSE_FILE}" ]]; then
+            echo "::error::Compose file not found: ${COMPOSE_FILE}"
+            exit 1
+          fi
+
+          echo "Compose file: ${COMPOSE_FILE}"
+
+      # ======================================================
+      # 6. FULL DOCKER VALIDATION
+      #
+      # scripts/docker.sh owns:
+      #
+      #   - temporary .env
+      #   - temporary backend/.env
+      #   - Compose validation
+      #   - backend build
+      #   - web build
+      #   - backend startup
+      #   - Neon connectivity
+      #   - backend health
+      #   - web startup
+      #   - web health
+      #   - frontend smoke tests
+      #   - cleanup
+      #
+      # This is the actual release-quality Docker gate.
+      # ======================================================
+
+      - name: Validate complete Docker stack
+
+        run: |
+
+          echo "============================================================"
+          echo " Finora Docker Stack Validation"
+          echo "============================================================"
+
+          echo
+
+          ./scripts/docker.sh
+
+      # ======================================================
+      # 7. FINAL STATUS
+      #
+      # This step executes only if the complete Docker
+      # validation succeeded.
+      # ======================================================
+
+      - name: Docker validation summary
+
+        if: success()
+
+        run: |
+
+          echo
+          echo "============================================================"
+          echo " Finora Docker Validation PASSED"
+          echo "============================================================"
+
+          echo
+
+          echo "✓ Docker environment validated"
+          echo "✓ Compose configuration validated"
+          echo "✓ Temporary CI environment created"
+          echo "✓ Backend image built"
+          echo "✓ Web image built"
+          echo "✓ Backend container validated"
+          echo "✓ Neon PostgreSQL connectivity validated"
+          echo "✓ Backend health validated"
+          echo "✓ Web container validated"
+          echo "✓ Nginx health validated"
+          echo "✓ Frontend smoke test validated"
+          echo "✓ Docker cleanup completed"
+
+          echo
+
+          echo "Finora Docker stack is ready."
+
+      # ======================================================
+      # 8. FAILURE SUMMARY
+      #
+      # scripts/docker.sh already performs detailed failure
+      # diagnostics and cleanup.
+      #
+      # This step only adds a concise GitHub Actions summary.
+      # ======================================================
+
+      - name: Docker validation failure summary
+
+        if: failure()
+
+        run: |
+
+          echo
+          echo "============================================================"
+          echo " Finora Docker Validation FAILED"
+          echo "============================================================"
+
+          echo
+
+          echo "The Docker validation script reported a failure."
+          echo
+          echo "scripts/docker.sh already performs:"
+          echo "  • Compose status collection"
+          echo "  • Backend diagnostics"
+          echo "  • Backend health diagnostics"
+          echo "  • Backend logs"
+          echo "  • Web diagnostics"
+          echo "  • Web logs"
+          echo "  • Docker cleanup"
+          echo
+
+          echo "Review the 'Validate complete Docker stack' step above"
+          echo "for the detailed failure information."
