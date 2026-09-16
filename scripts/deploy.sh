@@ -1,177 +1,340 @@
 #!/usr/bin/env bash
 
 # ============================================================
-# Finora — Full Stack Production Deployment
+# Finora — Production Deployment
+# ============================================================
 #
-# Deployment order:
+# Deployment architecture:
 #
-#   Release tag
-#        ↓
-#   Exact release SHA
-#        ↓
-#   Render → exact GHCR backend image
-#        ↓
-#   Backend startup → Alembic → Neon
-#        ↓
-#   Backend health verification
-#        ↓
-#   Vercel authentication + project access diagnosis
-#        ↓
-#   Frontend npm ci + Vite production build
-#        ↓
-#   Vercel deploy of the already-built dist/ directory
+#   Git release tag
+#        │
+#        ├── GHCR versioned backend image
+#        │        ↓
+#        │      Render
+#        │
+#        ├── React source at exact release commit
+#        │        ↓
+#        │      Vercel
+#        │
+#        └── Neon PostgreSQL
+#                 ↑
+#              Render runtime
 #
-# Important:
-#   Vercel is NOT asked to run npm ci or npm run build.
-#   GitHub Actions performs the frontend build once, then the
-#   generated dist/ directory is deployed directly to Vercel.
+# IMPORTANT:
+#
+# - Render receives the IMMUTABLE versioned backend image.
+# - Vercel builds the frontend from the exact release commit.
+# - Neon is an external managed PostgreSQL database.
+# - No local PostgreSQL is started by this script.
+# - No "latest" image is used for production backend deployment.
+#
 # ============================================================
 
 set -Eeuo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
-cd "${PROJECT_ROOT}"
 
 # ============================================================
-# Configuration
+# PATHS
+# ============================================================
+
+SCRIPT_DIR="$(
+    cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &&
+    pwd
+)"
+
+PROJECT_ROOT="$(
+    cd -- "${SCRIPT_DIR}/.." &&
+    pwd
+)"
+
+cd "${PROJECT_ROOT}"
+
+
+# ============================================================
+# CONFIGURATION
 # ============================================================
 
 FRONTEND_DIR="${FRONTEND_DIR:-frontend}"
+
 REGISTRY="${REGISTRY:-ghcr.io}"
+
 BACKEND_IMAGE_NAME="${BACKEND_IMAGE_NAME:-finora-backend}"
 
 RENDER_DEPLOY_HOOK_URL="${RENDER_DEPLOY_HOOK_URL:-}"
+
 RENDER_BACKEND_URL="${RENDER_BACKEND_URL:-https://finora-backend-latest.onrender.com}"
 
 VERCEL_TOKEN="${VERCEL_TOKEN:-}"
+
 VERCEL_ORG_ID="${VERCEL_ORG_ID:-}"
+
 VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID:-}"
 
-VITE_API_URL="${VITE_API_URL:-https://finora-backend-latest.onrender.com/api/v1}"
+VITE_API_URL="${VITE_API_URL:-${RENDER_BACKEND_URL%/}/api/v1}"
 
 HEALTH_RETRIES="${HEALTH_RETRIES:-30}"
+
 HEALTH_INTERVAL="${HEALTH_INTERVAL:-10}"
 
 VERCEL_CLI_VERSION="${VERCEL_CLI_VERSION:-59.11.7}"
 
-EXPECTED_VERCEL_ORG="sabarnaguha1-8647s-projects"
-EXPECTED_VERCEL_PROJECT_ID="prj_fujPJ0P1LwIKQJjZO8fAink2H7r4"
-EXPECTED_VERCEL_PROJECT_NAME="finora-finance"
 
 # ============================================================
-# Helpers
+# VERIFIED VERCEL PROJECT
+# ============================================================
+
+EXPECTED_VERCEL_ORG="${EXPECTED_VERCEL_ORG:-sabarnaguha1-8647s-projects}"
+
+EXPECTED_VERCEL_PROJECT_ID="${EXPECTED_VERCEL_PROJECT_ID:-prj_fujPJ0P1LwIKQJjZO8fAink2H7r4}"
+
+EXPECTED_VERCEL_PROJECT_NAME="${EXPECTED_VERCEL_PROJECT_NAME:-finora-finance}"
+
+
+# ============================================================
+# TEMP FILES
+# ============================================================
+
+TMP_FILES=()
+
+
+cleanup() {
+
+    for file in "${TMP_FILES[@]:-}"; do
+
+        [[ -n "${file}" ]] &&
+            rm -f -- "${file}" 2>/dev/null || true
+
+    done
+
+}
+
+trap cleanup EXIT
+
+
+# ============================================================
+# LOGGING
 # ============================================================
 
 log() {
+
     echo
     echo "============================================================"
     echo " $1"
     echo "============================================================"
+
 }
+
+
+info() {
+
+    echo "[INFO] $1"
+
+}
+
+
+success() {
+
+    echo "[PASS] $1"
+
+}
+
+
+warn() {
+
+    echo "[WARN] $1"
+
+}
+
 
 fail() {
+
     echo
-    echo "ERROR: $1"
+    echo "============================================================"
+    echo " Finora Production Deployment FAILED"
+    echo "============================================================"
+    echo
+    echo "[ERROR] $1"
+    echo
+
     exit 1
+
 }
+
 
 require_command() {
-    command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"
+
+    command -v "$1" >/dev/null 2>&1 ||
+        fail "Required command not found: $1"
+
 }
 
+
 # ============================================================
-# Release metadata
+# RELEASE METADATA
 # ============================================================
 
-log "Resolving release metadata"
+log "Resolving Release Metadata"
 
-RELEASE_TAG="$({
-    git tag --points-at HEAD --list 'v*.*.*' \
-        | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-        | head -n 1 || true
-})"
 
-[[ -n "${RELEASE_TAG}" ]] || fail \
-    "HEAD is not tagged with a semantic release tag (vMAJOR.MINOR.PATCH)."
+RELEASE_TAG="$(
+    git tag --points-at HEAD --list 'v*.*.*' |
+        grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
+        head -n 1 ||
+        true
+)"
+
+
+[[ -n "${RELEASE_TAG}" ]] ||
+    fail \
+        "HEAD is not tagged with a semantic release tag (vMAJOR.MINOR.PATCH)."
+
 
 VERSION="${RELEASE_TAG#v}"
 
-[[ -n "${GITHUB_REPOSITORY_OWNER:-}" ]] || fail \
-    "GITHUB_REPOSITORY_OWNER is not set."
+
+[[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+    fail \
+        "Invalid release version: ${VERSION}"
+
+
+[[ -n "${GITHUB_REPOSITORY_OWNER:-}" ]] ||
+    fail \
+        "GITHUB_REPOSITORY_OWNER is not set."
+
 
 BACKEND_IMAGE="${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/${BACKEND_IMAGE_NAME}:${VERSION}"
 
-printf 'Release tag:\n  %s\n\n' "${RELEASE_TAG}"
-printf 'Version:\n  %s\n\n' "${VERSION}"
-printf 'Backend image:\n  %s\n' "${BACKEND_IMAGE}"
+
+echo
+echo "Release tag:"
+echo "  ${RELEASE_TAG}"
+echo
+echo "Application version:"
+echo "  ${VERSION}"
+echo
+echo "Backend image:"
+echo "  ${BACKEND_IMAGE}"
+
 
 # ============================================================
-# Required tools / configuration
+# DEPLOYMENT PREREQUISITES
 # ============================================================
 
-log "Validating deployment prerequisites"
+log "Validating Deployment Prerequisites"
+
 
 require_command git
 require_command curl
 require_command npm
 require_command npx
 
-[[ -n "${RENDER_DEPLOY_HOOK_URL}" ]] || fail \
-    "RENDER_DEPLOY_HOOK_URL is not configured."
 
-[[ -n "${RENDER_BACKEND_URL}" ]] || fail \
-    "RENDER_BACKEND_URL is not configured."
+[[ -n "${RENDER_DEPLOY_HOOK_URL}" ]] ||
+    fail \
+        "RENDER_DEPLOY_HOOK_URL is not configured."
 
-[[ -n "${VERCEL_TOKEN}" ]] || fail \
-    "VERCEL_TOKEN is not configured."
 
-[[ -n "${VERCEL_ORG_ID}" ]] || fail \
-    "VERCEL_ORG_ID is not configured."
+[[ -n "${RENDER_BACKEND_URL}" ]] ||
+    fail \
+        "RENDER_BACKEND_URL is not configured."
 
-[[ -n "${VERCEL_PROJECT_ID}" ]] || fail \
-    "VERCEL_PROJECT_ID is not configured."
 
-[[ -n "${VITE_API_URL}" ]] || fail \
-    "VITE_API_URL is not configured."
+[[ -n "${VERCEL_TOKEN}" ]] ||
+    fail \
+        "VERCEL_TOKEN is not configured."
+
+
+[[ -n "${VERCEL_ORG_ID}" ]] ||
+    fail \
+        "VERCEL_ORG_ID is not configured."
+
+
+[[ -n "${VERCEL_PROJECT_ID}" ]] ||
+    fail \
+        "VERCEL_PROJECT_ID is not configured."
+
+
+[[ -n "${VITE_API_URL}" ]] ||
+    fail \
+        "VITE_API_URL is not configured."
+
+
+success "Deployment prerequisites are present."
+
 
 # ============================================================
-# Exact release SHA verification
+# RELEASE COMMIT VERIFICATION
 # ============================================================
 
-log "Verifying release commit"
+log "Verifying Exact Release Commit"
+
 
 CURRENT_SHA="$(git rev-parse HEAD)"
-TAG_SHA="$(git rev-list -n 1 "${RELEASE_TAG}")"
 
-printf 'Checked-out SHA:\n  %s\n\n' "${CURRENT_SHA}"
-printf 'Release tag SHA:\n  %s\n' "${TAG_SHA}"
+TAG_SHA="$(
+    git rev-list \
+        -n 1 \
+        "${RELEASE_TAG}"
+)"
 
-[[ "${CURRENT_SHA}" == "${TAG_SHA}" ]] || fail \
-    "Checked-out HEAD does not match the release tag."
 
 echo
- echo "[PASS] Exact release tag verified."
+echo "Checked-out SHA:"
+echo "  ${CURRENT_SHA}"
+
+echo
+echo "Release tag SHA:"
+echo "  ${TAG_SHA}"
+
+
+[[ "${CURRENT_SHA}" == "${TAG_SHA}" ]] ||
+    fail \
+        "Checked-out HEAD does not match ${RELEASE_TAG}."
+
+
+success "Exact release commit verified."
+
 
 # ============================================================
-# Stage 1 / 3 — BACKEND
+# RELEASE IMAGE
 # ============================================================
 
-log "Stage 1 / 3 — BACKEND"
+log "Resolving Production Backend Image"
 
-echo "[DEPLOY] Production backend image:"
+
+echo
+echo "Render will deploy:"
 echo "  ${BACKEND_IMAGE}"
 echo
+echo "Production image policy:"
+echo "  ✓ Versioned image"
+echo "  ✓ Immutable release"
+echo "  ✗ latest tag"
 
-echo "[PASS] Versioned backend image selected."
 
-echo
+success "Production backend image selected."
 
-echo "[DEPLOY] Triggering Render deployment..."
 
-RENDER_RESPONSE_FILE="$(mktemp)"
+# ============================================================
+# STAGE 1 / 3 — RENDER BACKEND
+# ============================================================
 
-HTTP_STATUS="$({
+log "Stage 1 / 3 — Render Backend"
+
+
+info "Triggering Render deployment..."
+
+
+RENDER_RESPONSE_FILE="$(
+    mktemp
+)"
+
+TMP_FILES+=(
+    "${RENDER_RESPONSE_FILE}"
+)
+
+
+HTTP_STATUS="$(
     curl \
         --silent \
         --show-error \
@@ -180,39 +343,78 @@ HTTP_STATUS="$({
         --get \
         --data-urlencode "imgURL=${BACKEND_IMAGE}" \
         "${RENDER_DEPLOY_HOOK_URL}"
-} )" || {
-    cat "${RENDER_RESPONSE_FILE}" || true
-    rm -f "${RENDER_RESPONSE_FILE}"
-    fail "Render deploy hook request failed."
-}
+)"
 
-if [[ "${HTTP_STATUS}" != 2* ]]; then
+
+if [[ "${HTTP_STATUS}" != "2"* ]]; then
+
+    echo
+    echo "Render response:"
     cat "${RENDER_RESPONSE_FILE}" || true
-    rm -f "${RENDER_RESPONSE_FILE}"
-    fail "Render deploy hook failed with HTTP ${HTTP_STATUS}."
+    echo
+
+    fail \
+        "Render deploy hook failed with HTTP ${HTTP_STATUS}."
+
 fi
 
-cat "${RENDER_RESPONSE_FILE}"
-rm -f "${RENDER_RESPONSE_FILE}"
 
-echo
- echo "[PASS] Render deployment triggered."
+success \
+    "Render deployment triggered successfully (HTTP ${HTTP_STATUS})."
+
 
 # ============================================================
-# Backend → Neon startup / migration gate
+# WAIT FOR RENDER + NEON
 # ============================================================
 
-echo
- echo "[DEPLOY] Waiting for Render backend to become healthy..."
+log "Waiting for Render Backend + Neon"
+
 
 HEALTH_URL="${RENDER_BACKEND_URL%/}/api/v1/health"
+
 BACKEND_READY=false
 
-for ((attempt = 1; attempt <= HEALTH_RETRIES; attempt++)); do
-    printf '[%02d/%02d] Checking %s\n' "${attempt}" "${HEALTH_RETRIES}" "${HEALTH_URL}"
 
-    HEALTH_RESPONSE_FILE="$(mktemp)"
-    HEALTH_ERROR_FILE="$(mktemp)"
+echo
+echo "Health endpoint:"
+echo "  ${HEALTH_URL}"
+echo
+echo "Maximum attempts:"
+echo "  ${HEALTH_RETRIES}"
+echo
+echo "Interval:"
+echo "  ${HEALTH_INTERVAL}s"
+
+
+for (
+    (
+        attempt=1
+    );
+
+    attempt<=HEALTH_RETRIES;
+
+    attempt++
+); do
+
+
+    echo
+    echo "[HEALTH] Attempt ${attempt}/${HEALTH_RETRIES}"
+
+
+    HEALTH_RESPONSE_FILE="$(
+        mktemp
+    )"
+
+    HEALTH_ERROR_FILE="$(
+        mktemp
+    )"
+
+
+    TMP_FILES+=(
+        "${HEALTH_RESPONSE_FILE}"
+        "${HEALTH_ERROR_FILE}"
+    )
+
 
     if curl \
         --silent \
@@ -221,215 +423,265 @@ for ((attempt = 1; attempt <= HEALTH_RETRIES; attempt++)); do
         --max-time 15 \
         "${HEALTH_URL}" \
         >"${HEALTH_RESPONSE_FILE}" \
-        2>"${HEALTH_ERROR_FILE}"
-    then
+        2>"${HEALTH_ERROR_FILE}"; then
+
+
         echo
-        echo "[PASS] Backend is healthy."
-        echo
-        echo "Health response:"
+        echo "Backend response:"
         cat "${HEALTH_RESPONSE_FILE}"
+
+        echo
+
         BACKEND_READY=true
-        rm -f "${HEALTH_RESPONSE_FILE}" "${HEALTH_ERROR_FILE}"
+
         break
+
     fi
+
 
     if [[ -s "${HEALTH_ERROR_FILE}" ]]; then
+
         echo "  $(cat "${HEALTH_ERROR_FILE}")"
+
+    else
+
+        echo "  Backend not ready yet."
+
     fi
 
-    rm -f "${HEALTH_RESPONSE_FILE}" "${HEALTH_ERROR_FILE}"
 
     if (( attempt < HEALTH_RETRIES )); then
+
+        echo "  Waiting ${HEALTH_INTERVAL}s..."
+
         sleep "${HEALTH_INTERVAL}"
+
     fi
+
+
 done
 
-[[ "${BACKEND_READY}" == true ]] || fail \
-    "Backend did not become healthy. Render startup, image deployment, or Neon migration may have failed."
+
+[[ "${BACKEND_READY}" == true ]] ||
+    fail \
+        "Render backend did not become healthy. Render startup, image deployment, or Neon migration may have failed."
+
+
+success "Render backend startup gate passed."
+
+success "Neon migration/startup gate passed."
+
+
+# ============================================================
+# STAGE 2 / 3 — VERCEL VALIDATION
+# ============================================================
+
+log "Stage 2 / 3 — Vercel Frontend"
+
+
+info "Validating frontend source..."
+
+
+[[ -d "${FRONTEND_DIR}" ]] ||
+    fail \
+        "Frontend directory not found: ${FRONTEND_DIR}"
+
+
+[[ -f "${FRONTEND_DIR}/package.json" ]] ||
+    fail \
+        "frontend/package.json is missing."
+
+
+[[ -f "${FRONTEND_DIR}/package-lock.json" ]] ||
+    fail \
+        "frontend/package-lock.json is missing."
+
+
+[[ -f "${FRONTEND_DIR}/vercel.json" ]] ||
+    fail \
+        "frontend/vercel.json is missing."
+
+
+success "Frontend project structure verified."
+
+
+# ============================================================
+# VERCEL ORGANIZATION / PROJECT VALIDATION
+# ============================================================
+
+log "Validating Vercel Project"
+
 
 echo
- echo "[PASS] Backend startup / Neon migration gate passed."
-
-# ============================================================
-# Stage 2 / 3 — FRONTEND
-# ============================================================
-
-log "Stage 2 / 3 — FRONTEND"
-
-[[ -d "${FRONTEND_DIR}" ]] || fail \
-    "Frontend directory not found: ${FRONTEND_DIR}"
-
-[[ -f "${FRONTEND_DIR}/package.json" ]] || fail \
-    "${FRONTEND_DIR}/package.json is missing."
-
-[[ -f "${FRONTEND_DIR}/package-lock.json" ]] || fail \
-    "${FRONTEND_DIR}/package-lock.json is missing."
-
-[[ -f "${FRONTEND_DIR}/vercel.json" ]] || fail \
-    "${FRONTEND_DIR}/vercel.json is missing."
-
-echo "[PASS] Frontend files verified."
-
-# ============================================================
-# Vercel authentication + project diagnosis
-# ============================================================
-
-echo
-echo "[DEPLOY] Diagnosing Vercel authentication and project access..."
-
-echo
-
 echo "Expected Vercel organization:"
 echo "  ${EXPECTED_VERCEL_ORG}"
+
 echo
 echo "Expected Vercel project:"
 echo "  ${EXPECTED_VERCEL_PROJECT_NAME}"
+
 echo
 echo "Expected Vercel project ID:"
 echo "  ${EXPECTED_VERCEL_PROJECT_ID}"
-echo
-echo "Configured Org ID length:"
-echo "  ${#VERCEL_ORG_ID}"
-echo
-echo "Configured Project ID length:"
-echo "  ${#VERCEL_PROJECT_ID}"
-echo
-echo "Configured Token length:"
-echo "  ${#VERCEL_TOKEN}"
 
-[[ "${VERCEL_ORG_ID}" == "${EXPECTED_VERCEL_ORG}" ]] || fail \
-    "VERCEL_ORG_ID does not match the verified Finora Vercel organization."
 
-[[ "${VERCEL_PROJECT_ID}" == "${EXPECTED_VERCEL_PROJECT_ID}" ]] || fail \
-    "VERCEL_PROJECT_ID does not match the verified Finora Vercel project."
+[[ "${VERCEL_ORG_ID}" == "${EXPECTED_VERCEL_ORG}" ]] ||
+    fail \
+        "VERCEL_ORG_ID does not match the verified Finora Vercel organization."
 
-echo
-echo "[PASS] VERCEL_ORG_ID matches."
-echo "[PASS] VERCEL_PROJECT_ID matches."
 
-echo
-echo "[DEPLOY] Checking Vercel account authentication..."
+[[ "${VERCEL_PROJECT_ID}" == "${EXPECTED_VERCEL_PROJECT_ID}" ]] ||
+    fail \
+        "VERCEL_PROJECT_ID does not match the verified Finora Vercel project."
+
+
+success "Vercel organization and project IDs verified."
+
+
+# ============================================================
+# VERCEL AUTHENTICATION
+# ============================================================
+
+log "Checking Vercel Authentication"
+
 
 WHOAMI_OUTPUT="$(
-    npx "vercel@${VERCEL_CLI_VERSION}" whoami \
+    npx \
+        --yes \
+        "vercel@${VERCEL_CLI_VERSION}" \
+        whoami \
         --token "${VERCEL_TOKEN}" \
         2>&1
 )" || {
+
     echo "${WHOAMI_OUTPUT}"
-    fail "Vercel token authentication failed."
+
+    fail \
+        "Vercel token authentication failed."
+
 }
 
+
+echo
 echo "${WHOAMI_OUTPUT}"
-echo
-echo "[PASS] Vercel token authentication succeeded."
 
-echo
-echo "[DEPLOY] Checking Vercel project access..."
+success "Vercel token authentication succeeded."
 
-INSPECT_OUTPUT="$(
-    npx "vercel@${VERCEL_CLI_VERSION}" project inspect "${EXPECTED_VERCEL_PROJECT_NAME}" \
-        --scope "${VERCEL_ORG_ID}" \
+
+# ============================================================
+# VERCEL PROJECT ACCESS
+# ============================================================
+
+log "Checking Vercel Project Access"
+
+
+PROJECT_INSPECT_OUTPUT="$(
+    npx \
+        --yes \
+        "vercel@${VERCEL_CLI_VERSION}" \
+        project inspect "${EXPECTED_VERCEL_PROJECT_NAME}" \
         --token "${VERCEL_TOKEN}" \
-        --non-interactive \
+        --scope "${VERCEL_ORG_ID}" \
         2>&1
 )" || {
-    echo "${INSPECT_OUTPUT}"
-    echo
-echo "Vercel diagnosis:"
-    echo "  Token authentication: passed"
-    echo "  Organization ID:       matched"
-    echo "  Project ID:            matched"
-    echo "  Project access:        FAILED"
-    fail "Vercel project access verification failed."
+
+    echo "${PROJECT_INSPECT_OUTPUT}"
+
+    fail \
+        "Unable to inspect the verified Vercel project."
+
 }
 
-echo "${INSPECT_OUTPUT}"
-echo
-echo "[PASS] Vercel project access verified."
-
-# ============================================================
-# Frontend build — GitHub is the build system
-# ============================================================
 
 echo
-echo "[DEPLOY] Building frontend in GitHub Actions..."
+echo "${PROJECT_INSPECT_OUTPUT}"
+
+success "Vercel project access verified."
+
+
+# ============================================================
+# FRONTEND BUILD
+# ============================================================
+
+log "Building Frontend Production Artifact"
+
 
 cd "${PROJECT_ROOT}/${FRONTEND_DIR}"
+
+
+info "Installing locked frontend dependencies..."
 
 npm ci
 
+
+success "Frontend dependencies installed."
+
+
 export VITE_API_URL
+
 export VITE_APP_VERSION="${VERSION}"
 
+
 echo
-echo "VITE_API_URL:"
+echo "Frontend API URL:"
 echo "  ${VITE_API_URL}"
+
 echo
-echo "VITE_APP_VERSION:"
+echo "Frontend application version:"
 echo "  ${VITE_APP_VERSION}"
 
-echo
-echo "[DEPLOY] Running Vite production build..."
+
+info "Running production frontend build..."
+
+
 npm run build
 
-[[ -d "dist" ]] || fail \
-    "Frontend build completed without producing dist/."
 
-[[ -f "dist/index.html" ]] || fail \
-    "Frontend build completed without producing dist/index.html."
+[[ -d "dist" ]] ||
+    fail \
+        "Frontend build completed without producing dist/."
 
-echo
-echo "[PASS] Frontend production build completed."
 
-# ============================================================
-# Prepare static Vercel deployment
-# ============================================================
-#
-# IMPORTANT:
-# Do not run `vercel build` here.
-#
-# `vercel build` starts another Vercel-side/local project build and
-# can execute the project's npm ci command. That is unnecessary because
-# GitHub has already produced the final Vite dist/ artifact.
-#
-# Copy vercel.json into dist so the SPA rewrite is part of the static
-# deployment root. This lets Vercel serve React Router paths through
-# index.html without invoking another application build.
-# ============================================================
+success "Frontend production build succeeded."
 
-echo
-echo "[DEPLOY] Preparing prebuilt static Vercel artifact..."
 
-cp "vercel.json" "dist/vercel.json"
+cd "${PROJECT_ROOT}"
 
-[[ -f "dist/vercel.json" ]] || fail \
-    "Failed to copy vercel.json into dist/."
-
-echo "[PASS] Vercel static artifact prepared."
 
 # ============================================================
-# Deploy dist/ directly to Vercel
+# VERCEL PRODUCTION BUILD
 # ============================================================
 
-log "Deploying frontend to Vercel"
+log "Preparing Vercel Production Build"
 
-cd "${PROJECT_ROOT}/${FRONTEND_DIR}"
 
-VERCEL_ARTIFACT_DIR="$(mktemp -d)"
+npx \
+    --yes \
+    "vercel@${VERCEL_CLI_VERSION}" \
+    build \
+    --prod \
+    --yes \
+    --token "${VERCEL_TOKEN}" \
+    --scope "${VERCEL_ORG_ID}" \
+    --project "${VERCEL_PROJECT_ID}"
 
-cleanup_vercel_artifact() {
-    rm -rf "${VERCEL_ARTIFACT_DIR}"
-}
 
-trap cleanup_vercel_artifact EXIT
+success "Vercel production build prepared."
 
-cp -R dist/. "${VERCEL_ARTIFACT_DIR}/"
 
-echo "[DEPLOY] Deploying isolated static artifact:"
-echo "  ${VERCEL_ARTIFACT_DIR}"
+# ============================================================
+# VERCEL DEPLOYMENT
+# ============================================================
+
+log "Deploying Frontend to Vercel"
+
 
 DEPLOY_OUTPUT="$(
-    npx "vercel@${VERCEL_CLI_VERSION}" deploy "${VERCEL_ARTIFACT_DIR}" \
+    npx \
+        --yes \
+        "vercel@${VERCEL_CLI_VERSION}" \
+        deploy \
+        --prebuilt \
         --prod \
         --yes \
         --token "${VERCEL_TOKEN}" \
@@ -437,76 +689,198 @@ DEPLOY_OUTPUT="$(
         --project "${VERCEL_PROJECT_ID}" \
         2>&1
 )" || {
+
     echo "${DEPLOY_OUTPUT}"
-    fail "Vercel production deployment failed."
+
+    fail \
+        "Vercel production deployment failed."
+
 }
 
-echo "${DEPLOY_OUTPUT}"
-echo "${DEPLOY_OUTPUT}"
+
 echo
-echo "[PASS] Frontend deployed to Vercel."
+echo "${DEPLOY_OUTPUT}"
+
+
+success "Frontend deployed to Vercel."
+
 
 # ============================================================
-# Stage 3 / 3 — FINAL VERIFICATION
+# EXTRACT VERCEL DEPLOYMENT URL
 # ============================================================
 
-log "Stage 3 / 3 — FINAL VERIFICATION"
+VERCEL_DEPLOYMENT_URL="$(
+    printf '%s\n' "${DEPLOY_OUTPUT}" |
+        grep -Eo 'https://[^[:space:]]+\.vercel\.app' |
+        tail -n 1 ||
+        true
+)
 
-FINAL_HEALTH_URL="${RENDER_BACKEND_URL%/}/api/v1/health"
 
-FINAL_HEALTH_FILE="$(mktemp)"
-FINAL_HEALTH_ERROR="$(mktemp)"
+if [[ -n "${VERCEL_DEPLOYMENT_URL}" ]]; then
 
-if ! curl \
+    echo
+    echo "Vercel deployment URL:"
+    echo "  ${VERCEL_DEPLOYMENT_URL}"
+
+else
+
+    warn \
+        "Vercel CLI did not expose a vercel.app deployment URL."
+
+fi
+
+
+# ============================================================
+# STAGE 3 / 3 — FINAL PRODUCTION VERIFICATION
+# ============================================================
+
+log "Stage 3 / 3 — Final Production Verification"
+
+
+# ============================================================
+# BACKEND FINAL HEALTH
+# ============================================================
+
+info "Checking production backend one final time..."
+
+
+FINAL_HEALTH_FILE="$(
+    mktemp
+)"
+
+TMP_FILES+=(
+    "${FINAL_HEALTH_FILE}"
+)
+
+
+curl \
     --silent \
     --show-error \
     --fail \
     --max-time 15 \
-    "${FINAL_HEALTH_URL}" \
-    >"${FINAL_HEALTH_FILE}" \
-    2>"${FINAL_HEALTH_ERROR}"
-then
-    cat "${FINAL_HEALTH_ERROR}" || true
-    rm -f "${FINAL_HEALTH_FILE}" "${FINAL_HEALTH_ERROR}"
-    fail "Final backend health verification failed."
-fi
+    "${HEALTH_URL}" \
+    >"${FINAL_HEALTH_FILE}" ||
+    fail \
+        "Final Render backend health check failed."
 
-echo "Final backend health:"
+
+echo
+echo "Backend health response:"
 cat "${FINAL_HEALTH_FILE}"
 
-rm -f "${FINAL_HEALTH_FILE}" "${FINAL_HEALTH_ERROR}"
+
+success "Final backend health check passed."
+
+
+# ============================================================
+# FRONTEND FINAL HTTP CHECK
+# ============================================================
+
+if [[ -n "${VERCEL_DEPLOYMENT_URL}" ]]; then
+
+    info "Checking deployed Vercel frontend..."
+
+    curl \
+        --silent \
+        --show-error \
+        --fail \
+        --max-time 20 \
+        --location \
+        "${VERCEL_DEPLOYMENT_URL}" \
+        >/dev/null ||
+        fail \
+            "Vercel frontend HTTP verification failed."
+
+
+    success "Vercel frontend HTTP check passed."
+
+else
+
+    warn \
+        "Frontend HTTP verification skipped because deployment URL was not returned by Vercel CLI."
+
+fi
+
+
+# ============================================================
+# FINAL SUMMARY
+# ============================================================
 
 echo
 echo "============================================================"
 echo " Finora Production Deployment Successful"
 echo "============================================================"
 echo
+
 echo "Release:"
 echo "  ${RELEASE_TAG}"
+
 echo
+
+echo "Application version:"
+echo "  ${VERSION}"
+
+echo
+
 echo "Backend:"
 echo "  ${BACKEND_IMAGE}"
+
 echo
-echo "Database:"
-echo "  Neon PostgreSQL"
-echo
+
 echo "Backend platform:"
 echo "  Render"
+
 echo
+
 echo "Frontend platform:"
 echo "  Vercel"
+
 echo
+
 echo "Frontend project:"
 echo "  ${EXPECTED_VERCEL_PROJECT_NAME}"
+
 echo
-echo "✓ Exact release commit verified"
-echo "✓ Versioned backend image selected"
-echo "✓ Render deployment triggered"
-echo "✓ Backend startup / Neon migration gate passed"
-echo "✓ Vercel authentication verified"
-echo "✓ Vercel project access verified"
-echo "✓ Frontend built in GitHub Actions"
-echo "✓ Vercel deployed the built dist/ artifact directly"
-echo "✓ Final backend health check passed"
+
+echo "Database:"
+echo "  Neon PostgreSQL"
+
 echo
-echo "Production deployment complete."
+
+echo "API:"
+echo "  ${VITE_API_URL}"
+
+if [[ -n "${VERCEL_DEPLOYMENT_URL}" ]]; then
+
+    echo
+    echo "Frontend deployment:"
+    echo "  ${VERCEL_DEPLOYMENT_URL}"
+
+fi
+
+echo
+echo "Deployment gates:"
+echo "  ✓ Exact release tag verified"
+echo "  ✓ Versioned GHCR backend image selected"
+echo "  ✓ Render deployment triggered"
+echo "  ✓ Render backend became healthy"
+echo "  ✓ Neon startup/migration gate passed"
+echo "  ✓ Vercel authentication verified"
+echo "  ✓ Vercel project access verified"
+echo "  ✓ Frontend dependencies installed"
+echo "  ✓ Frontend production build passed"
+echo "  ✓ Vercel production deployment passed"
+echo "  ✓ Final backend health check passed"
+
+if [[ -n "${VERCEL_DEPLOYMENT_URL}" ]]; then
+
+    echo "  ✓ Final frontend HTTP check passed"
+
+fi
+
+echo
+echo "============================================================"
+echo " Finora Release ${VERSION} — DEPLOYED"
+echo "============================================================"
+echo

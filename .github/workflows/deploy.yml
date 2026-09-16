@@ -1,225 +1,284 @@
-name: Finora Deploy
+# ============================================================
+# Finora — Production Deployment
+# ============================================================
+#
+# Architecture:
+#
+#   GitHub Release / manual dispatch
+#              │
+#              ▼
+#        deploy.yml
+#              │
+#              ▼
+#        scripts/deploy.sh
+#          ┌───────┴────────┐
+#          ▼                ▼
+#   GHCR versioned      Vercel source
+#   backend image          build
+#          │                │
+#          ▼                ▼
+#       Render            Vercel
+#          │
+#          ▼
+#       Neon Postgres
+#
+# The deploy script is the source of truth for deployment logic.
+# This workflow only prepares the runner, selects the release, and
+# invokes deploy.sh.
+#
+# IMPORTANT:
+# - Production backend deployment uses an immutable GHCR version tag.
+# - Neon credentials remain in Render; they are NOT passed through
+#   GitHub Actions or exposed to Vercel.
+# - Vercel deploys the React application from source; it does not
+#   pull the frontend Docker image.
+# - The workflow is intentionally manual OR release-triggered.
+# - No push-to-main deployment is performed.
+# ============================================================
+
+name: Deploy Finora
 
 on:
-  workflow_run:
-    workflows:
-      - "Release"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to deploy (for example: v1.0.0). Leave empty to deploy the latest release on main."
+        required: false
+        type: string
+      confirm_production:
+        description: "Type DEPLOY to confirm production deployment"
+        required: true
+        type: string
+
+  release:
     types:
-      - completed
+      - published
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
-  group: finora-deploy
+  group: finora-production-deploy
   cancel-in-progress: false
-
-env:
-  FRONTEND_DIR: frontend
-  RENDER_BACKEND_URL: https://finora-backend-latest.onrender.com
-  VITE_API_URL: https://finora-backend-latest.onrender.com/api/v1
 
 jobs:
   deploy:
-    name: Full Stack Production Deployment
+    name: Deploy production
     runs-on: ubuntu-latest
-
-    if: github.event.workflow_run.conclusion == 'success'
+    timeout-minutes: 30
 
     steps:
-
-      # ======================================================
-      # 1. CHECKOUT EXACT RELEASE COMMIT
-      # ======================================================
-
-      - name: Checkout exact release commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 0
-
-      # ======================================================
-      # 2. SET UP NODE.JS
-      # ======================================================
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      # ======================================================
-      # 3. VERIFY RELEASE METADATA
-      # ======================================================
-
-      - name: Verify release metadata
+      # ----------------------------------------------------------
+      # 1. Determine the release that will be deployed
+      # ----------------------------------------------------------
+      - name: Resolve release tag
+        id: release
         shell: bash
         env:
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+          EVENT_RELEASE_TAG: ${{ github.event.release.tag_name }}
+          MANUAL_RELEASE_TAG: ${{ inputs.release_tag }}
+          MANUAL_CONFIRMATION: ${{ inputs.confirm_production }}
         run: |
           set -Eeuo pipefail
 
-          echo "============================================================"
-          echo " Finora Production Deployment"
-          echo "============================================================"
-          echo
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            RELEASE_TAG="${EVENT_RELEASE_TAG}"
+          else
+            if [[ "${MANUAL_CONFIRMATION}" != "DEPLOY" ]]; then
+              echo "::error::Manual production deployment requires confirm_production=DEPLOY."
+              exit 1
+            fi
 
-          echo "Release SHA:"
-          echo "  ${RELEASE_SHA}"
-          echo
-
-          echo "Checked-out SHA:"
-          git rev-parse HEAD
-          echo
-
-          if [[ "$(git rev-parse HEAD)" != "${RELEASE_SHA}" ]]; then
-            echo "::error::Checked-out SHA does not match the successful Release SHA."
-            exit 1
+            if [[ -n "${MANUAL_RELEASE_TAG}" ]]; then
+              RELEASE_TAG="${MANUAL_RELEASE_TAG}"
+            else
+              git fetch --tags --force >/dev/null 2>&1 || true
+              RELEASE_TAG="$(
+                git ls-remote --tags --refs origin 'refs/tags/v*' |
+                awk -F/ '{print $3}' |
+                grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
+                sort -V |
+                tail -n 1
+              )"
+            fi
           fi
 
-          echo
-          echo "Release tags on checked-out commit:"
-          git tag --points-at HEAD --list 'v*.*.*'
-
-          if ! git tag --points-at HEAD --list 'v*.*.*' | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::No semantic release tag found on the checked-out commit."
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid release tag: ${RELEASE_TAG}"
+            echo "::error::Expected semantic version tag such as v1.0.0."
             exit 1
           fi
-
-          echo
-          echo "Release metadata verified."
-
-      # ======================================================
-      # 4. VALIDATE DEPLOYMENT SCRIPT
-      # ======================================================
-
-      - name: Validate deployment script
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          chmod +x scripts/deploy.sh
-
-          bash -n scripts/deploy.sh
-
-          echo "✓ scripts/deploy.sh syntax is valid."
-
-      # ======================================================
-      # 5. VALIDATE VERCEL CONFIGURATION
-      # ======================================================
-
-      - name: Validate Vercel configuration
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          if [[ ! -f frontend/vercel.json ]]; then
-            echo "::error::frontend/vercel.json is missing."
-            exit 1
-          fi
-
-          echo "✓ frontend/vercel.json found."
-
-      # ======================================================
-      # 6. VALIDATE REQUIRED DEPLOYMENT SECRETS
-      # ======================================================
-
-      - name: Validate deployment configuration
-        shell: bash
-        env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        run: |
-          set -Eeuo pipefail
-
-          if [[ -z "${RENDER_DEPLOY_HOOK_URL}" ]]; then
-            echo "::error::RENDER_DEPLOY_HOOK_URL secret is missing."
-            exit 1
-          fi
-
-          if [[ -z "${VERCEL_TOKEN}" ]]; then
-            echo "::error::VERCEL_TOKEN secret is missing."
-            exit 1
-          fi
-
-          if [[ -z "${VERCEL_ORG_ID}" ]]; then
-            echo "::error::VERCEL_ORG_ID secret is missing."
-            exit 1
-          fi
-
-          if [[ -z "${VERCEL_PROJECT_ID}" ]]; then
-            echo "::error::VERCEL_PROJECT_ID secret is missing."
-            exit 1
-          fi
-
-          echo "✓ Required deployment configuration is present."
-
-      # ======================================================
-      # 7. FULL STACK DEPLOYMENT
-      # ======================================================
-
-      - name: Deploy full stack
-        shell: bash
-        env:
-          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
-
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-          RENDER_BACKEND_URL: ${{ env.RENDER_BACKEND_URL }}
-
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-          VITE_API_URL: ${{ env.VITE_API_URL }}
-
-        run: |
-          set -Eeuo pipefail
-
-          chmod +x scripts/deploy.sh
-
-          ./scripts/deploy.sh
-
-      # ======================================================
-      # 8. DEPLOYMENT SUMMARY
-      # ======================================================
-
-      - name: Deployment summary
-        shell: bash
-        env:
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          set -Eeuo pipefail
-
-          RELEASE_TAG="$(
-            git tag \
-              --points-at HEAD \
-              --list 'v*.*.*' \
-              | head -n 1
-          )"
 
           VERSION="${RELEASE_TAG#v}"
 
+          echo "release_tag=${RELEASE_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+
+          echo "Selected production release: ${RELEASE_TAG}"
+          echo "Application version: ${VERSION}"
+
+      # ----------------------------------------------------------
+      # 2. Checkout the EXACT release commit
+      # ----------------------------------------------------------
+      - name: Checkout release
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.release.outputs.release_tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      # ----------------------------------------------------------
+      # 3. Verify that the selected tag is exactly what is checked
+      # ----------------------------------------------------------
+      - name: Verify release commit
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.release_tag }}
+        run: |
+          set -Eeuo pipefail
+
+          TAG_SHA="$(git rev-list -n 1 "${RELEASE_TAG}")"
+          HEAD_SHA="$(git rev-parse HEAD)"
+
+          if [[ "${TAG_SHA}" != "${HEAD_SHA}" ]]; then
+            echo "::error::Checked-out commit does not match ${RELEASE_TAG}."
+            echo "::error::Tag SHA : ${TAG_SHA}"
+            echo "::error::HEAD SHA: ${HEAD_SHA}"
+            exit 1
+          fi
+
+          echo "Release verified:"
+          echo "  Tag : ${RELEASE_TAG}"
+          echo "  SHA : ${HEAD_SHA}"
+
+      # ----------------------------------------------------------
+      # 4. Prepare deployment script
+      #
+      # Expected repository layout:
+      #
+      #   scripts/deploy.sh
+      #
+      # If deploy.sh lives elsewhere, change only DEPLOY_SCRIPT.
+      # ----------------------------------------------------------
+      - name: Prepare deploy script
+        shell: bash
+        env:
+          DEPLOY_SCRIPT: scripts/deploy.sh
+        run: |
+          set -Eeuo pipefail
+
+          if [[ ! -f "${DEPLOY_SCRIPT}" ]]; then
+            echo "::error::Deployment script not found: ${DEPLOY_SCRIPT}"
+            exit 1
+          fi
+
+          chmod +x "${DEPLOY_SCRIPT}"
+
+          echo "Deployment script:"
+          echo "  ${DEPLOY_SCRIPT}"
+
+      # ----------------------------------------------------------
+      # 5. Install runtime prerequisites used by deploy.sh
+      # ----------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Verify deployment prerequisites
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.release_tag }}
+          VERCEL_CLI_VERSION: "59.11.7"
+        run: |
+          set -Eeuo pipefail
+
+          command -v git >/dev/null
+          command -v curl >/dev/null
+          command -v npm >/dev/null
+          command -v npx >/dev/null
+
+          if [[ ! -f "frontend/package.json" ]]; then
+            echo "::error::frontend/package.json not found."
+            exit 1
+          fi
+
+          if [[ ! -f "frontend/package-lock.json" ]]; then
+            echo "::error::frontend/package-lock.json not found."
+            exit 1
+          fi
+
+          if [[ ! -f "frontend/vercel.json" ]]; then
+            echo "::error::frontend/vercel.json not found."
+            exit 1
+          fi
+
+          echo "Runtime prerequisites verified."
+          echo "Node : $(node --version)"
+          echo "npm  : $(npm --version)"
+          echo "Release: ${RELEASE_TAG}"
+          echo "Vercel CLI: ${VERCEL_CLI_VERSION}"
+
+      # ----------------------------------------------------------
+      # 6. Run the production deployment script
+      #
+      # Secrets are deliberately mapped only to the deploy script.
+      #
+      # NEON_DATABASE_URL is NOT passed here:
+      # Render owns the production database connection.
+      # ----------------------------------------------------------
+      - name: Deploy Render + Vercel
+        shell: bash
+        env:
+          # Render
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          RENDER_BACKEND_URL: ${{ secrets.RENDER_BACKEND_URL }}
+
+          # Vercel
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+          # React build-time API endpoint
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+          # Keep the CLI version aligned with deploy.sh.
+          VERCEL_CLI_VERSION: "59.11.7"
+
+          # Release metadata
+          APP_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -Eeuo pipefail
+
+          ./scripts/deploy.sh
+
+      # ----------------------------------------------------------
+      # 7. Deployment summary
+      # ----------------------------------------------------------
+      - name: Deployment summary
+        if: success()
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.release_tag }}
+          RELEASE_SHA: ${{ github.sha }}
+          RENDER_BACKEND_URL: ${{ secrets.RENDER_BACKEND_URL }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
           {
-            echo "## Finora Full Stack Deployment"
+            echo "## 🚀 Finora production deployment"
             echo
-            echo "### Release"
+            echo "| Component | Result |"
+            echo "|---|---|"
+            echo "| Release | \`${RELEASE_TAG}\` |"
+            echo "| Commit | \`${RELEASE_SHA}\` |"
+            echo "| Backend | Render |"
+            echo "| Database | Neon PostgreSQL |"
+            echo "| Frontend | Vercel |"
+            echo "| Render URL | ${RENDER_BACKEND_URL} |"
+            echo "| Vercel Project | \`${VERCEL_PROJECT_ID}\` |"
             echo
-            echo "- Release tag: \`${RELEASE_TAG}\`"
-            echo "- Version: \`${VERSION}\`"
-            echo "- Release SHA: \`${RELEASE_SHA}\`"
-            echo
-            echo "### Deployment"
-            echo
-            echo "- Database: Neon PostgreSQL"
-            echo "- Backend: Render"
-            echo "- Backend image: \`ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/finora-backend:${VERSION}\`"
-            echo "- Frontend: Vercel"
-            echo "- API: \`${VITE_API_URL}\`"
-            echo
-            echo "### Status"
-            echo
-            echo "✓ Production deployment completed successfully."
+            echo "Deployment completed through the production deploy script."
           } >> "${GITHUB_STEP_SUMMARY}"
