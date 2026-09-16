@@ -3,18 +3,16 @@
 # ============================================================
 #
 # Purpose:
-#   Keep the Render-hosted Finora backend active by generating
-#   periodic external HTTP traffic.
+#   Generate periodic external inbound traffic to the
+#   Render-hosted Finora backend.
 #
 # Behavior:
-#   - Automatically runs from GitHub's scheduler
-#   - No manual trigger required
-#   - Runs approximately every 10 minutes
-#   - Uses an offset schedule to avoid exact hour boundaries
+#   - Runs automatically approximately every 10 minutes
 #   - First request can wake a sleeping Render service
-#   - Retries while Render performs a cold start
-#   - Waits up to ~12 minutes for the service to recover
-#   - Reports HTTP status and response time
+#   - Curl failures are captured instead of terminating the job
+#   - Retries during Render cold-start
+#   - Waits for the backend to actually become healthy
+#   - Fails only after all recovery attempts are exhausted
 #
 # Required GitHub Secret:
 #
@@ -24,7 +22,7 @@
 #
 #   https://finora-backend.onrender.com
 #
-# The workflow automatically appends:
+# Health endpoint:
 #
 #   /api/v1/health
 #
@@ -36,16 +34,15 @@ on:
   schedule:
     # Approximately every 10 minutes.
     #
-    # The offset from :00/:10/:20/... is intentional.
-    # GitHub scheduled workflows can experience delays around
-    # high-load periods, particularly at the start of an hour.
+    # Offset from the exact hour boundaries to reduce the
+    # likelihood of GitHub Actions scheduling delays.
     - cron: "7,17,27,37,47,57 * * * *"
 
   # Manual execution remains available for diagnostics.
   workflow_dispatch:
 
 # ============================================================
-# Prevent delayed executions from stacking up.
+# Prevent overlapping keep-alive executions.
 # ============================================================
 
 concurrency:
@@ -91,11 +88,11 @@ jobs:
           esac
 
           echo "✓ Render backend URL configured"
-          echo "✓ Automatic scheduled execution enabled"
+          echo "✓ Automatic scheduling enabled"
           echo ""
 
       # ========================================================
-      # 2. Wake Render and wait for readiness
+      # 2. Wake Render and verify backend
       # ========================================================
 
       - name: Wake and Verify Finora Backend
@@ -103,22 +100,26 @@ jobs:
           RENDER_BACKEND_URL: ${{ secrets.RENDER_BACKEND_URL }}
 
         run: |
+          # GitHub executes the shell with -e.
+          #
+          # We intentionally disable -e for this step because
+          # curl failures are EXPECTED during a Render cold start.
+          #
+          # We manually capture curl's exit code and decide
+          # whether to retry or fail.
+
+          set +e
           set -u
 
           HEALTH_URL="${RENDER_BACKEND_URL%/}/api/v1/health"
 
           # ----------------------------------------------------
-          # Cold-start strategy
-          #
-          # 12 attempts × 45 seconds maximum request time
-          # + 30 second waits between attempts
-          #
-          # This provides a large recovery window without
-          # keeping the GitHub runner alive indefinitely.
+          # Retry configuration
           # ----------------------------------------------------
 
           MAX_ATTEMPTS=12
           WAIT_SECONDS=30
+
           CONNECT_TIMEOUT=10
           REQUEST_TIMEOUT=45
 
@@ -132,11 +133,11 @@ jobs:
           echo "  ${HEALTH_URL}"
           echo ""
 
-          echo "→ Schedule:"
-          echo "  Automatic — approximately every 10 minutes"
+          echo "→ Execution:"
+          echo "  Automatic scheduled keep-alive"
           echo ""
 
-          echo "→ Cold-start recovery:"
+          echo "→ Recovery configuration:"
           echo "  Maximum attempts : ${MAX_ATTEMPTS}"
           echo "  Request timeout  : ${REQUEST_TIMEOUT}s"
           echo "  Retry interval   : ${WAIT_SECONDS}s"
@@ -144,19 +145,39 @@ jobs:
 
           SUCCESS=false
 
+          # ====================================================
+          # Retry loop
+          # ====================================================
+
           for ATTEMPT in $(seq 1 "$MAX_ATTEMPTS"); do
 
             echo ""
             echo "--------------------------------------------------"
             echo "  Attempt ${ATTEMPT}/${MAX_ATTEMPTS}"
             echo "--------------------------------------------------"
+            echo ""
 
             RESPONSE_FILE="/tmp/finora-health-${ATTEMPT}.json"
             ERROR_FILE="/tmp/finora-curl-error-${ATTEMPT}.log"
 
+            rm -f "$RESPONSE_FILE"
+            rm -f "$ERROR_FILE"
+
             START_TIME=$(date +%s%3N)
 
-            HTTP_STATUS=$(
+            # --------------------------------------------------
+            # IMPORTANT:
+            #
+            # Do NOT allow curl exit code 28 to terminate the
+            # workflow.
+            #
+            # curl runs inside an explicit if statement so its
+            # failure becomes data rather than a shell failure.
+            # --------------------------------------------------
+
+            HTTP_STATUS=""
+
+            if HTTP_STATUS=$(
               curl \
                 --silent \
                 --show-error \
@@ -166,20 +187,34 @@ jobs:
                 --max-time "$REQUEST_TIMEOUT" \
                 "$HEALTH_URL" \
                 2>"$ERROR_FILE"
-            )
+            ); then
 
-            CURL_EXIT_CODE=$?
+              CURL_EXIT_CODE=0
+
+            else
+
+              CURL_EXIT_CODE=$?
+
+            fi
 
             END_TIME=$(date +%s%3N)
             RESPONSE_TIME=$((END_TIME - START_TIME))
 
+            # --------------------------------------------------
+            # Normalize HTTP status
+            # --------------------------------------------------
+
+            if [ -z "$HTTP_STATUS" ]; then
+              HTTP_STATUS="000"
+            fi
+
             echo "→ Curl exit code : ${CURL_EXIT_CODE}"
-            echo "→ HTTP status    : ${HTTP_STATUS:-none}"
+            echo "→ HTTP status    : ${HTTP_STATUS}"
             echo "→ Response time  : ${RESPONSE_TIME} ms"
 
-            # --------------------------------------------------
-            # Successful response
-            # --------------------------------------------------
+            # ==================================================
+            # SUCCESS
+            # ==================================================
 
             if [ "$CURL_EXIT_CODE" -eq 0 ] \
               && [ "$HTTP_STATUS" -ge 200 ] \
@@ -188,7 +223,7 @@ jobs:
               echo ""
               echo "✓ Finora backend is awake."
               echo "✓ Health endpoint responded successfully."
-              echo "✓ External Render activity confirmed."
+              echo "✓ Render activity confirmed."
               echo ""
 
               if [ -s "$RESPONSE_FILE" ]; then
@@ -199,49 +234,72 @@ jobs:
 
               SUCCESS=true
               break
+
             fi
 
-            # --------------------------------------------------
-            # Failed request
-            # --------------------------------------------------
+            # ==================================================
+            # FAILURE / COLD START
+            # ==================================================
 
             echo ""
 
+            if [ "$CURL_EXIT_CODE" -eq 28 ]; then
+
+              echo "⚠ Request timed out (curl 28)."
+              echo "→ Render may still be waking from a cold state."
+
+            elif [ "$CURL_EXIT_CODE" -eq 6 ]; then
+
+              echo "⚠ DNS resolution failed."
+              echo "→ Render hostname could not be resolved."
+
+            elif [ "$CURL_EXIT_CODE" -eq 7 ]; then
+
+              echo "⚠ Connection failed."
+              echo "→ Render service may still be starting."
+
+            elif [ "$CURL_EXIT_CODE" -ne 0 ]; then
+
+              echo "⚠ HTTP request failed."
+              echo "→ Curl exit code: ${CURL_EXIT_CODE}"
+
+            else
+
+              echo "⚠ Backend returned an unsuccessful HTTP status."
+              echo "→ HTTP status: ${HTTP_STATUS}"
+
+            fi
+
             if [ -s "$ERROR_FILE" ]; then
-              echo "→ Request result:"
-              cat "$ERROR_FILE"
               echo ""
+              echo "→ Curl message:"
+              cat "$ERROR_FILE"
             fi
 
             if [ -s "$RESPONSE_FILE" ]; then
+              echo ""
               echo "→ Response body:"
               cat "$RESPONSE_FILE"
-              echo ""
             fi
 
-            # --------------------------------------------------
-            # Retry
-            # --------------------------------------------------
+            # ==================================================
+            # RETRY
+            # ==================================================
 
             if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
 
-              echo "⚠ Finora did not respond successfully."
-
-              if [ "$ATTEMPT" -eq 1 ]; then
-                echo "→ Render may be waking from an idle state."
-              else
-                echo "→ Waiting for Render/Finora to become ready."
-              fi
-
-              echo "→ Waiting ${WAIT_SECONDS}s before next attempt..."
+              echo ""
+              echo "→ Waiting ${WAIT_SECONDS}s before retry..."
+              echo "→ Render will continue receiving recovery attempts."
 
               sleep "$WAIT_SECONDS"
+
             fi
 
           done
 
           # ====================================================
-          # 3. Final result
+          # Final result
           # ====================================================
 
           echo ""
@@ -252,31 +310,43 @@ jobs:
             echo "  ✓ KEEP-ALIVE SUCCESSFUL"
             echo "=================================================="
             echo ""
-            echo "Finora received external activity successfully."
-            echo "Render service is responding."
+
+            echo "Finora backend is responding."
+            echo "Render activity was successfully generated."
             echo ""
+
             echo "Completed:"
             echo "  $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             echo ""
 
             exit 0
+
           fi
+
+          # ====================================================
+          # Complete failure
+          # ====================================================
 
           echo "  ❌ KEEP-ALIVE FAILED"
           echo "=================================================="
           echo ""
 
           echo "Render did not return a successful health response"
-          echo "within the configured recovery window."
+          echo "after ${MAX_ATTEMPTS} attempts."
+          echo ""
+
+          echo "The scheduled keep-alive could not verify that"
+          echo "the Finora backend became available."
           echo ""
 
           echo "Possible causes:"
           echo "  • Render service unavailable"
-          echo "  • Backend failed during startup"
-          echo "  • Cold start exceeded recovery window"
+          echo "  • Backend startup failure"
+          echo "  • Render cold start exceeded recovery window"
           echo "  • Health endpoint unavailable"
           echo "  • DNS/network problem"
-          echo "  • Render deployment/startup failure"
+          echo "  • Deployment/startup failure"
           echo ""
 
           exit 1
+
