@@ -35,10 +35,19 @@ const subtitles: Record<string, string> = {
 };
 
 // ======================================================
+// TYPES
+// ======================================================
+
+interface HeaderProps {
+  /** Called when the mobile hamburger button is tapped. Opens the Sidebar. */
+  onMenuClick: () => void;
+}
+
+// ======================================================
 // COMPONENT
 // ======================================================
 
-export default function Header() {
+export default function Header({ onMenuClick }: HeaderProps) {
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
 
@@ -64,35 +73,39 @@ export default function Header() {
         fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif",
       }}
     >
-      <div className="h-full px-4 lg:px-5 flex items-center justify-between gap-4">
+      <div className="h-full px-3 sm:px-4 lg:px-5 flex items-center justify-between gap-2 sm:gap-4">
 
         {/* ── LEFT ─────────────────────────────────────── */}
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
 
-          {/* MOBILE MENU */}
+          {/* MOBILE MENU — single source of truth for opening the Sidebar */}
 
           <button
+            type="button"
+            onClick={onMenuClick}
+            aria-label="Open navigation"
             className="
               lg:hidden
               inline-flex items-center justify-center
-              h-9 w-9 rounded-lg
+              h-9 w-9 shrink-0 rounded-lg
               border border-zinc-700
               text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800
-              transition-colors
+              active:scale-95
+              transition-all
             "
           >
-            <Menu size={16} />
+            <Menu size={18} />
           </button>
 
           {/* TITLE */}
 
-          <div className="leading-tight">
-            <h1 className="text-[15px] font-semibold text-white tracking-tight">
+          <div className="leading-tight min-w-0">
+            <h1 className="text-[14px] sm:text-[15px] font-semibold text-white tracking-tight truncate">
               {title}
             </h1>
 
-            <p className="hidden sm:block text-[11px] text-zinc-500 leading-none mt-0.5">
+            <p className="hidden sm:block text-[11px] text-zinc-500 leading-none mt-0.5 truncate">
               {subtitle}
             </p>
           </div>
@@ -101,7 +114,7 @@ export default function Header() {
 
           <span
             className="
-              hidden sm:inline-flex
+              hidden md:inline-flex
               items-center
               rounded-md
               border border-zinc-700/80
@@ -112,6 +125,7 @@ export default function Header() {
               tracking-wide
               text-zinc-400
               uppercase
+              shrink-0
             "
             title={`Finora v${APP_VERSION}`}
           >
@@ -121,14 +135,14 @@ export default function Header() {
 
         {/* ── RIGHT ────────────────────────────────────── */}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
 
           {/* SEARCH */}
 
           <div
             className="
               hidden md:flex items-center gap-2
-              h-9 w-64
+              h-9 w-48 lg:w-64
               rounded-lg
               border border-zinc-700/80
               bg-zinc-800/60
@@ -150,13 +164,34 @@ export default function Header() {
                 text-[13px] text-zinc-200
                 placeholder:text-zinc-600
                 outline-none
+                min-w-0
               "
             />
           </div>
 
+          {/* SEARCH ICON (mobile/tablet only) */}
+
+          <button
+            type="button"
+            aria-label="Search"
+            className="
+              md:hidden
+              inline-flex items-center justify-center
+              h-9 w-9 rounded-lg
+              border border-zinc-700/80
+              text-zinc-400
+              hover:text-zinc-100 hover:bg-zinc-800
+              transition-colors
+            "
+          >
+            <Search size={16} />
+          </button>
+
           {/* NOTIFICATIONS */}
 
           <button
+            type="button"
+            aria-label="Notifications"
             className="
               relative
               inline-flex items-center justify-center
@@ -187,15 +222,16 @@ export default function Header() {
               rounded-lg
               border border-zinc-700/80
               bg-zinc-800/60
-              pl-3 pr-2 py-1.5
+              pl-2 pr-2 py-1.5
+              sm:pl-3
             "
           >
             <div className="hidden sm:block text-right leading-tight">
-              <p className="text-[12px] font-medium text-zinc-200">
+              <p className="text-[12px] font-medium text-zinc-200 truncate max-w-[140px]">
                 {user?.name || "User"}
               </p>
 
-              <p className="text-[11px] text-zinc-500 truncate max-w-[120px]">
+              <p className="text-[11px] text-zinc-500 truncate max-w-[140px]">
                 {user?.email}
               </p>
             </div>
@@ -217,4 +253,3 @@ export default function Header() {
     </header>
   );
 }
-
