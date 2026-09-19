@@ -259,3 +259,45 @@ finance-tracker/
         └── styles/
             ├── globals.css
             └── theme.css
+
+
+
+
+
+
+
+websocket
+
+backend/src/
+├── api/
+│   └── websocket.py
+│
+├── services/
+│   └── notification_service.py
+│
+├── core/
+│   └── websocket_manager.py
+│
+├── db/
+│   └── models.py
+│
+└── schemas/
+    └── notification.py
+
+
+frontend/src/
+├── features/
+│   └── notifications/
+│       ├── api.ts
+│       ├── types.ts
+│       ├── hooks/
+│       │   └── useNotifications.ts
+│       └── components/
+│           ├── NotificationBell.tsx
+│           └── NotificationPanel.tsx
+│
+├── hooks/
+│   └── useNotificationSocket.ts
+│
+└── store/
+    └── notification.store.ts

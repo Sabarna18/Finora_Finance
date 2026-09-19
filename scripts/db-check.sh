@@ -13,14 +13,16 @@
 #   1. Docker / Compose validation
 #   2. Backend container validation
 #   3. Backend → Neon PostgreSQL connectivity
-#   4. SQL connectivity validation
-#   5. Database identity validation
-#   6. Alembic migration validation
-#   7. PostgreSQL integrity validation
+#   4. Database identity validation
+#   5. Alembic migration validation
+#   6. Notification migration validation
+#   7. PostgreSQL structural integrity validation
 #   8. Database summary generation
 #   9. Final summarized quality-gate report
 #
-# This script does NOT:
+# This script is READ-ONLY.
+#
+# It does NOT:
 #
 #   - create databases
 #   - modify schema
@@ -61,6 +63,46 @@ TIMESTAMP="$(date '+%Y%m%d_%H%M%S')"
 
 REPORT_FILE="${REPORT_DIR}/db-check-${TIMESTAMP}.txt"
 LATEST_REPORT="${REPORT_DIR}/db-check-latest.txt"
+
+
+# ==========================================================
+# EXPECTED MIGRATION
+# ==========================================================
+
+EXPECTED_NOTIFICATION_REVISION="bd565f8540cd"
+
+EXPECTED_NOTIFICATION_MIGRATION_MESSAGE="add notifications table"
+
+
+# ==========================================================
+# EXPECTED NOTIFICATION ENUM VALUES
+# ==========================================================
+
+EXPECTED_NOTIFICATION_TYPES=(
+    "info"
+    "success"
+    "warning"
+    "budget_alert"
+    "budget_exceeded"
+    "transaction"
+    "system"
+)
+
+
+# ==========================================================
+# EXPECTED NOTIFICATION COLUMNS
+# ==========================================================
+
+EXPECTED_NOTIFICATION_COLUMNS=(
+    "id"
+    "user_id"
+    "title"
+    "message"
+    "type"
+    "is_read"
+    "created_at"
+    "read_at"
+)
 
 
 # ==========================================================
@@ -122,6 +164,7 @@ trap cleanup EXIT
 # ==========================================================
 
 print_header() {
+
     echo
     echo "=========================================================="
     echo "              Finora Database Quality Gate"
@@ -134,19 +177,23 @@ print_header() {
     echo "Database     : Neon PostgreSQL"
     echo "Report       : ${REPORT_FILE}"
     echo
+
 }
 
 
 print_section() {
+
     echo
     echo "----------------------------------------------------------"
     echo " $1"
     echo "----------------------------------------------------------"
     echo
+
 }
 
 
 pass_gate() {
+
     local name="$1"
 
     TOTAL_GATES=$((TOTAL_GATES + 1))
@@ -157,10 +204,12 @@ pass_gate() {
     )
 
     echo -e "${GREEN}[PASS]${RESET} ${name}"
+
 }
 
 
 fail_gate() {
+
     local name="$1"
 
     TOTAL_GATES=$((TOTAL_GATES + 1))
@@ -171,16 +220,21 @@ fail_gate() {
     )
 
     echo -e "${RED}[FAIL]${RESET} ${name}"
+
 }
 
 
 warn() {
+
     echo -e "${YELLOW}[WARN]${RESET} $1"
+
 }
 
 
 info() {
+
     echo -e "${BLUE}[INFO]${RESET} $1"
+
 }
 
 
@@ -189,6 +243,7 @@ info() {
 # ==========================================================
 
 require_command() {
+
     local command_name="$1"
 
     if command -v "${command_name}" >/dev/null 2>&1; then
@@ -204,6 +259,7 @@ require_command() {
         return 1
 
     fi
+
 }
 
 
@@ -245,6 +301,7 @@ check_compose_file() {
         return 1
 
     fi
+
 }
 
 
@@ -308,6 +365,7 @@ check_backend_running() {
         return 1
 
     fi
+
 }
 
 
@@ -342,6 +400,7 @@ with engine.connect() as connection:
             "Neon PostgreSQL returned an unexpected result."
         )
 
+
 print("Neon PostgreSQL connection successful.")
 PY
     then
@@ -357,6 +416,7 @@ PY
         return 1
 
     fi
+
 }
 
 
@@ -404,6 +464,7 @@ with engine.connect() as connection:
     print(f"User           : {current_user}")
     print(f"PostgreSQL     : {server_version}")
     print(f"Server         : {host}")
+
 PY
     then
 
@@ -418,6 +479,7 @@ PY
         return 1
 
     fi
+
 }
 
 
@@ -430,6 +492,7 @@ check_alembic() {
     print_section "5. Alembic Migration Validation"
 
     info "Checking current migration revision..."
+
 
     if docker compose \
         -f "${COMPOSE_FILE}" \
@@ -450,7 +513,9 @@ check_alembic() {
 
 
     echo
+
     info "Checking migration heads..."
+
 
     if docker compose \
         -f "${COMPOSE_FILE}" \
@@ -471,7 +536,9 @@ check_alembic() {
 
 
     echo
+
     info "Checking for model/schema migration drift..."
+
 
     if docker compose \
         -f "${COMPOSE_FILE}" \
@@ -489,6 +556,411 @@ check_alembic() {
         return 1
 
     fi
+
+}
+
+
+# ==========================================================
+# NOTIFICATION MIGRATION VALIDATION
+# ==========================================================
+
+check_notification_migration() {
+
+    print_section "6. Notification Migration Validation"
+
+    info "Expected notification migration:"
+    echo "  Revision : ${EXPECTED_NOTIFICATION_REVISION}"
+    echo "  Message  : ${EXPECTED_NOTIFICATION_MIGRATION_MESSAGE}"
+    echo
+
+
+    # ------------------------------------------------------
+    # Verify current Alembic revision directly
+    # ------------------------------------------------------
+
+    local current_revision
+
+    current_revision="$(
+        docker compose \
+            -f "${COMPOSE_FILE}" \
+            exec -T "${BACKEND_SERVICE}" \
+            python - <<'PY'
+from sqlalchemy import text
+
+from src.db.database import engine
+
+
+with engine.connect() as connection:
+
+    revision = connection.execute(
+        text("SELECT version_num FROM alembic_version")
+    ).scalar_one_or_none()
+
+    if revision is None:
+        raise RuntimeError(
+            "No Alembic revision found in alembic_version."
+        )
+
+    print(revision)
+PY
+    )"
+
+
+    current_revision="$(echo "${current_revision}" | tail -n 1 | tr -d '\r')"
+
+
+    if [[ "${current_revision}" == "${EXPECTED_NOTIFICATION_REVISION}" ]]; then
+
+        pass_gate \
+            "Notification migration revision ${EXPECTED_NOTIFICATION_REVISION} is applied"
+
+    else
+
+        fail_gate \
+            "Notification migration revision ${EXPECTED_NOTIFICATION_REVISION} is applied"
+
+        echo
+        echo "Expected: ${EXPECTED_NOTIFICATION_REVISION}"
+        echo "Actual  : ${current_revision}"
+        echo
+
+        return 1
+
+    fi
+
+
+    # ------------------------------------------------------
+    # Verify notifications table
+    # ------------------------------------------------------
+
+    if docker compose \
+        -f "${COMPOSE_FILE}" \
+        exec -T "${BACKEND_SERVICE}" \
+        python - <<'PY'
+from sqlalchemy import text
+
+from src.db.database import engine
+
+
+with engine.connect() as connection:
+
+    exists = connection.execute(
+        text("""
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = 'notifications'
+            )
+        """)
+    ).scalar_one()
+
+
+    if not exists:
+        raise RuntimeError(
+            "notifications table does not exist."
+        )
+
+
+print("notifications table exists.")
+PY
+    then
+
+        pass_gate \
+            "notifications table exists"
+
+    else
+
+        fail_gate \
+            "notifications table exists"
+
+        return 1
+
+    fi
+
+
+    # ------------------------------------------------------
+    # Verify notification columns
+    # ------------------------------------------------------
+
+    if docker compose \
+        -f "${COMPOSE_FILE}" \
+        exec -T "${BACKEND_SERVICE}" \
+        python - <<'PY'
+from sqlalchemy import text
+
+from src.db.database import engine
+
+
+expected_columns = {
+    "id",
+    "user_id",
+    "title",
+    "message",
+    "type",
+    "is_read",
+    "created_at",
+    "read_at",
+}
+
+
+with engine.connect() as connection:
+
+    rows = connection.execute(
+        text("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'notifications'
+        """)
+    ).scalars().all()
+
+
+actual_columns = set(rows)
+
+missing = expected_columns - actual_columns
+unexpected = actual_columns - expected_columns
+
+
+if missing:
+    raise RuntimeError(
+        f"Missing notification columns: {sorted(missing)}"
+    )
+
+
+if unexpected:
+    print(
+        f"Additional notification columns: {sorted(unexpected)}"
+    )
+
+
+print("All required notification columns exist.")
+
+PY
+    then
+
+        pass_gate \
+            "Notification table contains all required columns"
+
+    else
+
+        fail_gate \
+            "Notification table contains all required columns"
+
+        return 1
+
+    fi
+
+
+    # ------------------------------------------------------
+    # Verify notification enum
+    # ------------------------------------------------------
+
+    if docker compose \
+        -f "${COMPOSE_FILE}" \
+        exec -T "${BACKEND_SERVICE}" \
+        python - <<'PY'
+from sqlalchemy import text
+
+from src.db.database import engine
+
+
+expected_values = {
+    "info",
+    "success",
+    "warning",
+    "budget_alert",
+    "budget_exceeded",
+    "transaction",
+    "system",
+}
+
+
+with engine.connect() as connection:
+
+    enum_exists = connection.execute(
+        text("""
+            SELECT EXISTS (
+                SELECT 1
+                FROM pg_type
+                WHERE typname = 'notificationtype'
+            )
+        """)
+    ).scalar_one()
+
+
+    if not enum_exists:
+        raise RuntimeError(
+            "PostgreSQL enum notificationtype does not exist."
+        )
+
+
+    rows = connection.execute(
+        text("""
+            SELECT enumlabel
+            FROM pg_enum
+            WHERE enumtypid = 'notificationtype'::regtype
+            ORDER BY enumsortorder
+        """)
+    ).scalars().all()
+
+
+actual_values = set(rows)
+
+
+if actual_values != expected_values:
+
+    raise RuntimeError(
+        "Notification enum mismatch.\n"
+        f"Expected: {sorted(expected_values)}\n"
+        f"Actual:   {sorted(actual_values)}"
+    )
+
+
+print("notificationtype enum values are correct.")
+
+PY
+    then
+
+        pass_gate \
+            "Notification PostgreSQL enum is correct"
+
+    else
+
+        fail_gate \
+            "Notification PostgreSQL enum is correct"
+
+        return 1
+
+    fi
+
+
+    # ------------------------------------------------------
+    # Verify notification foreign key
+    # ------------------------------------------------------
+
+    if docker compose \
+        -f "${COMPOSE_FILE}" \
+        exec -T "${BACKEND_SERVICE}" \
+        python - <<'PY'
+from sqlalchemy import text
+
+from src.db.database import engine
+
+
+with engine.connect() as connection:
+
+    exists = connection.execute(
+        text("""
+            SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                JOIN information_schema.constraint_column_usage ccu
+                    ON tc.constraint_name = ccu.constraint_name
+                    AND tc.table_schema = ccu.table_schema
+                WHERE tc.table_schema = 'public'
+                  AND tc.table_name = 'notifications'
+                  AND tc.constraint_type = 'FOREIGN KEY'
+                  AND kcu.column_name = 'user_id'
+                  AND ccu.table_name = 'users'
+                  AND ccu.column_name = 'id'
+            )
+        """)
+    ).scalar_one()
+
+
+    if not exists:
+        raise RuntimeError(
+            "notifications.user_id → users.id foreign key is missing."
+        )
+
+
+print("Notification user foreign key exists.")
+
+PY
+    then
+
+        pass_gate \
+            "Notification user_id foreign key is valid"
+
+    else
+
+        fail_gate \
+            "Notification user_id foreign key is valid"
+
+        return 1
+
+    fi
+
+
+    # ------------------------------------------------------
+    # Verify notification indexes
+    # ------------------------------------------------------
+
+    if docker compose \
+        -f "${COMPOSE_FILE}" \
+        exec -T "${BACKEND_SERVICE}" \
+        python - <<'PY'
+from sqlalchemy import text
+
+from src.db.database import engine
+
+
+expected_indexes = {
+    "ix_notifications_id",
+    "ix_notifications_user_id",
+}
+
+
+with engine.connect() as connection:
+
+    rows = connection.execute(
+        text("""
+            SELECT indexname
+            FROM pg_indexes
+            WHERE schemaname = 'public'
+              AND tablename = 'notifications'
+        """)
+    ).scalars().all()
+
+
+actual_indexes = set(rows)
+
+
+missing = expected_indexes - actual_indexes
+
+
+if missing:
+    raise RuntimeError(
+        f"Missing notification indexes: {sorted(missing)}"
+    )
+
+
+print("Required notification indexes exist.")
+
+PY
+    then
+
+        pass_gate \
+            "Notification indexes are present"
+
+    else
+
+        fail_gate \
+            "Notification indexes are present"
+
+        return 1
+
+    fi
+
+
+    echo
+
+    info "Notification migration verification completed successfully."
+
 }
 
 
@@ -498,7 +970,7 @@ check_alembic() {
 
 check_postgres_integrity() {
 
-    print_section "6. Neon PostgreSQL Structural Integrity"
+    print_section "7. Neon PostgreSQL Structural Integrity"
 
 
     if docker compose \
@@ -575,8 +1047,24 @@ with engine.connect() as connection:
         )
 
 
+    # ------------------------------------------------------
+    # Notification table count
+    # ------------------------------------------------------
+
+    notification_count = connection.execute(
+        text("""
+            SELECT COUNT(*)
+            FROM notifications
+        """)
+    ).scalar_one()
+
+
     print(
         f"Tables                 : {table_count}"
+    )
+
+    print(
+        f"Notifications          : {notification_count}"
     )
 
     print(
@@ -590,6 +1078,7 @@ with engine.connect() as connection:
 
 
 print("Neon PostgreSQL structural integrity checks passed.")
+
 PY
     then
 
@@ -604,6 +1093,7 @@ PY
         return 1
 
     fi
+
 }
 
 
@@ -613,7 +1103,7 @@ PY
 
 generate_database_summary() {
 
-    print_section "7. Database Summary"
+    print_section "8. Database Summary"
 
     info "Generating read-only database summary..."
 
@@ -634,6 +1124,7 @@ generate_database_summary() {
         return 1
 
     fi
+
 }
 
 
@@ -711,6 +1202,7 @@ print_final_report() {
     echo
 
     return 1
+
 }
 
 
@@ -761,6 +1253,8 @@ main() {
 
     check_alembic
 
+    check_notification_migration
+
 
     # ------------------------------------------------------
     # PostgreSQL integrity
@@ -781,6 +1275,7 @@ main() {
     # ------------------------------------------------------
 
     print_final_report
+
 }
 
 

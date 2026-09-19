@@ -48,6 +48,7 @@ target_metadata = Base.metadata
 # OFFLINE MIGRATIONS
 # ==========================================================
 
+
 def run_migrations_offline() -> None:
     """
     Run migrations without establishing a database connection.
@@ -56,9 +57,7 @@ def run_migrations_offline() -> None:
     aligned with the application database configuration.
     """
 
-    url = DATABASE_URL.render_as_string(
-        hide_password=False
-    )
+    url = DATABASE_URL.render_as_string(hide_password=False)
 
     context.configure(
         url=url,
@@ -75,6 +74,7 @@ def run_migrations_offline() -> None:
 # ==========================================================
 # ONLINE MIGRATIONS
 # ==========================================================
+
 
 def run_migrations_online() -> None:
     """
@@ -99,10 +99,8 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-
             compare_type=True,
             compare_server_default=True,
-
             # PostgreSQL is now the canonical database.
             render_as_batch=False,
         )

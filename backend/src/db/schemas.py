@@ -186,3 +186,81 @@ class BudgetStatusResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ==========================================================
+# NOTIFICATION
+# ==========================================================
+
+
+class NotificationType(StrEnum):
+    """Supported notification categories."""
+
+    INFO = "info"
+    SUCCESS = "success"
+    WARNING = "warning"
+    BUDGET_ALERT = "budget_alert"
+    BUDGET_EXCEEDED = "budget_exceeded"
+    TRANSACTION = "transaction"
+    SYSTEM = "system"
+
+
+class NotificationBase(BaseModel):
+    """Common notification fields."""
+
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=150,
+    )
+
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=500,
+    )
+
+    type: NotificationType = NotificationType.INFO
+
+
+class NotificationCreate(NotificationBase):
+    """
+    Internal notification creation schema.
+
+    Used by notification services when creating
+    a persistent notification for a user.
+    """
+
+    user_id: int
+
+
+class NotificationResponse(NotificationBase):
+    """Notification returned to the frontend."""
+
+    id: int
+
+    user_id: int
+
+    is_read: bool
+
+    created_at: datetime
+
+    read_at: datetime | None = None
+
+    model_config = ConfigDict(
+        from_attributes=True,
+    )
+
+
+class NotificationMarkRead(BaseModel):
+    """Request schema for marking a notification as read."""
+
+    is_read: bool = True
+
+
+class NotificationListResponse(BaseModel):
+    """Paginated notification response."""
+
+    notifications: list[NotificationResponse]
+
+    unread_count: int

@@ -35,6 +35,24 @@ class TransactionType(StrEnum):
     EXPENSE = "expense"
 
 
+class NotificationType(StrEnum):
+    """Supported notification categories."""
+
+    INFO = "info"
+
+    SUCCESS = "success"
+
+    WARNING = "warning"
+
+    BUDGET_ALERT = "budget_alert"
+
+    BUDGET_EXCEEDED = "budget_exceeded"
+
+    TRANSACTION = "transaction"
+
+    SYSTEM = "system"
+
+
 # ==========================================================
 # USER
 # ==========================================================
@@ -102,6 +120,12 @@ class User(Base):
 
     budgets = relationship(
         "Budget",
+        back_populates="user",
+        cascade="all, delete",
+    )
+
+    notifications = relationship(
+        "Notification",
         back_populates="user",
         cascade="all, delete",
     )
@@ -304,4 +328,73 @@ class Budget(Base):
 
     category = relationship(
         "Category",
+    )
+
+
+# ==========================================================
+# NOTIFICATION
+# ==========================================================
+
+
+class Notification(Base):
+    """Persistent user notification."""
+
+    __tablename__ = "notifications"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False,
+        index=True,
+    )
+
+    title = Column(
+        String(150),
+        nullable=False,
+    )
+
+    message = Column(
+        String(500),
+        nullable=False,
+    )
+
+    type = Column(
+        Enum(
+            NotificationType,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+            name="notificationtype",
+        ),
+        nullable=False,
+        default=NotificationType.INFO,
+    )
+
+    is_read = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+    )
+
+    read_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    # ------------------------------------------------------
+    # Relationships
+    # ------------------------------------------------------
+
+    user = relationship(
+        "User",
+        back_populates="notifications",
     )
