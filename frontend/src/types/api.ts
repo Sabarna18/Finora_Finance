@@ -347,3 +347,93 @@ export interface DateRangeParams {
 
   end_date?: string;
 }
+
+
+// ======================================================
+// NOTIFICATIONS
+// Mirrors backend Notification schemas
+// ======================================================
+
+// ------------------------------------------------------
+// NOTIFICATION TYPE
+// ------------------------------------------------------
+
+export enum NotificationType {
+
+  INFO = "info",
+
+  SUCCESS = "success",
+
+  WARNING = "warning",
+
+  BUDGET_ALERT = "budget_alert",
+
+  BUDGET_EXCEEDED = "budget_exceeded",
+
+  TRANSACTION = "transaction",
+
+  SYSTEM = "system",
+
+}
+
+
+// ------------------------------------------------------
+// NOTIFICATION
+// Mirrors NotificationResponse
+// ------------------------------------------------------
+
+export interface Notification {
+
+  id: number;
+
+  user_id: number;
+
+  title: string;
+
+  message: string;
+
+  type: NotificationType;
+
+  is_read: boolean;
+
+  created_at: string;
+
+  read_at: string | null;
+
+}
+
+
+// ------------------------------------------------------
+// NOTIFICATION LIST RESPONSE
+// ------------------------------------------------------
+
+export interface NotificationListResponse {
+
+  notifications: Notification[];
+
+  unread_count: number;
+
+}
+
+
+// ------------------------------------------------------
+// UNREAD COUNT RESPONSE
+// ------------------------------------------------------
+
+export interface NotificationUnreadCountResponse {
+
+  unread_count: number;
+
+}
+
+
+// ------------------------------------------------------
+// DELETE RESPONSE
+// ------------------------------------------------------
+
+export interface DeleteNotificationResponse {
+
+  message: string;
+
+}
+

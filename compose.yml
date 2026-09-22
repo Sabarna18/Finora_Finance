@@ -29,6 +29,7 @@
 #   - There is NO local PostgreSQL container.
 #   - Database configuration belongs to backend/.env.
 #   - VITE_API_URL is a Vite build-time variable.
+#   - VITE_NOTIFICATION_WS_DEBUG is a Vite build-time variable.
 #   - Local development defaults VITE_API_URL to:
 #         http://localhost:8000/api/v1
 #   - Production CI/CD can override VITE_API_URL explicitly.
@@ -47,6 +48,7 @@
 #
 # ==========================================================
 
+
 services:
 
   # ========================================================
@@ -62,6 +64,7 @@ services:
       # ----------------------------------------------------
       # Backend Build Arguments
       # ----------------------------------------------------
+
       #
       # APP_VERSION is embedded into the Docker image.
       #
@@ -75,15 +78,19 @@ services:
       # published image and determine which Finora release
       # it contains.
       #
+
       args:
         APP_VERSION: ${APP_VERSION:-vdev}
 
     container_name: finora-backend
+
     restart: unless-stopped
+
 
     # ------------------------------------------------------
     # Backend Environment
     # ------------------------------------------------------
+
     #
     # The backend .env contains the cloud PostgreSQL/Neon
     # connection and backend secrets.
@@ -96,6 +103,7 @@ services:
       - ./backend/.env
 
     environment:
+
       DEBUG: ${DEBUG:-true}
 
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-["http://localhost","http://localhost:80"]}
@@ -104,11 +112,14 @@ services:
       #
       # This should match the build argument above for normal
       # local/release builds.
+
       APP_VERSION: ${APP_VERSION:-vdev}
+
 
     # ------------------------------------------------------
     # Backend Source Mount
     # ------------------------------------------------------
+
     #
     # Keeps local development convenient: source changes are
     # visible inside the running container.
@@ -119,12 +130,14 @@ services:
       - /backend/.venv
       - backend_logs:/backend/logs
 
+
     # ------------------------------------------------------
     # Backend HTTP Port
     # ------------------------------------------------------
 
     ports:
       - "8000:8000"
+
 
     # ------------------------------------------------------
     # Backend Health Check
@@ -136,10 +149,12 @@ services:
           "CMD-SHELL",
           "curl -f http://localhost:8000/api/v1/health || exit 1"
         ]
+
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
+
 
     # ------------------------------------------------------
     # Internal Network
@@ -161,30 +176,41 @@ services:
       context: .
       dockerfile: infrastructure/web/Dockerfile
 
+
       # ----------------------------------------------------
       # Frontend Build Arguments
       # ----------------------------------------------------
+
       #
       # Vite variables are embedded during npm build.
       #
       # Local defaults:
       #
       #   VITE_API_URL=http://localhost:8000/api/v1
+      #   VITE_NOTIFICATION_WS_DEBUG=true
       #   VITE_APP_VERSION=vdev
       #
       # CI/CD may override these values explicitly.
       #
 
       args:
+
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
+
+        VITE_NOTIFICATION_WS_DEBUG: ${VITE_NOTIFICATION_WS_DEBUG:-true}
+
         VITE_APP_VERSION: ${VITE_APP_VERSION:-vdev}
 
+
     container_name: finora-web
+
     restart: unless-stopped
+
 
     # ------------------------------------------------------
     # Backend Dependency
     # ------------------------------------------------------
+
     #
     # Do not start the web container until the API is healthy.
     #
@@ -193,12 +219,14 @@ services:
       backend:
         condition: service_healthy
 
+
     # ------------------------------------------------------
     # Public HTTP Port
     # ------------------------------------------------------
 
     ports:
       - "80:80"
+
 
     # ------------------------------------------------------
     # Web Health Check
@@ -210,10 +238,12 @@ services:
           "CMD-SHELL",
           "wget --no-verbose --tries=1 --spider http://127.0.0.1/web-health || exit 1"
         ]
+
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+
 
     # ------------------------------------------------------
     # Internal Network
@@ -246,4 +276,3 @@ networks:
   finora_network:
     name: finora_network
     driver: bridge
-

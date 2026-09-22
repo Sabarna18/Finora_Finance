@@ -2,6 +2,8 @@
 # src/services/auth_service.py
 # ==================================================
 
+import asyncio
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,13 @@ from src.core.security import (
     verify_password,
 )
 from src.db.models import User
+from src.db.schemas import (
+    NotificationCreate,
+    NotificationType,
+)
+from src.services.notification_service import (
+    NotificationService,
+)
 
 logger = get_logger("Auth")
 
@@ -20,6 +29,7 @@ class AuthService:
     # ----------------------------------------------
     # REGISTER USER
     # ----------------------------------------------
+
     @staticmethod
     def register_user(
         db: Session,
@@ -46,7 +56,9 @@ class AuthService:
         )
 
         db.add(new_user)
+
         db.commit()
+
         db.refresh(new_user)
 
         logger.info(
@@ -58,6 +70,7 @@ class AuthService:
     # ----------------------------------------------
     # LOGIN USER
     # ----------------------------------------------
+
     @staticmethod
     def login_user(
         db: Session,
@@ -78,7 +91,10 @@ class AuthService:
                 detail="Invalid credentials",
             )
 
-        if not verify_password(password, user.password_hash):
+        if not verify_password(
+            password,
+            user.password_hash,
+        ):
             logger.warning(
                 f"Login failed: wrong password (user_id={user.id}, email={email})"
             )
@@ -90,6 +106,33 @@ class AuthService:
 
         token = create_access_token({"sub": str(user.id)})
 
+        # ------------------------------------------
+        # LOGIN NOTIFICATION
+        # ------------------------------------------
+
+        try:
+            notification = NotificationCreate(
+                user_id=user.id,
+                title="Login successful",
+                message=("You have successfully signed in to your Finora account."),
+                type=NotificationType.SUCCESS,
+            )
+
+            asyncio.run(
+                NotificationService.create_notification(
+                    db=db,
+                    payload=notification,
+                )
+            )
+
+            logger.info(f"Login notification created: user_id={user.id}")
+
+        except Exception:
+            # Notification failure must NOT
+            # invalidate a successful login.
+
+            logger.exception(f"Failed to create login notification: user_id={user.id}")
+
         logger.info(f"Login successful: user_id={user.id}, email={email}")
 
         return {
@@ -100,6 +143,7 @@ class AuthService:
     # ----------------------------------------------
     # CURRENT USER
     # ----------------------------------------------
+
     @staticmethod
     def get_me(current_user):
 

@@ -1,16 +1,18 @@
-import {
-  Bell,
-  Search,
-  Menu,
-} from "lucide-react";
+import { Search, Menu } from "lucide-react";
 import { useLocation } from "react-router-dom";
+import { useState } from "react";
+
 import { useAuthStore } from "../../store/auth.store";
+
+import NotificationBell from "../cards/NotificationBell";
+import NotificationPanel from "../cards/NotificationPanel";
 
 // ======================================================
 // APP VERSION
 // ======================================================
 
-const APP_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
+const APP_VERSION =
+  import.meta.env.VITE_APP_VERSION || "dev";
 
 // ======================================================
 // PAGE TITLES
@@ -39,7 +41,10 @@ const subtitles: Record<string, string> = {
 // ======================================================
 
 interface HeaderProps {
-  /** Called when the mobile hamburger button is tapped. Opens the Sidebar. */
+  /**
+   * Called when the mobile hamburger button is tapped.
+   * Opens the Sidebar.
+   */
   onMenuClick: () => void;
 }
 
@@ -47,9 +52,17 @@ interface HeaderProps {
 // COMPONENT
 // ======================================================
 
-export default function Header({ onMenuClick }: HeaderProps) {
+export default function Header({
+  onMenuClick,
+}: HeaderProps) {
   const location = useLocation();
-  const user = useAuthStore((state) => state.user);
+
+  const user = useAuthStore(
+    (state) => state.user
+  );
+
+  const [notificationsOpen, setNotificationsOpen] =
+    useState(false);
 
   const title =
     titles[location.pathname] || "Finance Tracker";
@@ -57,6 +70,16 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const subtitle =
     subtitles[location.pathname] ||
     "Manage your personal finances";
+
+  function handleToggleNotifications() {
+    setNotificationsOpen(
+      (previous) => !previous
+    );
+  }
+
+  function handleCloseNotifications() {
+    setNotificationsOpen(false);
+  }
 
   return (
     <header
@@ -70,16 +93,29 @@ export default function Header({ onMenuClick }: HeaderProps) {
         backdrop-blur-sm
       "
       style={{
-        fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif",
+        fontFamily:
+          "'DM Sans', 'Helvetica Neue', sans-serif",
       }}
     >
-      <div className="h-full px-3 sm:px-4 lg:px-5 flex items-center justify-between gap-2 sm:gap-4">
-
+      <div
+        className="
+          h-full
+          px-3 sm:px-4 lg:px-5
+          flex items-center
+          justify-between
+          gap-2 sm:gap-4
+        "
+      >
         {/* ── LEFT ─────────────────────────────────────── */}
 
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-
-          {/* MOBILE MENU — single source of truth for opening the Sidebar */}
+        <div
+          className="
+            flex items-center
+            gap-2 sm:gap-3
+            min-w-0
+          "
+        >
+          {/* MOBILE MENU */}
 
           <button
             type="button"
@@ -88,9 +124,12 @@ export default function Header({ onMenuClick }: HeaderProps) {
             className="
               lg:hidden
               inline-flex items-center justify-center
-              h-9 w-9 shrink-0 rounded-lg
+              h-9 w-9 shrink-0
+              rounded-lg
               border border-zinc-700
-              text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800
+              text-zinc-400
+              hover:text-zinc-100
+              hover:bg-zinc-800
               active:scale-95
               transition-all
             "
@@ -100,12 +139,34 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
           {/* TITLE */}
 
-          <div className="leading-tight min-w-0">
-            <h1 className="text-[14px] sm:text-[15px] font-semibold text-white tracking-tight truncate">
+          <div
+            className="
+              leading-tight
+              min-w-0
+            "
+          >
+            <h1
+              className="
+                text-[14px] sm:text-[15px]
+                font-semibold
+                text-white
+                tracking-tight
+                truncate
+              "
+            >
               {title}
             </h1>
 
-            <p className="hidden sm:block text-[11px] text-zinc-500 leading-none mt-0.5 truncate">
+            <p
+              className="
+                hidden sm:block
+                text-[11px]
+                text-zinc-500
+                leading-none
+                mt-0.5
+                truncate
+              "
+            >
               {subtitle}
             </p>
           </div>
@@ -135,14 +196,22 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
         {/* ── RIGHT ────────────────────────────────────── */}
 
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-
+        <div
+          className="
+            flex items-center
+            gap-1.5 sm:gap-2
+            shrink-0
+          "
+        >
           {/* SEARCH */}
 
           <div
             className="
-              hidden md:flex items-center gap-2
-              h-9 w-48 lg:w-64
+              hidden md:flex
+              items-center
+              gap-2
+              h-9
+              w-48 lg:w-64
               rounded-lg
               border border-zinc-700/80
               bg-zinc-800/60
@@ -160,8 +229,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
               type="text"
               placeholder="Search..."
               className="
-                flex-1 bg-transparent
-                text-[13px] text-zinc-200
+                flex-1
+                bg-transparent
+                text-[13px]
+                text-zinc-200
                 placeholder:text-zinc-600
                 outline-none
                 min-w-0
@@ -169,7 +240,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
             />
           </div>
 
-          {/* SEARCH ICON (mobile/tablet only) */}
+          {/* SEARCH ICON — MOBILE/TABLET */}
 
           <button
             type="button"
@@ -177,48 +248,40 @@ export default function Header({ onMenuClick }: HeaderProps) {
             className="
               md:hidden
               inline-flex items-center justify-center
-              h-9 w-9 rounded-lg
+              h-9 w-9
+              rounded-lg
               border border-zinc-700/80
               text-zinc-400
-              hover:text-zinc-100 hover:bg-zinc-800
+              hover:text-zinc-100
+              hover:bg-zinc-800
               transition-colors
             "
           >
             <Search size={16} />
           </button>
 
-          {/* NOTIFICATIONS */}
+          {/* ==================================================
+              NOTIFICATIONS
+          ================================================== */}
 
-          <button
-            type="button"
-            aria-label="Notifications"
-            className="
-              relative
-              inline-flex items-center justify-center
-              h-9 w-9 rounded-lg
-              border border-zinc-700/80
-              text-zinc-400
-              hover:text-zinc-100 hover:bg-zinc-800
-              transition-colors
-            "
-          >
-            <Bell size={16} />
-
-            <span
-              className="
-                absolute top-1.5 right-1.5
-                h-1.5 w-1.5 rounded-full
-                bg-emerald-400
-                ring-1 ring-zinc-950
-              "
+          <div className="relative">
+            <NotificationBell
+              isOpen={notificationsOpen}
+              onClick={handleToggleNotifications}
             />
-          </button>
+
+            <NotificationPanel
+              isOpen={notificationsOpen}
+              onClose={handleCloseNotifications}
+            />
+          </div>
 
           {/* USER */}
 
           <div
             className="
-              flex items-center gap-2.5
+              flex items-center
+              gap-2.5
               rounded-lg
               border border-zinc-700/80
               bg-zinc-800/60
@@ -226,30 +289,60 @@ export default function Header({ onMenuClick }: HeaderProps) {
               sm:pl-3
             "
           >
-            <div className="hidden sm:block text-right leading-tight">
-              <p className="text-[12px] font-medium text-zinc-200 truncate max-w-[140px]">
+            <div
+              className="
+                hidden sm:block
+                text-right
+                leading-tight
+              "
+            >
+              <p
+                className="
+                  text-[12px]
+                  font-medium
+                  text-zinc-200
+                  truncate
+                  max-w-[140px]
+                "
+              >
                 {user?.name || "User"}
               </p>
 
-              <p className="text-[11px] text-zinc-500 truncate max-w-[140px]">
+              <p
+                className="
+                  text-[11px]
+                  text-zinc-500
+                  truncate
+                  max-w-[140px]
+                "
+              >
                 {user?.email}
               </p>
             </div>
 
             <div
               className="
-                h-7 w-7 rounded-full shrink-0
-                bg-gradient-to-br from-violet-500 to-purple-700
+                h-7 w-7
+                rounded-full
+                shrink-0
+                bg-gradient-to-br
+                from-violet-500
+                to-purple-700
                 flex items-center justify-center
-                text-[11px] font-bold text-white uppercase
+                text-[11px]
+                font-bold
+                text-white
+                uppercase
               "
             >
-              {user?.name?.charAt(0).toUpperCase() || "U"}
+              {user?.name
+                ?.charAt(0)
+                .toUpperCase() || "U"}
             </div>
           </div>
-
         </div>
       </div>
     </header>
   );
 }
+

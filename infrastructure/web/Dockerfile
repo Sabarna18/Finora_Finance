@@ -9,8 +9,9 @@
 #   VITE_API_URL is overridden by CI/release at build time.
 #
 # IMPORTANT:
-#   VITE_API_URL and VITE_APP_VERSION are Vite BUILD-TIME
-#   variables.
+#   VITE_API_URL, VITE_NOTIFICATION_WS_DEBUG and
+#   VITE_APP_VERSION are Vite BUILD-TIME variables.
+#
 #   VITE_APP_VERSION is also retained as final-image metadata
 #   so deployment can verify release integrity.
 # ==========================================================
@@ -48,16 +49,34 @@ COPY frontend/ ./
 # Local default
 ARG VITE_API_URL=http://localhost:8000/api/v1
 
-# Application version
+# WebSocket debug logging
 #
+# true  -> browser console shows Finora WebSocket logs
+# false -> WebSocket debug logging disabled
+#
+# Default is false so existing production builds remain quiet.
+ARG VITE_NOTIFICATION_WS_DEBUG=false
+
+
+# ==========================================================
+# Application Version
+# ==========================================================
+
 # Release pipeline supplies the actual semantic version:
 #   VITE_APP_VERSION=1.0.3
 #
 # Local development falls back to:
 #   vdev
+
 ARG VITE_APP_VERSION=vdev
 
+
+# ==========================================================
+# Vite Build Environment
+# ==========================================================
+
 ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_NOTIFICATION_WS_DEBUG=${VITE_NOTIFICATION_WS_DEBUG}
 ENV VITE_APP_VERSION=${VITE_APP_VERSION}
 
 
@@ -80,6 +99,7 @@ FROM nginx:1.28-alpine
 # ==========================================================
 
 # ARG must be redeclared because this is a new build stage.
+
 ARG VITE_APP_VERSION=vdev
 
 ENV VITE_APP_VERSION=${VITE_APP_VERSION}

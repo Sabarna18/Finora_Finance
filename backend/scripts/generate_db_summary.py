@@ -241,7 +241,6 @@ def get_database_information(
         """)
 
     with database_engine.connect() as connection:
-
         row = connection.execute(query).mappings().one()
 
     return dict(row)
@@ -286,7 +285,7 @@ def print_database_summary(
 
     print_key_value(
         "Database size bytes",
-        f'{database_information["database_size_bytes"]:,}',
+        f"{database_information['database_size_bytes']:,}",
     )
 
     print_key_value(
@@ -484,7 +483,6 @@ def get_connection_summary(
         """)
 
     with database_engine.connect() as connection:
-
         summary = dict(connection.execute(query).mappings().one())
 
         max_connections = connection.execute(max_connections_query).scalar_one()
@@ -504,7 +502,6 @@ def get_connection_summary(
     current_connections = int(summary["total_connections"])
 
     if usable_connections > 0:
-
         utilization = (current_connections / usable_connections) * 100
 
     else:
@@ -564,7 +561,7 @@ def print_connection_summary(
 
     print_key_value(
         "Connection utilization",
-        f'{connection_summary["connection_utilization_percent"]:.2f}%',
+        f"{connection_summary['connection_utilization_percent']:.2f}%",
     )
 
 
@@ -603,7 +600,6 @@ def get_connection_details(
         """)
 
     with database_engine.connect() as connection:
-
         rows = connection.execute(query).mappings().all()
 
     return [dict(row) for row in rows]
@@ -617,29 +613,27 @@ def print_connection_details(
     print_section("CONNECTION DETAILS")
 
     if not connections:
-
         print("No active database sessions found.")
 
         return
 
     for connection in connections:
-
         print(
-            f'  PID {connection["pid"]}'
-            f' | user={connection["usename"]}'
-            f' | state={connection["state"]}'
-            f' | application={connection["application_name"] or "<none>"}'
+            f"  PID {connection['pid']}"
+            f" | user={connection['usename']}"
+            f" | state={connection['state']}"
+            f" | application={connection['application_name'] or '<none>'}"
         )
 
         print(
-            f'      backend={connection["backend_type"]}'
-            f' | client={connection["client_addr"] or "local"}'
-            f' | port={connection["client_port"] or "-"}'
+            f"      backend={connection['backend_type']}"
+            f" | client={connection['client_addr'] or 'local'}"
+            f" | port={connection['client_port'] or '-'}"
         )
 
-        print(f'      started={connection["backend_start"]}')
+        print(f"      started={connection['backend_start']}")
 
-        print(f'      state_change={connection["state_change"]}')
+        print(f"      state_change={connection['state_change']}")
 
 
 # ============================================================
@@ -706,7 +700,6 @@ def get_instance_information(
         """)
 
     with database_engine.connect() as connection:
-
         row = connection.execute(query).mappings().one()
 
     information = dict(row)
@@ -719,7 +712,6 @@ def get_instance_information(
         current_time,
         datetime,
     ):
-
         uptime_seconds = (current_time - start_time).total_seconds()
 
         information["uptime_seconds"] = uptime_seconds
@@ -733,7 +725,6 @@ def get_instance_information(
         information["uptime"] = f"{days}d {hours}h {minutes}m"
 
     else:
-
         information["uptime_seconds"] = None
         information["uptime"] = "unknown"
 
@@ -851,7 +842,6 @@ def print_table_columns(
     print(f"  Columns      : {len(columns)}")
 
     if not columns:
-
         print("    No columns found.")
 
         return
@@ -860,7 +850,6 @@ def print_table_columns(
     print("  Column definitions:")
 
     for column in columns:
-
         name = column["name"]
 
         column_type = str(column["type"])
@@ -869,7 +858,7 @@ def print_table_columns(
 
         nullable_text = "NULL" if nullable else "NOT NULL"
 
-        print(f"    - " f"{name:<25}" f"{column_type:<24}" f"{nullable_text}")
+        print(f"    - {name:<25}{column_type:<24}{nullable_text}")
 
 
 # ============================================================
@@ -888,13 +877,11 @@ def print_primary_key(
     constrained_columns = primary_key.get("constrained_columns") or []
 
     if constrained_columns:
-
         columns = ", ".join(constrained_columns)
 
         print(f"  Primary key  : {columns}")
 
     else:
-
         print("  Primary key  : none")
 
 
@@ -912,9 +899,7 @@ def get_indexes(
     indexes: list[dict[str, object]] = []
 
     for table_name in tables:
-
         for index in inspector.get_indexes(table_name):
-
             indexes.append(
                 {
                     "table": table_name,
@@ -935,13 +920,11 @@ def print_indexes(
     print_section("INDEX SUMMARY")
 
     if not indexes:
-
         print("No indexes found.")
 
         return
 
     for index in indexes:
-
         table_name = index["table"]
 
         name = index["name"] or "<unnamed>"
@@ -950,7 +933,7 @@ def print_indexes(
 
         uniqueness = "UNIQUE" if index["unique"] else "NON-UNIQUE"
 
-        print(f"  {table_name}.{name}" f" [{uniqueness}]" f" ({columns})")
+        print(f"  {table_name}.{name} [{uniqueness}] ({columns})")
 
     print()
 
@@ -971,9 +954,7 @@ def get_foreign_keys(
     foreign_keys: list[dict[str, object]] = []
 
     for table_name in tables:
-
         for foreign_key in inspector.get_foreign_keys(table_name):
-
             foreign_keys.append(
                 {
                     "table": table_name,
@@ -994,13 +975,11 @@ def print_foreign_keys(
     print_section("FOREIGN KEY SUMMARY")
 
     if not foreign_keys:
-
         print("No foreign keys found.")
 
         return
 
     for foreign_key in foreign_keys:
-
         table_name = foreign_key["table"]
 
         columns = ", ".join(foreign_key["columns"])  # type: ignore[arg-type]
@@ -1011,13 +990,11 @@ def print_foreign_keys(
             foreign_key["referred_columns"]  # type: ignore[arg-type]
         )
 
-        print(
-            f"  {table_name}.{columns}" f" -> {referred_table}." f"{referred_columns}"
-        )
+        print(f"  {table_name}.{columns} -> {referred_table}.{referred_columns}")
 
     print()
 
-    print(f"Total foreign keys : " f"{len(foreign_keys)}")
+    print(f"Total foreign keys : {len(foreign_keys)}")
 
 
 # ============================================================
@@ -1041,15 +1018,15 @@ def get_row_counts(
     identifier_preparer = inspector.engine.dialect.identifier_preparer
 
     with database_engine.connect() as connection:
-
         for table_name in tables:
-
             quoted_table = identifier_preparer.quote(table_name)
 
-            result = connection.execute(text(f"""
+            result = connection.execute(
+                text(f"""
                     SELECT COUNT(*)
                     FROM {quoted_table}
-                    """))
+                    """)
+            )
 
             counts[table_name] = int(result.scalar_one())
 
@@ -1064,14 +1041,12 @@ def print_row_counts(
     print_section("ROW COUNTS")
 
     if not row_counts:
-
         print("No tables found.")
 
         return
 
     for table_name, count in row_counts.items():
-
-        print(f"  {table_name:<32}" f"{count:>10}")
+        print(f"  {table_name:<32}{count:>10}")
 
 
 # ============================================================
@@ -1088,13 +1063,11 @@ def print_table_summary(
     print_section("TABLE DETAILS")
 
     if not tables:
-
         print("No tables found.")
 
         return
 
     for table_name in tables:
-
         print()
         print(f"[{table_name}]")
 
@@ -1112,9 +1085,9 @@ def print_table_summary(
 
         foreign_keys = inspector.get_foreign_keys(table_name)
 
-        print(f"  Indexes      : " f"{len(indexes)}")
+        print(f"  Indexes      : {len(indexes)}")
 
-        print(f"  Foreign keys : " f"{len(foreign_keys)}")
+        print(f"  Foreign keys : {len(foreign_keys)}")
 
 
 # ============================================================
@@ -1224,7 +1197,6 @@ def generate_database_summary(
     print_section("TABLES")
 
     if tables:
-
         print_key_value(
             "Total tables",
             len(tables),
@@ -1233,11 +1205,9 @@ def generate_database_summary(
         print()
 
         for table_name in tables:
-
             print(f"  • {table_name}")
 
     else:
-
         print("No tables found.")
 
     # --------------------------------------------------------
@@ -1325,11 +1295,9 @@ def main() -> int:
     """
 
     try:
-
         generate_database_summary(engine)
 
     except SQLAlchemyError as exc:
-
         print()
 
         print("=" * TITLE_WIDTH)
@@ -1347,7 +1315,6 @@ def main() -> int:
         return 1
 
     except Exception as exc:
-
         print()
 
         print("=" * TITLE_WIDTH)

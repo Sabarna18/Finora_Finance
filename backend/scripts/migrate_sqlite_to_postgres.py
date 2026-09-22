@@ -424,7 +424,8 @@ def reset_sequences(
     log("Synchronizing PostgreSQL sequences...")
 
     for table_name in TABLE_ORDER:
-        connection.execute(text(f"""
+        connection.execute(
+            text(f"""
                 SELECT setval(
                     pg_get_serial_sequence(
                         '{table_name}',
@@ -439,7 +440,8 @@ def reset_sequences(
                     ),
                     true
                 )
-                """))
+                """)
+        )
 
     log("✓ PostgreSQL sequences synchronized")
 
@@ -510,9 +512,11 @@ def migrate(
         # PostgreSQL connectivity
         # ----------------------------------------------
 
-        postgres_connection.execute(text("""
+        postgres_connection.execute(
+            text("""
                 SELECT 1
-                """))
+                """)
+        )
 
         log("✓ PostgreSQL connection successful")
 
