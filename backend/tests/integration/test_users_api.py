@@ -29,7 +29,6 @@
 #
 # ============================================================
 
-
 # ============================================================
 # HEALTH
 # ============================================================
@@ -38,7 +37,7 @@
 def test_health_check(client):
     """
     Health endpoint must be publicly accessible and report
-    that the API is healthy.
+    application health and runtime metadata.
     """
 
     response = client.get(
@@ -49,10 +48,15 @@ def test_health_check(client):
 
     data = response.json()
 
-    assert data == {
-        "status": "healthy",
-        "service": "Finora API",
-    }
+    assert data["status"] == "healthy"
+    assert data["service"] == "Finora API"
+
+    # Runtime application metadata exposed by the health endpoint.
+    assert "app_name" in data
+    assert "version" in data
+
+    assert data["app_name"]
+    assert data["version"]
 
 
 # ============================================================
@@ -73,6 +77,13 @@ def test_health_check_does_not_require_auth(client):
     )
 
     assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["status"] == "healthy"
+    assert data["service"] == "Finora API"
+    assert "app_name" in data
+    assert "version" in data
 
 
 # ============================================================

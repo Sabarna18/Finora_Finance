@@ -1021,12 +1021,10 @@ def get_row_counts(
         for table_name in tables:
             quoted_table = identifier_preparer.quote(table_name)
 
-            result = connection.execute(
-                text(f"""
+            result = connection.execute(text(f"""
                     SELECT COUNT(*)
                     FROM {quoted_table}
-                    """)
-            )
+                    """))
 
             counts[table_name] = int(result.scalar_one())
 
