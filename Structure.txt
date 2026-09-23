@@ -105,6 +105,36 @@ finance-tracker/
 │       │   ├── schemas.py
 │       │   └── seed.py
 │       │
+│       │
+│       │
+│       ├── infrastructure/
+|       |   ├── redis_cache/                 ◄── ENTIRE REDIS MODULE
+|       │   │   ├── __init__.py
+|       │   │   ├── client.py
+|       │   │   ├── connection.py
+        │   │   ├── keys.py
+        │   │   ├── serializer.py
+        │   │   ├── config.py
+        │   │   ├── exceptions.py
+        │   │   ├── health.py
+        │   │   ├── invalidation.py
+        │   │   │
+        │   │   ├── caches/
+        │   │   │   ├── __init__.py
+        │   │   │   ├── dashboard.py
+        │   │   │   ├── reports.py
+        │   │   │   ├── categories.py
+        │   │   │   └── budgets.py
+    │   │   │
+    │   │   └── tests/
+    │   │       ├── test_client.py
+    │   │       ├── test_connection.py
+    │   │       ├── test_keys.py
+    │   │       ├── test_serializer.py
+    │   │       ├── test_dashboard_cache.py
+    │   │       ├── test_reports_cache.py
+    │   │       └── test_invalidation.py
+│       │
 │       ├── services/
 │       │   ├── auth_service.py
 │       │   ├── users_service.py
@@ -301,3 +331,7 @@ frontend/src/
 │
 └── store/
     └── notification.store.ts
+
+
+
+

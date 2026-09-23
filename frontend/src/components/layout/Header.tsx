@@ -1,18 +1,10 @@
 import { Search, Menu } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useState } from "react";
-
 import { useAuthStore } from "../../store/auth.store";
-
+import { useHealth } from "../../hooks/useHealth";
 import NotificationBell from "../cards/NotificationBell";
 import NotificationPanel from "../cards/NotificationPanel";
-
-// ======================================================
-// APP VERSION
-// ======================================================
-
-const APP_VERSION =
-  import.meta.env.VITE_APP_VERSION || "dev";
 
 // ======================================================
 // PAGE TITLES
@@ -26,6 +18,10 @@ const titles: Record<string, string> = {
   "/reports": "Reports",
   "/settings": "Settings",
 };
+
+// ======================================================
+// PAGE SUBTITLES
+// ======================================================
 
 const subtitles: Record<string, string> = {
   "/dashboard": "Your financial overview",
@@ -64,12 +60,26 @@ export default function Header({
   const [notificationsOpen, setNotificationsOpen] =
     useState(false);
 
+  // ====================================================
+  // BACKEND HEALTH / RUNTIME VERSION
+  // ====================================================
+
+  const {
+    data: health,
+    isLoading: isHealthLoading,
+    isError: isHealthError,
+  } = useHealth();
+
   const title =
     titles[location.pathname] || "Finance Tracker";
 
   const subtitle =
     subtitles[location.pathname] ||
     "Manage your personal finances";
+
+  // ====================================================
+  // NOTIFICATION HANDLERS
+  // ====================================================
 
   function handleToggleNotifications() {
     setNotificationsOpen(
@@ -80,6 +90,30 @@ export default function Header({
   function handleCloseNotifications() {
     setNotificationsOpen(false);
   }
+
+  // ====================================================
+  // VERSION DISPLAY
+  // ====================================================
+  //
+  // Backend is now the runtime source of truth.
+  //
+  // Example:
+  // GET /api/v1/health
+  //
+  // {
+  //   "status": "healthy",
+  //   "app_name": "Finora",
+  //   "version": "1.2.0"
+  // }
+  //
+  // The Header therefore renders:
+  //
+  // v1.2.0
+  //
+  // No frontend build-time version is used here.
+  // ====================================================
+
+  const runtimeVersion = health?.version;
 
   return (
     <header
@@ -171,7 +205,10 @@ export default function Header({
             </p>
           </div>
 
-          {/* APP VERSION */}
+          {/* ==================================================
+              APP VERSION
+              Backend runtime value
+              ================================================== */}
 
           <span
             className="
@@ -188,9 +225,21 @@ export default function Header({
               uppercase
               shrink-0
             "
-            title={`Finora v${APP_VERSION}`}
+            title={
+              runtimeVersion
+                ? `Finora v${runtimeVersion}`
+                : isHealthLoading
+                  ? "Checking backend version"
+                  : "Backend version unavailable"
+            }
           >
-            v{APP_VERSION}
+            {runtimeVersion
+              ? `v${runtimeVersion}`
+              : isHealthLoading
+                ? "v..."
+                : isHealthError
+                  ? "v—"
+                  : "vdev"}
           </span>
         </div>
 
@@ -262,7 +311,7 @@ export default function Header({
 
           {/* ==================================================
               NOTIFICATIONS
-          ================================================== */}
+              ================================================== */}
 
           <div className="relative">
             <NotificationBell

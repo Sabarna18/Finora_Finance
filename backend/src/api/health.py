@@ -4,6 +4,9 @@
 
 from fastapi import APIRouter
 
+from src.core.config import settings
+
+
 router = APIRouter(
     prefix="/health",
     tags=["Health"],
@@ -11,17 +14,21 @@ router = APIRouter(
 
 
 @router.get("")
-def health_check():
+def health_check() -> dict:
     """
-    Basic application health check.
+    Application health and metadata endpoint.
 
     Used by:
     - Docker healthcheck
     - Nginx/container monitoring
     - Load balancers
+    - Deployment verification
+    - Frontend runtime metadata resolution
     """
 
     return {
         "status": "healthy",
         "service": "Finora API",
+        "app_name": settings.APP_NAME,
+        "version": settings.APP_VERSION,
     }

@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "Finora"
     APP_ENV: str = "development"
+    APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
 
     # ======================================================

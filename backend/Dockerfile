@@ -4,20 +4,30 @@
 # Environment-neutral Docker image
 # ==========================================================
 
+
 FROM python:3.13-slim
 
 
 # ==========================================================
 # Build Arguments
 # ==========================================================
-
+#
 # Release pipeline passes the semantic application version.
-# Example:
-#   1.0.5
+#
+# Git release:
+#
+#   v1.2.0
+#
+# becomes:
+#
+#   APP_VERSION=1.2.0
 #
 # Development builds can use:
+#
 #   vdev
 #
+# ==========================================================
+
 ARG APP_VERSION=vdev
 
 
@@ -42,8 +52,11 @@ WORKDIR /backend
 # ==========================================================
 # System dependencies
 # ==========================================================
-
+#
 # curl is used by container health checks.
+#
+# ==========================================================
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
@@ -62,9 +75,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest \
 # ==========================================================
 # Dependency files
 # ==========================================================
-
+#
 # Copy dependency metadata first so Docker can cache
 # dependency installation independently of source changes.
+#
+# ==========================================================
 
 COPY pyproject.toml uv.lock ./
 
@@ -72,10 +87,12 @@ COPY pyproject.toml uv.lock ./
 # ==========================================================
 # Install runtime dependencies
 # ==========================================================
-
+#
 # --frozen guarantees that the committed uv.lock is used.
 # --no-dev keeps test/development dependencies out of
 # the production runtime image.
+#
+# ==========================================================
 
 RUN uv sync \
     --frozen \
@@ -108,4 +125,3 @@ EXPOSE 8000
 # ==========================================================
 
 ENTRYPOINT ["/backend/docker-entrypoint.sh"]
-

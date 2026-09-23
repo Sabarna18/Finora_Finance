@@ -10,44 +10,7 @@
 #   Backend + Web run locally in Docker
 #   Database remains cloud hosted (Neon PostgreSQL)
 #
-# Architecture:
-#
-#   Browser
-#      │
-#      ├──────────────► Web / Nginx :80
-#      │                    │
-#      │                    └── React static application
-#      │
-#      └──────────────► Backend :8000
-#                              │
-#                              │ SSL / PostgreSQL
-#                              ▼
-#                         Neon PostgreSQL
-#
-# IMPORTANT:
-#
-#   - There is NO local PostgreSQL container.
-#   - Database configuration belongs to backend/.env.
-#   - VITE_API_URL is a Vite build-time variable.
-#   - VITE_NOTIFICATION_WS_DEBUG is a Vite build-time variable.
-#   - Local development defaults VITE_API_URL to:
-#         http://localhost:8000/api/v1
-#   - Production CI/CD can override VITE_API_URL explicitly.
-#
-# Local usage:
-#
-#   docker compose up --build
-#
-# Then open:
-#
-#   http://localhost
-#
-# Backend health:
-#
-#   http://localhost:8000/api/v1/health
-#
 # ==========================================================
-
 
 services:
 
@@ -64,26 +27,26 @@ services:
       # ----------------------------------------------------
       # Backend Build Arguments
       # ----------------------------------------------------
-
       #
-      # APP_VERSION is embedded into the Docker image.
+      # APP_VERSION is passed into backend/Dockerfile:
       #
-      # Local development:
-      #   APP_VERSION=vdev
+      #   ARG APP_VERSION=vdev
       #
       # Release pipeline:
+      #
+      #   Git tag:    v1.0.5
       #   APP_VERSION=1.0.5
       #
-      # This allows the VPS deployment script to inspect the
-      # published image and determine which Finora release
-      # it contains.
+      # Dockerfile then embeds:
       #
+      #   ENV APP_VERSION=1.0.5
+      #
+      # ----------------------------------------------------
 
       args:
         APP_VERSION: ${APP_VERSION:-vdev}
 
     container_name: finora-backend
-
     restart: unless-stopped
 
 
@@ -91,39 +54,24 @@ services:
     # Backend Environment
     # ------------------------------------------------------
 
-    #
-    # The backend .env contains the cloud PostgreSQL/Neon
-    # connection and backend secrets.
-    #
-    # Compose-level defaults below keep local browser access
-    # working without requiring production environment values.
-    #
-
     env_file:
       - ./backend/.env
 
     environment:
-
       DEBUG: ${DEBUG:-true}
 
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-["http://localhost","http://localhost:80"]}
 
       # Runtime application version.
       #
-      # This should match the build argument above for normal
-      # local/release builds.
-
+      # Keep this aligned with the Docker build argument.
+      #
       APP_VERSION: ${APP_VERSION:-vdev}
 
 
     # ------------------------------------------------------
     # Backend Source Mount
     # ------------------------------------------------------
-
-    #
-    # Keeps local development convenient: source changes are
-    # visible inside the running container.
-    #
 
     volumes:
       - ./backend:/backend
@@ -176,44 +124,30 @@ services:
       context: .
       dockerfile: infrastructure/web/Dockerfile
 
-
       # ----------------------------------------------------
       # Frontend Build Arguments
       # ----------------------------------------------------
-
       #
       # Vite variables are embedded during npm build.
       #
-      # Local defaults:
+      # These remain unchanged so the existing frontend
+      # workflow continues to work.
       #
-      #   VITE_API_URL=http://localhost:8000/api/v1
-      #   VITE_NOTIFICATION_WS_DEBUG=true
-      #   VITE_APP_VERSION=vdev
-      #
-      # CI/CD may override these values explicitly.
-      #
+      # ----------------------------------------------------
 
       args:
-
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api/v1}
-
         VITE_NOTIFICATION_WS_DEBUG: ${VITE_NOTIFICATION_WS_DEBUG:-true}
-
         VITE_APP_VERSION: ${VITE_APP_VERSION:-vdev}
 
 
     container_name: finora-web
-
     restart: unless-stopped
 
 
     # ------------------------------------------------------
     # Backend Dependency
     # ------------------------------------------------------
-
-    #
-    # Do not start the web container until the API is healthy.
-    #
 
     depends_on:
       backend:
